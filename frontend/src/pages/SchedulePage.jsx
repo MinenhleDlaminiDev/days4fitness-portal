@@ -9,7 +9,7 @@ import {
   UsersIcon,
   XIcon
 } from "../components/Icons.jsx";
-import { scheduleEntries } from "../data/mockData.js";
+import { clients, scheduleEntries } from "../data/mockData.js";
 
 const weekDays = [
   { key: 0, label: "Mon", day: 11 },
@@ -28,6 +28,9 @@ function sessionAt(day, time) {
 
 function SessionDetailsModal({ session, onClose }) {
   if (!session) return null;
+  const client = clients.find((item) => item.name === session.client);
+  const isPaid = typeof session.paid === "boolean" ? session.paid : Boolean(client?.paid);
+  const progressPercent = client ? (client.sessionsUsed / client.sessionsTotal) * 100 : 0;
 
   return (
     <div className="fixed inset-0 z-50 overflow-auto bg-slate-950/40 backdrop-blur-sm">
@@ -44,9 +47,11 @@ function SessionDetailsModal({ session, onClose }) {
             <p className="text-sm text-slate-500">Client</p>
             <div className="flex items-center justify-between gap-3">
               <p className="text-xl font-semibold sm:text-2xl">{session.client}</p>
-              <Link to="/clients/1" className="text-sm font-medium text-emerald-700 sm:text-base">
-                View Profile
-              </Link>
+              {client && (
+                <Link to={`/clients/${client.id}`} className="text-sm font-medium text-emerald-700 sm:text-base">
+                  View Profile
+                </Link>
+              )}
             </div>
           </article>
 
@@ -73,24 +78,35 @@ function SessionDetailsModal({ session, onClose }) {
               Program
             </p>
             <p className="text-xl font-semibold sm:text-2xl">{session.program}</p>
-            <p className="text-base text-slate-600">One-on-One</p>
+            <p className="text-base text-slate-600">{client?.sessionType ?? "Session"}</p>
           </article>
 
-          <article className="rounded-2xl bg-slate-100 p-4">
+          <article className={`rounded-2xl p-4 ${client ? "bg-slate-100" : "border border-dashed border-slate-300 bg-slate-50"}`}>
             <p className="text-sm text-slate-500">Package Progress</p>
             <div className="mt-2 flex items-center justify-between text-base font-semibold sm:text-lg">
               <p>Sessions Remaining</p>
-              <p className="text-emerald-700">7 / 12</p>
+              <p className="text-emerald-700">
+                {client ? `${client.sessionsTotal - client.sessionsUsed} / ${client.sessionsTotal}` : "Not available"}
+              </p>
             </div>
-            <div className="mt-3 h-3 overflow-hidden rounded-full bg-slate-300">
-              <div className="h-full w-2/3 rounded-full bg-emerald-700" />
-            </div>
+            {client && (
+              <div className="mt-3 h-3 overflow-hidden rounded-full bg-slate-300">
+                <div className="h-full rounded-full bg-emerald-700" style={{ width: `${progressPercent}%` }} />
+              </div>
+            )}
           </article>
 
-          <article className="rounded-2xl border-l-4 border-emerald-500 bg-emerald-50 p-4">
-            <p className="text-lg font-semibold text-emerald-700 sm:text-xl">Payment Received</p>
-            <p className="text-sm text-emerald-700 sm:text-base">Package fully paid</p>
-          </article>
+          {isPaid ? (
+            <article className="rounded-2xl border-l-4 border-emerald-500 bg-emerald-50 p-4">
+              <p className="text-lg font-semibold text-emerald-700 sm:text-xl">Payment Received</p>
+              <p className="text-sm text-emerald-700 sm:text-base">Package fully paid</p>
+            </article>
+          ) : (
+            <article className="rounded-2xl border-l-4 border-red-500 bg-red-50 p-4">
+              <p className="text-lg font-semibold text-red-700 sm:text-xl">Payment Pending</p>
+              <p className="text-sm text-red-700 sm:text-base">Package not fully paid</p>
+            </article>
+          )}
 
           <button type="button" className="action-btn action-btn-primary w-full">
             Mark Complete
@@ -114,6 +130,7 @@ function SessionDetailsModal({ session, onClose }) {
 
 export default function SchedulePage() {
   const [activeSession, setActiveSession] = useState(null);
+  const [selectedDay, setSelectedDay] = useState(weekDays[0].key);
 
   const grid = useMemo(() => {
     return timeSlots.map((time) =>
@@ -124,6 +141,17 @@ export default function SchedulePage() {
       }))
     );
   }, []);
+
+  const sessionsByDay = useMemo(() => {
+    return weekDays.map((day) => ({
+      ...day,
+      sessions: scheduleEntries
+        .filter((entry) => entry.day === day.key)
+        .sort((a, b) => a.time.localeCompare(b.time))
+    }));
+  }, []);
+
+  const selectedDayData = sessionsByDay.find((day) => day.key === selectedDay) ?? sessionsByDay[0];
 
   return (
     <section className="page-wrap space-y-4 sm:space-y-5">
@@ -145,7 +173,61 @@ export default function SchedulePage() {
           </div>
         </div>
 
-        <div className="overflow-auto">
+        <div className="space-y-4 p-4 md:hidden">
+          <div className="grid grid-cols-7 gap-1">
+            {sessionsByDay.map((day) => (
+              <button
+                key={day.key}
+                type="button"
+                onClick={() => setSelectedDay(day.key)}
+                className={`rounded-lg border px-1 py-2 text-center transition ${
+                  selectedDay === day.key
+                    ? "border-emerald-700 bg-emerald-100 text-emerald-800"
+                    : "border-slate-200 bg-white text-slate-700"
+                }`}
+              >
+                <p className="text-[10px] font-semibold leading-none">{day.label}</p>
+                <p className="mt-1 text-sm font-semibold leading-none">{day.day}</p>
+                <p className="mt-1 text-[10px] leading-none text-slate-500">{day.sessions.length}</p>
+              </button>
+            ))}
+          </div>
+
+          <div>
+            <p className="text-sm font-semibold text-slate-800">
+              {selectedDayData.label} {selectedDayData.day}
+            </p>
+            <p className="text-xs text-slate-500">{selectedDayData.sessions.length} scheduled sessions</p>
+          </div>
+
+          <div className="space-y-2">
+            {selectedDayData.sessions.length === 0 && (
+              <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-3 text-sm text-slate-600">
+                No sessions booked for this day.
+              </div>
+            )}
+            {selectedDayData.sessions.map((session) => (
+              <button
+                key={`${selectedDayData.key}-${session.time}-${session.client}`}
+                type="button"
+                onClick={() => setActiveSession({ ...session, time: session.time })}
+                className={`w-full rounded-xl border px-3 py-3 text-left ${
+                  session.paid ? "border-emerald-200 bg-emerald-50" : "border-red-200 bg-red-50"
+                }`}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">{session.client}</p>
+                    <p className="text-xs text-slate-600">{session.program}</p>
+                  </div>
+                  <p className="text-sm font-semibold text-slate-700">{session.time}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="hidden overflow-auto md:block">
           <table className="min-w-[880px] table-fixed border-collapse text-left">
             <thead>
               <tr>
@@ -191,7 +273,7 @@ export default function SchedulePage() {
           </table>
         </div>
 
-        <div className="flex items-center justify-center gap-6 border-t border-slate-200 bg-white py-3 text-sm">
+        <div className="hidden items-center justify-center gap-6 border-t border-slate-200 bg-white py-3 text-sm md:flex">
           <span className="flex items-center gap-2">
             <span className="inline-block h-4 w-4 rounded border border-emerald-300 bg-emerald-50" />
             Paid

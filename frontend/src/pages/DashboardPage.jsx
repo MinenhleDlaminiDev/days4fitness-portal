@@ -1,6 +1,12 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { AlertCircleIcon, CalendarIcon, CheckCircleIcon, XCircleIcon } from "../components/Icons.jsx";
+import {
+  AlertCircleIcon,
+  CalendarIcon,
+  CheckCircleIcon,
+  PlusIcon,
+  XCircleIcon
+} from "../components/Icons.jsx";
 import { clients, todaySessions } from "../data/mockData.js";
 import { daysUntil } from "../lib/date.js";
 import { packagePrice } from "../lib/pricing.js";
@@ -41,7 +47,10 @@ export default function DashboardPage() {
             if (!client) return null;
             return (
               <div key={session.id} className="rounded-xl border-l-4 border-emerald-500 bg-emerald-50/60 px-3 py-3">
-                <div className="flex items-start justify-between gap-3">
+                <Link
+                  to={`/clients/${client.id}`}
+                  className="flex items-start justify-between gap-3 rounded-md p-1 -m-1 transition hover:bg-emerald-100"
+                >
                   <div>
                     <p className="text-lg font-semibold sm:text-xl">{client.name}</p>
                     <p className="text-sm text-slate-600 sm:text-base">{client.program}</p>
@@ -52,7 +61,7 @@ export default function DashboardPage() {
                   ) : (
                     <XCircleIcon className="text-red-500" />
                   )}
-                </div>
+                </Link>
                 <button
                   type="button"
                   onClick={() => markComplete(session.id)}
@@ -111,6 +120,14 @@ export default function DashboardPage() {
           ))}
         </div>
       </article>
+
+      <Link
+        to="/clients/new"
+        className="fixed bottom-24 right-5 grid h-14 w-14 place-items-center rounded-full bg-emerald-700 text-white shadow-lg transition hover:bg-emerald-800"
+        aria-label="Add new client"
+      >
+        <PlusIcon size={24} />
+      </Link>
     </section>
   );
 }

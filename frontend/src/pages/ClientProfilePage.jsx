@@ -4,7 +4,8 @@ import {
   CheckCircleIcon,
   EditIcon,
   MailIcon,
-  PhoneIcon
+  PhoneIcon,
+  XCircleIcon
 } from "../components/Icons.jsx";
 import { clients, profileSessionHistory } from "../data/mockData.js";
 import { daysUntil, formatShortDate } from "../lib/date.js";
@@ -53,10 +54,17 @@ export default function ClientProfilePage() {
       <article className="surface-card">
         <div className="mb-3 flex items-center justify-between gap-3">
           <h2 className="section-title mb-0">Current Package</h2>
-          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-1 text-sm font-semibold text-emerald-700">
-            <CheckCircleIcon size={16} className="text-emerald-600" />
-            Paid
-          </span>
+          {client.paid ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-1 text-sm font-semibold text-emerald-700">
+              <CheckCircleIcon size={16} className="text-emerald-600" />
+              Paid
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-1 text-sm font-semibold text-red-700">
+              <XCircleIcon size={16} className="text-red-600" />
+              Unpaid
+            </span>
+          )}
         </div>
         <p className="text-sm text-slate-600">Program</p>
         <p className="text-lg font-semibold sm:text-xl">{client.program}</p>
@@ -78,6 +86,14 @@ export default function ClientProfilePage() {
           <div className="h-full rounded-full bg-emerald-700" style={{ width: `${progress}%` }} />
         </div>
         <p className="mt-2 text-lg font-semibold text-emerald-700 sm:text-xl">{sessionsLeft} sessions remaining</p>
+
+        <div
+          className={`mt-3 rounded-xl border-l-4 p-3 text-sm ${
+            client.paid ? "border-emerald-500 bg-emerald-50 text-emerald-700" : "border-red-500 bg-red-50 text-red-700"
+          }`}
+        >
+          {client.paid ? "Package fully paid" : "Package not fully paid"}
+        </div>
 
         <hr className="my-3 border-slate-200" />
 
