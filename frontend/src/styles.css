@@ -1,12 +1,83 @@
+@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --bg-base: #f4f6f0;
+  --bg-surface: #ffffff;
+  --text-primary: #16221b;
+  --text-muted: #5f6e65;
+  --brand: #1d7a46;
+  --brand-strong: #145432;
+  --brand-soft: #def3e4;
+  --warn-soft: #fff2db;
+  --warn-text: #91580a;
+  --danger-soft: #ffe7e4;
+  --danger-text: #9e2921;
+  --border: #dce3dc;
+}
+
 body {
-  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-  background: #f1f3f5;
+  font-family: "Space Grotesk", "Segoe UI", sans-serif;
+  color: var(--text-primary);
+  background:
+    radial-gradient(circle at 0% 0%, #d6ead7 0%, transparent 35%),
+    radial-gradient(circle at 100% 0%, #fbeed4 0%, transparent 30%),
+    var(--bg-base);
 }
 
 #root {
   min-height: 100vh;
+}
+
+::selection {
+  background: #cdecd7;
+  color: #0f2b1b;
+}
+
+@layer components {
+  .app-shell {
+    @apply min-h-screen text-slate-900;
+  }
+
+  .page-wrap {
+    @apply mx-auto w-full max-w-6xl px-4 pb-24 pt-4 sm:px-6;
+  }
+
+  .page-header {
+    background: linear-gradient(135deg, var(--brand-strong), var(--brand));
+    @apply rounded-3xl px-5 py-5 text-white shadow-lg sm:px-6 sm:py-6;
+  }
+
+  .page-title {
+    @apply text-3xl font-bold leading-tight tracking-tight sm:text-4xl;
+  }
+
+  .page-subtitle {
+    @apply mt-1 text-sm text-emerald-100 sm:text-base;
+  }
+
+  .surface-card {
+    @apply rounded-3xl border p-4 shadow-sm backdrop-blur-sm sm:p-5;
+    border-color: color-mix(in srgb, var(--border) 80%, white);
+    background: color-mix(in srgb, var(--bg-surface) 92%, transparent);
+  }
+
+  .section-title {
+    @apply mb-3 flex items-center gap-2 text-lg font-semibold sm:text-xl;
+  }
+
+  .action-btn {
+    @apply inline-flex h-11 items-center justify-center rounded-xl px-4 text-sm font-semibold transition sm:h-12 sm:text-base;
+  }
+
+  .action-btn-primary {
+    @apply bg-emerald-700 text-white hover:bg-emerald-800;
+  }
+
+  .action-btn-secondary {
+    @apply border border-emerald-700 bg-white text-emerald-700 hover:bg-emerald-50;
+  }
 }

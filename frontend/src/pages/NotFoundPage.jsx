@@ -1,7 +1,9 @@
 export default function NotFoundPage() {
   return (
-    <section className="px-4 py-10">
-      <h1 className="text-3xl font-semibold">Page Not Found</h1>
+    <section className="page-wrap">
+      <div className="surface-card">
+        <h1 className="text-2xl font-semibold sm:text-3xl">Page Not Found</h1>
+      </div>
     </section>
   );
 }
