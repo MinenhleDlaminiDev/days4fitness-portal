@@ -10,6 +10,7 @@ import {
 import { clients, todaySessions } from "../data/mockData.js";
 import { daysUntil } from "../lib/date.js";
 import { packagePrice } from "../lib/pricing.js";
+import ThemeToggle from "../components/ThemeToggle.jsx";
 
 function clientById(clientId) {
   return clients.find((item) => item.id === clientId);
@@ -41,8 +42,13 @@ export default function DashboardPage() {
   return (
     <section className="page-wrap space-y-4 sm:space-y-5">
       <header className="page-header">
-        <h1 className="page-title">Dashboard</h1>
-        <p className="page-subtitle">Trainer management overview</p>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h1 className="page-title">Dashboard</h1>
+            <p className="page-subtitle">Trainer management overview</p>
+          </div>
+          <ThemeToggle />
+        </div>
         <div className="mt-3 flex flex-wrap gap-2">
           {stats.map((item) => (
             <span

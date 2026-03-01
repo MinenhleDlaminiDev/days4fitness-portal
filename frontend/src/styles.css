@@ -19,6 +19,21 @@
   --border: #dce3dc;
 }
 
+html[data-theme="dark"] {
+  --bg-base: #0f1412;
+  --bg-surface: #121a17;
+  --text-primary: #e5efe9;
+  --text-muted: #9eb0a6;
+  --brand: #2ea366;
+  --brand-strong: #1c7a49;
+  --brand-soft: #163827;
+  --warn-soft: #3b2f1a;
+  --warn-text: #f4d29a;
+  --danger-soft: #3f2020;
+  --danger-text: #f5b3b3;
+  --border: #2b3731;
+}
+
 body {
   font-family: "Satoshi", "Segoe UI", sans-serif;
   color: var(--text-primary);
@@ -73,6 +88,31 @@ body {
 
   .section-title {
     @apply mb-3 flex items-center gap-2 text-lg font-semibold sm:text-xl;
+  }
+
+  .theme-toggle {
+    @apply relative h-10 w-[76px] rounded-full border border-white/30 p-1 transition;
+    background: color-mix(in srgb, var(--brand-soft) 35%, transparent);
+    backdrop-filter: blur(8px);
+  }
+
+  .theme-toggle-knob {
+    @apply grid h-8 w-8 place-items-center rounded-full transition-transform duration-300;
+    background: linear-gradient(135deg, #47b377, var(--brand));
+    color: #eafff2;
+    box-shadow: 0 6px 14px rgba(15, 23, 42, 0.2);
+    transform: translateX(0);
+  }
+
+  .theme-toggle.dark .theme-toggle-knob {
+    background: linear-gradient(135deg, var(--brand), var(--brand-strong));
+    color: #d8f6e3;
+    transform: translateX(36px);
+  }
+
+  .app-nav {
+    border-color: rgba(226, 232, 240, 0.8);
+    background: rgba(255, 255, 255, 0.95);
   }
 
   .action-btn {
@@ -141,6 +181,84 @@ body {
   .modal-panel.is-closing {
     animation: modal-panel-out 160ms ease-in both;
   }
+}
+
+html[data-theme="dark"] .bg-white {
+  background-color: #111a16 !important;
+}
+
+html[data-theme="dark"] .bg-slate-50 {
+  background-color: #17231e !important;
+}
+
+html[data-theme="dark"] .bg-slate-100 {
+  background-color: #1c2a23 !important;
+}
+
+html[data-theme="dark"] .text-slate-900 {
+  color: #e8f1ec !important;
+}
+
+html[data-theme="dark"] .text-slate-800 {
+  color: #dbe8e2 !important;
+}
+
+html[data-theme="dark"] .text-slate-700 {
+  color: #cadad2 !important;
+}
+
+html[data-theme="dark"] .text-slate-600,
+html[data-theme="dark"] .text-slate-500,
+html[data-theme="dark"] .text-slate-400 {
+  color: #9db0a6 !important;
+}
+
+html[data-theme="dark"] .border-slate-200,
+html[data-theme="dark"] .border-slate-300 {
+  border-color: #2c3933 !important;
+}
+
+html[data-theme="dark"] .app-nav {
+  border-color: #2c3933;
+  background: rgba(15, 21, 18, 0.92);
+}
+
+html[data-theme="dark"] .app-nav-link {
+  color: #9eb0a6;
+}
+
+html[data-theme="dark"] .app-nav-link:hover {
+  color: #d7e4dd;
+}
+
+html[data-theme="dark"] .theme-toggle {
+  border-color: #385046;
+  background: color-mix(in srgb, var(--bg-surface) 75%, transparent);
+}
+
+html[data-theme="dark"] .schedule-page .text-slate-900,
+html[data-theme="dark"] .schedule-page .text-slate-800,
+html[data-theme="dark"] .schedule-page .text-slate-700 {
+  color: #e2efe8 !important;
+}
+
+html[data-theme="dark"] .schedule-page .text-slate-600,
+html[data-theme="dark"] .schedule-page .text-slate-500,
+html[data-theme="dark"] .schedule-page .text-slate-400 {
+  color: #bfd0c7 !important;
+}
+
+html[data-theme="dark"] .schedule-page .border-slate-200,
+html[data-theme="dark"] .schedule-page .border-slate-300 {
+  border-color: #3a4a42 !important;
+}
+
+html[data-theme="dark"] .schedule-page .bg-emerald-50 {
+  background-color: #1b3427 !important;
+}
+
+html[data-theme="dark"] .schedule-page .bg-red-50 {
+  background-color: #3a2023 !important;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -10,6 +10,7 @@ import {
   X as XIcon
 } from "lucide-react";
 import { clients, scheduleEntries } from "../data/mockData.js";
+import ThemeToggle from "../components/ThemeToggle.jsx";
 
 const weekDays = [
   { key: 0, label: "Mon", day: 11 },
@@ -173,10 +174,15 @@ export default function SchedulePage() {
   }
 
   return (
-    <section className="page-wrap space-y-4 sm:space-y-5">
+    <section className="page-wrap schedule-page space-y-4 sm:space-y-5">
       <header className="page-header">
-        <h1 className="page-title">Schedule</h1>
-        <p className="page-subtitle">Weekly session planner</p>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h1 className="page-title">Schedule</h1>
+            <p className="page-subtitle">Weekly session planner</p>
+          </div>
+          <ThemeToggle />
+        </div>
       </header>
 
       <div className="surface-card overflow-hidden p-0">

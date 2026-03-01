@@ -10,6 +10,7 @@ import {
 import { clients, profileSessionHistory } from "../data/mockData.js";
 import { daysUntil, formatShortDate } from "../lib/date.js";
 import { packagePrice } from "../lib/pricing.js";
+import ThemeToggle from "../components/ThemeToggle.jsx";
 
 export default function ClientProfilePage() {
   const navigate = useNavigate();
@@ -31,9 +32,12 @@ export default function ClientProfilePage() {
             <p className="text-sm text-emerald-100">Client profile</p>
           </div>
         </div>
-        <Link to={`/clients/${client.id}/edit`} aria-label="Edit client">
-          <EditIcon size={20} className="stroke-[1.75]" />
-        </Link>
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
+          <Link to={`/clients/${client.id}/edit`} aria-label="Edit client">
+            <EditIcon size={20} className="stroke-[1.75]" />
+          </Link>
+        </div>
       </header>
 
       <article className="surface-card">

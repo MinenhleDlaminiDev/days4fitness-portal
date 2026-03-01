@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft as ArrowLeftIcon } from "lucide-react";
 import { addTwoMonths } from "../lib/date.js";
+import ThemeToggle from "../components/ThemeToggle.jsx";
 
 const programs = [
   "Weight Loss",
@@ -44,14 +45,17 @@ export default function ClientFormPage() {
 
   return (
     <section className="page-wrap space-y-4 sm:space-y-5">
-      <header className="page-header flex items-center gap-3">
-        <button type="button" onClick={() => navigate(-1)} aria-label="Go back">
-          <ArrowLeftIcon size={20} className="stroke-[1.75]" />
-        </button>
-        <div>
-          <h1 className="page-title text-2xl sm:text-3xl">{isEdit ? "Edit Client" : "Add New Client"}</h1>
-          <p className="text-sm text-emerald-100">Client intake form</p>
+      <header className="page-header flex items-start justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <button type="button" onClick={() => navigate(-1)} aria-label="Go back">
+            <ArrowLeftIcon size={20} className="stroke-[1.75]" />
+          </button>
+          <div>
+            <h1 className="page-title text-2xl sm:text-3xl">{isEdit ? "Edit Client" : "Add New Client"}</h1>
+            <p className="text-sm text-emerald-100">Client intake form</p>
+          </div>
         </div>
+        <ThemeToggle />
       </header>
 
       <form className="space-y-4" onSubmit={submitForm}>

@@ -9,7 +9,7 @@ const items = [
 
 export default function BottomNav() {
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-slate-200/80 bg-white/95 backdrop-blur">
+    <nav className="app-nav fixed bottom-0 left-0 right-0 z-40 border-t backdrop-blur">
       <div className="mx-auto flex max-w-6xl">
         {items.map((item) => {
           const Icon = item.icon;
@@ -18,7 +18,7 @@ export default function BottomNav() {
               key={item.to}
               to={item.to}
               className={({ isActive }) =>
-                `flex flex-1 flex-col items-center gap-1 py-3 text-xs font-medium transition ${
+                `app-nav-link flex flex-1 flex-col items-center gap-1 py-3 text-xs font-medium transition ${
                   isActive ? "text-emerald-700" : "text-slate-500 hover:text-slate-700"
                 }`
               }

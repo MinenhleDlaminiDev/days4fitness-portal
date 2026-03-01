@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { clients } from "../data/mockData.js";
 import { daysUntil } from "../lib/date.js";
+import ThemeToggle from "../components/ThemeToggle.jsx";
 
 const tabs = ["Active", "Expired", "All"];
 
@@ -36,8 +37,13 @@ export default function ClientsPage() {
   return (
     <section className="page-wrap space-y-4 sm:space-y-5">
       <header className="page-header">
-        <h1 className="page-title">Clients</h1>
-        <p className="page-subtitle">Client management overview</p>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h1 className="page-title">Clients</h1>
+            <p className="page-subtitle">Client management overview</p>
+          </div>
+          <ThemeToggle />
+        </div>
         <div className="mt-3 flex flex-wrap gap-2">
           <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5">
             <span className="text-[11px] font-medium uppercase tracking-wide text-emerald-100">Showing</span>
