@@ -1,5 +1,5 @@
 import { NavLink } from "react-router-dom";
-import { CalendarIcon, ClockIcon, UsersIcon } from "./Icons.jsx";
+import { Calendar as CalendarIcon, Clock as ClockIcon, Users as UsersIcon } from "lucide-react";
 
 const items = [
   { to: "/", label: "Dashboard", icon: CalendarIcon },
@@ -23,7 +23,7 @@ export default function BottomNav() {
                 }`
               }
             >
-              <Icon size={22} />
+              <Icon size={20} className="stroke-[1.75]" />
               <span>{item.label}</span>
             </NavLink>
           );

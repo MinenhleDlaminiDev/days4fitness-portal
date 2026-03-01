@@ -1,14 +1,14 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
-  ArrowLeftIcon,
-  ArrowRightIcon,
-  CalendarIcon,
-  ClockIcon,
-  PlusIcon,
-  UsersIcon,
-  XIcon
-} from "../components/Icons.jsx";
+  ArrowLeft as ArrowLeftIcon,
+  ArrowRight as ArrowRightIcon,
+  Calendar as CalendarIcon,
+  Clock as ClockIcon,
+  Plus as PlusIcon,
+  Users as UsersIcon,
+  X as XIcon
+} from "lucide-react";
 import { clients, scheduleEntries } from "../data/mockData.js";
 
 const weekDays = [
@@ -26,19 +26,19 @@ function sessionAt(day, time) {
   return scheduleEntries.find((entry) => entry.day === day && entry.time === time);
 }
 
-function SessionDetailsModal({ session, onClose }) {
+function SessionDetailsModal({ session, onClose, isClosing }) {
   if (!session) return null;
   const client = clients.find((item) => item.name === session.client);
   const isPaid = typeof session.paid === "boolean" ? session.paid : Boolean(client?.paid);
   const progressPercent = client ? (client.sessionsUsed / client.sessionsTotal) * 100 : 0;
 
   return (
-    <div className="fixed inset-0 z-50 overflow-auto bg-slate-950/40 backdrop-blur-sm">
-      <div className="mx-auto mt-8 w-[calc(100%-1.5rem)] max-w-2xl rounded-3xl bg-white shadow-2xl">
+    <div className={`modal-backdrop fixed inset-0 z-50 overflow-auto bg-slate-950/40 backdrop-blur-sm ${isClosing ? "is-closing" : ""}`}>
+      <div className={`modal-panel mx-auto mt-8 w-[calc(100%-1.5rem)] max-w-2xl rounded-3xl bg-white shadow-2xl ${isClosing ? "is-closing" : ""}`}>
         <header className="flex items-center justify-between rounded-t-3xl bg-gradient-to-br from-emerald-900 to-emerald-700 px-5 py-5 text-white">
           <h2 className="text-2xl font-semibold sm:text-3xl">Session Details</h2>
           <button type="button" onClick={onClose} aria-label="Close modal">
-            <XIcon size={30} />
+            <XIcon size={24} className="stroke-[1.75]" />
           </button>
         </header>
 
@@ -58,14 +58,14 @@ function SessionDetailsModal({ session, onClose }) {
           <div className="grid grid-cols-2 gap-3">
             <article className="rounded-2xl bg-slate-100 p-4">
               <p className="mb-2 flex items-center gap-2 text-sm text-slate-500">
-                <CalendarIcon className="text-emerald-700" />
+                <CalendarIcon size={16} className="stroke-[1.75] text-emerald-700" />
                 Date
               </p>
               <p className="text-lg font-semibold sm:text-xl">Tue, Nov 12</p>
             </article>
             <article className="rounded-2xl bg-slate-100 p-4">
               <p className="mb-2 flex items-center gap-2 text-sm text-slate-500">
-                <ClockIcon className="text-emerald-700" />
+                <ClockIcon size={16} className="stroke-[1.75] text-emerald-700" />
                 Time
               </p>
               <p className="text-lg font-semibold sm:text-xl">{session.time}</p>
@@ -74,7 +74,7 @@ function SessionDetailsModal({ session, onClose }) {
 
           <article className="rounded-2xl bg-slate-100 p-4">
             <p className="mb-2 flex items-center gap-2 text-sm text-slate-500">
-              <UsersIcon className="text-emerald-700" />
+              <UsersIcon size={16} className="stroke-[1.75] text-emerald-700" />
               Program
             </p>
             <p className="text-xl font-semibold sm:text-2xl">{session.program}</p>
@@ -130,6 +130,7 @@ function SessionDetailsModal({ session, onClose }) {
 
 export default function SchedulePage() {
   const [activeSession, setActiveSession] = useState(null);
+  const [isClosingModal, setIsClosingModal] = useState(false);
   const [selectedDay, setSelectedDay] = useState(weekDays[0].key);
 
   const grid = useMemo(() => {
@@ -153,22 +154,40 @@ export default function SchedulePage() {
 
   const selectedDayData = sessionsByDay.find((day) => day.key === selectedDay) ?? sessionsByDay[0];
 
+  useEffect(() => {
+    if (!isClosingModal) return;
+    const timeoutId = setTimeout(() => {
+      setActiveSession(null);
+      setIsClosingModal(false);
+    }, 170);
+    return () => clearTimeout(timeoutId);
+  }, [isClosingModal]);
+
+  function openSessionDetails(session) {
+    setIsClosingModal(false);
+    setActiveSession(session);
+  }
+
+  function closeSessionDetails() {
+    setIsClosingModal(true);
+  }
+
   return (
     <section className="page-wrap space-y-4 sm:space-y-5">
       <header className="page-header">
         <h1 className="page-title">Schedule</h1>
-        <p className="page-subtitle">Book and manage sessions</p>
+        <p className="page-subtitle">Weekly session planner</p>
       </header>
 
       <div className="surface-card overflow-hidden p-0">
         <div className="border-b border-slate-200 bg-white px-4 py-4 sm:px-5">
           <div className="flex items-center justify-between text-lg font-semibold sm:text-xl">
             <button type="button" aria-label="Previous week" className="text-slate-600 hover:text-slate-900">
-              <ArrowLeftIcon size={24} />
+              <ArrowLeftIcon size={20} className="stroke-[1.75]" />
             </button>
             <h2>Nov 11 - Nov 17, 2024</h2>
             <button type="button" aria-label="Next week" className="text-slate-600 hover:text-slate-900">
-              <ArrowRightIcon size={24} />
+              <ArrowRightIcon size={20} className="stroke-[1.75]" />
             </button>
           </div>
         </div>
@@ -200,20 +219,21 @@ export default function SchedulePage() {
             <p className="text-xs text-slate-500">{selectedDayData.sessions.length} scheduled sessions</p>
           </div>
 
-          <div className="space-y-2">
+          <div className="stagger-list space-y-2">
             {selectedDayData.sessions.length === 0 && (
               <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-3 text-sm text-slate-600">
                 No sessions booked for this day.
               </div>
             )}
-            {selectedDayData.sessions.map((session) => (
+            {selectedDayData.sessions.map((session, index) => (
               <button
                 key={`${selectedDayData.key}-${session.time}-${session.client}`}
                 type="button"
-                onClick={() => setActiveSession({ ...session, time: session.time })}
-                className={`w-full rounded-xl border px-3 py-3 text-left ${
+                onClick={() => openSessionDetails({ ...session, time: session.time })}
+                className={`interactive-card stagger-item w-full rounded-xl border px-3 py-3 text-left ${
                   session.paid ? "border-emerald-200 bg-emerald-50" : "border-red-200 bg-red-50"
                 }`}
+                style={{ "--stagger": index }}
               >
                 <div className="flex items-center justify-between gap-3">
                   <div>
@@ -232,7 +252,7 @@ export default function SchedulePage() {
             <thead>
               <tr>
                 <th className="w-20 border border-slate-200 bg-white px-2 py-2 text-sm text-slate-500">
-                  <ClockIcon size={18} />
+                  <ClockIcon size={16} className="stroke-[1.75]" />
                 </th>
                 {weekDays.map((day) => (
                   <th
@@ -256,9 +276,11 @@ export default function SchedulePage() {
                       {cell.session && (
                         <button
                           type="button"
-                          onClick={() => setActiveSession({ ...cell.session, time: cell.time })}
-                          className={`h-full w-full rounded-lg px-2 py-1 text-left transition ${
-                            cell.session.paid ? "bg-emerald-50 hover:bg-emerald-100" : "bg-red-50 hover:bg-red-100"
+                          onClick={() => openSessionDetails({ ...cell.session, time: cell.time })}
+                          className={`interactive-card h-full w-full rounded-lg border px-2 py-1 text-left ${
+                            cell.session.paid
+                              ? "border-emerald-200 bg-emerald-50 hover:bg-emerald-100"
+                              : "border-red-200 bg-red-50 hover:bg-red-100"
                           }`}
                         >
                           <p className="text-sm font-semibold leading-none">{cell.session.client}</p>
@@ -289,15 +311,15 @@ export default function SchedulePage() {
         </div>
       </div>
 
-      <button
-        type="button"
-        className="fixed bottom-24 right-5 grid h-14 w-14 place-items-center rounded-full bg-emerald-700 text-white shadow-lg transition hover:bg-emerald-800"
-        aria-label="Add session"
+      <Link
+        to="/clients/new"
+        className="fab-btn"
+        aria-label="Add new client"
       >
-        <PlusIcon size={24} />
-      </button>
+        <PlusIcon size={22} className="stroke-[1.75]" />
+      </Link>
 
-      <SessionDetailsModal session={activeSession} onClose={() => setActiveSession(null)} />
+      <SessionDetailsModal session={activeSession} onClose={closeSessionDetails} isClosing={isClosingModal} />
     </section>
   );
 }

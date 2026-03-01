@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeftIcon } from "../components/Icons.jsx";
+import { ArrowLeft as ArrowLeftIcon } from "lucide-react";
 import { addTwoMonths } from "../lib/date.js";
 
 const programs = [
@@ -46,14 +46,17 @@ export default function ClientFormPage() {
     <section className="page-wrap space-y-4 sm:space-y-5">
       <header className="page-header flex items-center gap-3">
         <button type="button" onClick={() => navigate(-1)} aria-label="Go back">
-          <ArrowLeftIcon />
+          <ArrowLeftIcon size={20} className="stroke-[1.75]" />
         </button>
-        <h1 className="page-title text-2xl sm:text-3xl">{isEdit ? "Edit Client" : "Add New Client"}</h1>
+        <div>
+          <h1 className="page-title text-2xl sm:text-3xl">{isEdit ? "Edit Client" : "Add New Client"}</h1>
+          <p className="text-sm text-emerald-100">Client intake form</p>
+        </div>
       </header>
 
       <form className="space-y-4" onSubmit={submitForm}>
         <article className="surface-card">
-          <h2 className="section-title">Basic Information</h2>
+          <h2 className="section-title text-base sm:text-lg">Basic Information</h2>
           <div className="space-y-3">
             <label className="block">
               <span className="text-sm font-medium sm:text-base">Name *</span>
@@ -88,7 +91,7 @@ export default function ClientFormPage() {
         </article>
 
         <article className="surface-card">
-          <h2 className="section-title">Package Details</h2>
+          <h2 className="section-title text-base sm:text-lg">Package Details</h2>
           <div className="space-y-3">
             <label className="block">
               <span className="text-sm font-medium sm:text-base">Program *</span>
@@ -164,7 +167,7 @@ export default function ClientFormPage() {
         </article>
 
         <article className="surface-card">
-          <h2 className="section-title">Payment Status</h2>
+          <h2 className="section-title text-base sm:text-lg">Payment Status</h2>
           <label className="flex items-center gap-3 text-sm sm:text-base">
             <input
               type="checkbox"

@@ -1,12 +1,12 @@
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
-  ArrowLeftIcon,
-  CheckCircleIcon,
-  EditIcon,
-  MailIcon,
-  PhoneIcon,
-  XCircleIcon
-} from "../components/Icons.jsx";
+  ArrowLeft as ArrowLeftIcon,
+  CircleCheck as CheckCircleIcon,
+  CircleX as XCircleIcon,
+  Mail as MailIcon,
+  Pencil as EditIcon,
+  Phone as PhoneIcon
+} from "lucide-react";
 import { clients, profileSessionHistory } from "../data/mockData.js";
 import { daysUntil, formatShortDate } from "../lib/date.js";
 import { packagePrice } from "../lib/pricing.js";
@@ -24,26 +24,29 @@ export default function ClientProfilePage() {
       <header className="page-header flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <button type="button" onClick={() => navigate(-1)} aria-label="Go back">
-            <ArrowLeftIcon />
+            <ArrowLeftIcon size={20} className="stroke-[1.75]" />
           </button>
-          <h1 className="page-title text-2xl sm:text-3xl">{client.name}</h1>
+          <div>
+            <h1 className="page-title text-2xl sm:text-3xl">{client.name}</h1>
+            <p className="text-sm text-emerald-100">Client profile</p>
+          </div>
         </div>
         <Link to={`/clients/${client.id}/edit`} aria-label="Edit client">
-          <EditIcon />
+          <EditIcon size={20} className="stroke-[1.75]" />
         </Link>
       </header>
 
       <article className="surface-card">
-        <h2 className="section-title">Contact Information</h2>
+        <h2 className="section-title text-base sm:text-lg">Contact Information</h2>
         <div className="space-y-2">
           <p className="flex items-center gap-2 text-sm text-slate-700 sm:text-base">
-            <PhoneIcon className="text-emerald-700" />
+            <PhoneIcon size={18} className="stroke-[1.75] text-emerald-700" />
             <a href={`tel:${client.phone}`} className="underline underline-offset-4">
               {client.phone}
             </a>
           </p>
           <p className="flex items-center gap-2 text-sm text-slate-700 sm:text-base">
-            <MailIcon className="text-emerald-700" />
+            <MailIcon size={18} className="stroke-[1.75] text-emerald-700" />
             <a href={`mailto:${client.email}`} className="underline underline-offset-4">
               {client.email}
             </a>
@@ -53,15 +56,15 @@ export default function ClientProfilePage() {
 
       <article className="surface-card">
         <div className="mb-3 flex items-center justify-between gap-3">
-          <h2 className="section-title mb-0">Current Package</h2>
+          <h2 className="section-title mb-0 text-base sm:text-lg">Current Package</h2>
           {client.paid ? (
             <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-1 text-sm font-semibold text-emerald-700">
-              <CheckCircleIcon size={16} className="text-emerald-600" />
+              <CheckCircleIcon size={14} className="stroke-[1.75] text-emerald-600" />
               Paid
             </span>
           ) : (
             <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-1 text-sm font-semibold text-red-700">
-              <XCircleIcon size={16} className="text-red-600" />
+              <XCircleIcon size={14} className="stroke-[1.75] text-red-600" />
               Unpaid
             </span>
           )}
@@ -123,7 +126,7 @@ export default function ClientProfilePage() {
       </div>
 
       <article className="surface-card">
-        <h2 className="section-title">Session History</h2>
+        <h2 className="section-title text-base sm:text-lg">Session History</h2>
         <div className="space-y-2">
           {profileSessionHistory.map((entry) => (
             <div key={`${entry.date}-${entry.time}`} className="border-b border-slate-200 py-2 last:border-0">
