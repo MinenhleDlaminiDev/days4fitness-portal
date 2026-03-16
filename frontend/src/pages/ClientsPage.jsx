@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   CircleCheck as CheckCircleIcon,
@@ -6,8 +6,8 @@ import {
   Plus as PlusIcon,
   Search as SearchIcon
 } from "lucide-react";
-import { clients } from "../data/mockData.js";
 import { daysUntil } from "../lib/date.js";
+import { fetchClients } from "../lib/api.js";
 import ThemeToggle from "../components/ThemeToggle.jsx";
 
 const tabs = ["Active", "Expired", "All"];
@@ -20,8 +20,38 @@ function filterByTab(client, tab) {
 }
 
 export default function ClientsPage() {
+  const [clients, setClients] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [tab, setTab] = useState("Active");
   const [search, setSearch] = useState("");
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadClients() {
+      try {
+        setIsLoading(true);
+        setLoadError("");
+        const rows = await fetchClients();
+        if (!mounted) return;
+        setClients(Array.isArray(rows) ? rows : []);
+      } catch (error) {
+        if (!mounted) return;
+        const message = error?.response?.data?.message || "Failed to load clients.";
+        setLoadError(message);
+      } finally {
+        if (mounted) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    loadClients();
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -31,7 +61,7 @@ export default function ClientsPage() {
         client.name.toLowerCase().includes(q) || client.program.toLowerCase().includes(q);
       return matchesTab && matchesSearch;
     });
-  }, [search, tab]);
+  }, [clients, search, tab]);
   const unpaidCount = useMemo(() => filtered.filter((client) => !client.paid).length, [filtered]);
 
   return (
@@ -83,6 +113,21 @@ export default function ClientsPage() {
         </div>
 
         <div className="stagger-list space-y-3">
+          {isLoading && (
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+              Loading clients...
+            </div>
+          )}
+          {!isLoading && loadError && (
+            <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+              {loadError}
+            </div>
+          )}
+          {!isLoading && !loadError && filtered.length === 0 && (
+            <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-600">
+              No clients found for this filter.
+            </div>
+          )}
           {filtered.map((client, index) => {
             const sessionsLeft = client.sessionsTotal - client.sessionsUsed;
             const remainingDays = daysUntil(client.expiryDate);

@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft as ArrowLeftIcon,
@@ -7,18 +8,168 @@ import {
   Pencil as EditIcon,
   Phone as PhoneIcon
 } from "lucide-react";
-import { clients, profileSessionHistory } from "../data/mockData.js";
+import { profileSessionHistory } from "../data/mockData.js";
 import { daysUntil, formatShortDate } from "../lib/date.js";
 import { packagePrice } from "../lib/pricing.js";
+import { fetchClientById, updateClientPreferences } from "../lib/api.js";
 import ThemeToggle from "../components/ThemeToggle.jsx";
+
+const weekDays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const weekdayTimeSlots = Array.from({ length: 15 }, (_, index) => `${String(index + 5).padStart(2, "0")}:00`);
+const saturdayTimeSlots = Array.from({ length: 6 }, (_, index) => `${String(index + 5).padStart(2, "0")}:00`);
+
+function timeSlotsForDay(day) {
+  return day === "Saturday" ? saturdayTimeSlots : weekdayTimeSlots;
+}
 
 export default function ClientProfilePage() {
   const navigate = useNavigate();
   const { id } = useParams();
-  const client = clients.find((item) => String(item.id) === id) || clients[0];
+  const [client, setClient] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [isEditingPreferences, setIsEditingPreferences] = useState(false);
+  const [isSavingPreferences, setIsSavingPreferences] = useState(false);
+  const [preferencesError, setPreferencesError] = useState("");
+  const [preferenceForm, setPreferenceForm] = useState({
+    preferredDays: [],
+    preferredSchedule: {}
+  });
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadClient() {
+      try {
+        setIsLoading(true);
+        setLoadError("");
+        const row = await fetchClientById(id);
+        if (!mounted) return;
+        setClient(row);
+        setPreferenceForm({
+          preferredDays: Array.isArray(row.preferredDays) ? row.preferredDays : [],
+          preferredSchedule:
+            row.preferredSchedule && typeof row.preferredSchedule === "object" ? row.preferredSchedule : {}
+        });
+      } catch (error) {
+        if (!mounted) return;
+        const message = error?.response?.data?.message || "Unable to load this client.";
+        setLoadError(message);
+      } finally {
+        if (mounted) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    loadClient();
+    return () => {
+      mounted = false;
+    };
+  }, [id]);
+
+  if (isLoading) {
+    return (
+      <section className="page-wrap">
+        <div className="surface-card text-sm text-slate-600">Loading client...</div>
+      </section>
+    );
+  }
+
+  if (!client || loadError) {
+    return (
+      <section className="page-wrap space-y-4">
+        <header className="page-header flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={() => navigate(-1)} aria-label="Go back">
+              <ArrowLeftIcon size={20} className="stroke-[1.75]" />
+            </button>
+            <div>
+              <h1 className="page-title text-2xl sm:text-3xl">Client Not Found</h1>
+              <p className="text-sm text-emerald-100">Client profile</p>
+            </div>
+          </div>
+          <ThemeToggle />
+        </header>
+        <article className="surface-card text-sm text-red-700">{loadError || "This client does not exist."}</article>
+      </section>
+    );
+  }
 
   const sessionsLeft = client.sessionsTotal - client.sessionsUsed;
-  const progress = (client.sessionsUsed / client.sessionsTotal) * 100;
+  const progress = client.sessionsTotal > 0 ? (client.sessionsUsed / client.sessionsTotal) * 100 : 0;
+  const hasAnyPreference = Array.isArray(client.preferredDays) && client.preferredDays.length > 0;
+
+  function togglePreferredDay(day) {
+    setPreferenceForm((current) => {
+      const exists = current.preferredDays.includes(day);
+      return {
+        preferredDays: exists
+          ? current.preferredDays.filter((item) => item !== day)
+          : [...current.preferredDays, day],
+        preferredSchedule: exists
+          ? Object.fromEntries(Object.entries(current.preferredSchedule).filter(([key]) => key !== day))
+          : { ...current.preferredSchedule, [day]: [] }
+      };
+    });
+  }
+
+  function togglePreferredTime(day, time) {
+    setPreferenceForm((current) => {
+      const existing = Array.isArray(current.preferredSchedule[day]) ? current.preferredSchedule[day] : [];
+      const isSelected = existing.includes(time);
+      return {
+        ...current,
+        preferredSchedule: {
+          ...current.preferredSchedule,
+          [day]: isSelected ? existing.filter((slot) => slot !== time) : [...existing, time]
+        }
+      };
+    });
+  }
+
+  function openPreferencesEditor() {
+    setPreferencesError("");
+    setPreferenceForm({
+      preferredDays: Array.isArray(client.preferredDays) ? client.preferredDays : [],
+      preferredSchedule:
+        client.preferredSchedule && typeof client.preferredSchedule === "object" ? client.preferredSchedule : {}
+    });
+    setIsEditingPreferences(true);
+  }
+
+  function closePreferencesEditor() {
+    setPreferencesError("");
+    setIsEditingPreferences(false);
+  }
+
+  async function savePreferences() {
+    if (preferenceForm.preferredDays.length === 0) {
+      setPreferencesError("Please select at least one training day.");
+      return;
+    }
+
+    for (const day of preferenceForm.preferredDays) {
+      const slots = preferenceForm.preferredSchedule[day] || [];
+      if (slots.length === 0) {
+        setPreferencesError(`Please select at least one preferred time for ${day}.`);
+        return;
+      }
+    }
+
+    try {
+      setIsSavingPreferences(true);
+      setPreferencesError("");
+      const updated = await updateClientPreferences(client.id, preferenceForm);
+      setClient(updated);
+      setIsEditingPreferences(false);
+    } catch (error) {
+      const message = error?.response?.data?.message || "Unable to save preferences.";
+      setPreferencesError(message);
+    } finally {
+      setIsSavingPreferences(false);
+    }
+  }
 
   return (
     <section className="page-wrap space-y-4 sm:space-y-5">
@@ -51,11 +202,134 @@ export default function ClientProfilePage() {
           </p>
           <p className="flex items-center gap-2 text-sm text-slate-700 sm:text-base">
             <MailIcon size={18} className="stroke-[1.75] text-emerald-700" />
-            <a href={`mailto:${client.email}`} className="underline underline-offset-4">
-              {client.email}
-            </a>
+            {client.email ? (
+              <a href={`mailto:${client.email}`} className="underline underline-offset-4">
+                {client.email}
+              </a>
+            ) : (
+              <span>No email added</span>
+            )}
           </p>
         </div>
+        <div className="mt-4">
+          <p className="text-sm text-slate-600">Preferred Training Days</p>
+          <p className="text-base font-semibold sm:text-lg">
+            {hasAnyPreference ? client.preferredDays.join(", ") : "Not set"}
+          </p>
+        </div>
+        <div className="mt-3">
+          <p className="text-sm text-slate-600">Preferred Hours</p>
+          {hasAnyPreference ? (
+            <div className="mt-1 space-y-1">
+              {client.preferredDays.map((day) => {
+                const slots = Array.isArray(client.preferredSchedule?.[day]) ? client.preferredSchedule[day] : [];
+                return (
+                  <p key={day} className="text-sm text-slate-700 sm:text-base">
+                    <span className="font-semibold">{day}:</span> {slots.length ? slots.join(", ") : "Not set"}
+                  </p>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="text-base font-semibold sm:text-lg">Not set</p>
+          )}
+        </div>
+        {!isEditingPreferences ? (
+          <button type="button" onClick={openPreferencesEditor} className="action-btn action-btn-secondary mt-3 w-full">
+            {hasAnyPreference ? "Change Session Preferences" : "Set Session Preferences"}
+          </button>
+        ) : (
+          <div className="mt-3 space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+            {preferencesError && (
+              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                {preferencesError}
+              </div>
+            )}
+            <div>
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <p className="text-sm font-medium sm:text-base">Training Days</p>
+                <span className="text-xs text-slate-500">{preferenceForm.preferredDays.length} selected</span>
+              </div>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {weekDays.map((day) => {
+                  const isSelected = preferenceForm.preferredDays.includes(day);
+                  return (
+                    <button
+                      key={day}
+                      type="button"
+                      onClick={() => togglePreferredDay(day)}
+                      className={`h-10 rounded-xl border px-3 text-sm font-semibold transition ${
+                        isSelected
+                          ? "border-emerald-700 bg-emerald-50 text-emerald-700"
+                          : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                      }`}
+                    >
+                      {day.slice(0, 3)}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="mt-2 text-xs text-slate-500">
+                Sunday is unavailable. Saturday sessions run from 05:00 to 10:00.
+              </p>
+            </div>
+
+            {preferenceForm.preferredDays.length > 0 && (
+              <div className="space-y-3">
+                <p className="text-sm font-medium sm:text-base">Preferred Hours</p>
+                {preferenceForm.preferredDays.map((day) => {
+                  const selectedSlots = preferenceForm.preferredSchedule[day] || [];
+                  return (
+                    <div key={day} className="rounded-xl border border-slate-200 bg-white p-3">
+                      <div className="mb-2 flex items-center justify-between gap-2">
+                        <p className="text-sm font-semibold text-slate-800">{day}</p>
+                        <span className="text-xs text-slate-500">{selectedSlots.length} selected</span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
+                        {timeSlotsForDay(day).map((slot) => {
+                          const isSelected = selectedSlots.includes(slot);
+                          return (
+                            <button
+                              key={`${day}-${slot}`}
+                              type="button"
+                              onClick={() => togglePreferredTime(day, slot)}
+                              className={`h-9 rounded-lg border px-2 text-xs font-semibold transition sm:text-sm ${
+                                isSelected
+                                  ? "border-emerald-700 bg-emerald-50 text-emerald-700"
+                                  : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                              }`}
+                            >
+                              {slot}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={closePreferencesEditor}
+                disabled={isSavingPreferences}
+                className="action-btn action-btn-secondary w-full"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={savePreferences}
+                disabled={isSavingPreferences}
+                className="action-btn action-btn-primary w-full disabled:opacity-70"
+              >
+                {isSavingPreferences ? "Saving..." : "Save Preferences"}
+              </button>
+            </div>
+          </div>
+        )}
       </article>
 
       <article className="surface-card">

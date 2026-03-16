@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft as ArrowLeftIcon } from "lucide-react";
 import { addTwoMonths } from "../lib/date.js";
+import { createClient } from "../lib/api.js";
 import ThemeToggle from "../components/ThemeToggle.jsx";
 
 const programs = [
@@ -12,6 +13,9 @@ const programs = [
   "Toning and Shaping"
 ];
 const packageSizes = [1, 4, 8, 12, 16];
+const weekDays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const weekdayTimeSlots = Array.from({ length: 15 }, (_, index) => `${String(index + 5).padStart(2, "0")}:00`);
+const saturdayTimeSlots = Array.from({ length: 6 }, (_, index) => `${String(index + 5).padStart(2, "0")}:00`);
 
 const fieldClass =
   "mt-2 h-12 w-full rounded-xl border border-slate-300 bg-white px-4 text-sm outline-none transition focus:border-emerald-700 sm:text-base";
@@ -20,6 +24,8 @@ export default function ClientFormPage() {
   const navigate = useNavigate();
   const { id } = useParams();
   const isEdit = Boolean(id);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
 
   const [form, setForm] = useState({
     name: "",
@@ -29,18 +35,82 @@ export default function ClientFormPage() {
     sessionType: "One-on-One",
     packageSize: "",
     purchaseDate: new Date().toISOString().slice(0, 10),
-    paid: false
+    paid: false,
+    preferredDays: [],
+    preferredSchedule: {}
   });
 
   const expiryDate = useMemo(() => addTwoMonths(form.purchaseDate), [form.purchaseDate]);
+
+  function timeSlotsForDay(day) {
+    return day === "Saturday" ? saturdayTimeSlots : weekdayTimeSlots;
+  }
 
   function updateField(name, value) {
     setForm((current) => ({ ...current, [name]: value }));
   }
 
-  function submitForm(event) {
+  function togglePreferredDay(day) {
+    setForm((current) => {
+      const exists = current.preferredDays.includes(day);
+      return {
+        ...current,
+        preferredDays: exists
+          ? current.preferredDays.filter((item) => item !== day)
+          : [...current.preferredDays, day],
+        preferredSchedule: exists
+          ? Object.fromEntries(Object.entries(current.preferredSchedule).filter(([key]) => key !== day))
+          : { ...current.preferredSchedule, [day]: [] }
+      };
+    });
+  }
+
+  function togglePreferredTime(day, time) {
+    setForm((current) => {
+      const existing = Array.isArray(current.preferredSchedule[day]) ? current.preferredSchedule[day] : [];
+      const isSelected = existing.includes(time);
+      return {
+        ...current,
+        preferredSchedule: {
+          ...current.preferredSchedule,
+          [day]: isSelected ? existing.filter((slot) => slot !== time) : [...existing, time]
+        }
+      };
+    });
+  }
+
+  async function submitForm(event) {
     event.preventDefault();
-    navigate("/clients");
+    if (isEdit) {
+      setSaveError("Editing is not available yet.");
+      return;
+    }
+    if (form.preferredDays.length === 0) {
+      setSaveError("Please select at least one preferred training day.");
+      return;
+    }
+    for (const day of form.preferredDays) {
+      const slots = form.preferredSchedule[day] || [];
+      if (slots.length === 0) {
+        setSaveError(`Please select at least one preferred time for ${day}.`);
+        return;
+      }
+    }
+
+    try {
+      setIsSaving(true);
+      setSaveError("");
+      const savedClient = await createClient({
+        ...form,
+        packageSize: Number(form.packageSize)
+      });
+      navigate(`/clients/${savedClient.id}`);
+    } catch (error) {
+      const message = error?.response?.data?.message || "Unable to save client right now.";
+      setSaveError(message);
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   return (
@@ -59,6 +129,11 @@ export default function ClientFormPage() {
       </header>
 
       <form className="space-y-4" onSubmit={submitForm}>
+        {saveError && (
+          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {saveError}
+          </div>
+        )}
         <article className="surface-card">
           <h2 className="section-title text-base sm:text-lg">Basic Information</h2>
           <div className="space-y-3">
@@ -162,6 +237,71 @@ export default function ClientFormPage() {
               />
             </label>
 
+            <div>
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <p className="text-sm font-medium sm:text-base">Preferred Training Days *</p>
+                <span className="text-xs text-slate-500">{form.preferredDays.length} selected</span>
+              </div>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {weekDays.map((day) => {
+                  const isSelected = form.preferredDays.includes(day);
+                  return (
+                    <button
+                      key={day}
+                      type="button"
+                      onClick={() => togglePreferredDay(day)}
+                      className={`h-10 rounded-xl border px-3 text-sm font-semibold transition ${
+                        isSelected
+                          ? "border-emerald-700 bg-emerald-50 text-emerald-700"
+                          : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                      }`}
+                    >
+                      {day.slice(0, 3)}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="mt-2 text-xs text-slate-500">
+                Sunday is unavailable. Saturday sessions run from 05:00 to 10:00.
+              </p>
+            </div>
+
+            {form.preferredDays.length > 0 && (
+              <div className="space-y-3">
+                <p className="text-sm font-medium sm:text-base">Preferred Hours *</p>
+                {form.preferredDays.map((day) => {
+                  const selectedSlots = form.preferredSchedule[day] || [];
+                  return (
+                    <div key={day} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                      <div className="mb-2 flex items-center justify-between gap-2">
+                        <p className="text-sm font-semibold text-slate-800">{day}</p>
+                        <span className="text-xs text-slate-500">{selectedSlots.length} selected</span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
+                        {timeSlotsForDay(day).map((slot) => {
+                          const isSelected = selectedSlots.includes(slot);
+                          return (
+                            <button
+                              key={`${day}-${slot}`}
+                              type="button"
+                              onClick={() => togglePreferredTime(day, slot)}
+                              className={`h-9 rounded-lg border px-2 text-xs font-semibold transition sm:text-sm ${
+                                isSelected
+                                  ? "border-emerald-700 bg-emerald-50 text-emerald-700"
+                                  : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                              }`}
+                            >
+                              {slot}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
             <div className="rounded-xl border-l-4 border-amber-500 bg-amber-50 p-3">
               <p className="text-sm text-slate-600">Package Expires</p>
               <p className="text-lg font-semibold text-amber-700 sm:text-xl">{expiryDate}</p>
@@ -183,8 +323,8 @@ export default function ClientFormPage() {
           </label>
         </article>
 
-        <button type="submit" className="action-btn action-btn-primary w-full">
-          Save Client
+        <button type="submit" disabled={isSaving} className="action-btn action-btn-primary w-full disabled:opacity-70">
+          {isSaving ? "Saving..." : "Save Client"}
         </button>
       </form>
     </section>
