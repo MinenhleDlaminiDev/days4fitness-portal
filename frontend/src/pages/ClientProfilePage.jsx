@@ -10,21 +10,17 @@ import {
 } from "lucide-react";
 import { profileSessionHistory } from "../data/mockData.js";
 import { daysUntil, formatShortDate } from "../lib/date.js";
-import { packagePrice } from "../lib/pricing.js";
-import { fetchClientById, updateClientPreferences } from "../lib/api.js";
+import { fetchClientById, getApiErrorMessage, updateClientPreferences } from "../lib/api.js";
+import { useAppConfiguration } from "../context/AppConfigurationContext.jsx";
 import ThemeToggle from "../components/ThemeToggle.jsx";
-
-const weekDays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-const weekdayTimeSlots = Array.from({ length: 15 }, (_, index) => `${String(index + 5).padStart(2, "0")}:00`);
-const saturdayTimeSlots = Array.from({ length: 6 }, (_, index) => `${String(index + 5).padStart(2, "0")}:00`);
-
-function timeSlotsForDay(day) {
-  return day === "Saturday" ? saturdayTimeSlots : weekdayTimeSlots;
-}
 
 export default function ClientProfilePage() {
   const navigate = useNavigate();
   const { id } = useParams();
+  const { configuration, packagePrice, timeSlotsForDay } = useAppConfiguration();
+  const lastSaturdaySlot = configuration?.businessHours
+    .find((item) => item.day === "Saturday")
+    ?.timeSlots.at(-1);
   const [client, setClient] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -53,7 +49,7 @@ export default function ClientProfilePage() {
         });
       } catch (error) {
         if (!mounted) return;
-        const message = error?.response?.data?.message || "Unable to load this client.";
+        const message = getApiErrorMessage(error, "Unable to load this client.");
         setLoadError(message);
       } finally {
         if (mounted) {
@@ -144,11 +140,6 @@ export default function ClientProfilePage() {
   }
 
   async function savePreferences() {
-    if (preferenceForm.preferredDays.length === 0) {
-      setPreferencesError("Please select at least one training day.");
-      return;
-    }
-
     for (const day of preferenceForm.preferredDays) {
       const slots = preferenceForm.preferredSchedule[day] || [];
       if (slots.length === 0) {
@@ -164,7 +155,7 @@ export default function ClientProfilePage() {
       setClient(updated);
       setIsEditingPreferences(false);
     } catch (error) {
-      const message = error?.response?.data?.message || "Unable to save preferences.";
+      const message = getApiErrorMessage(error, "Unable to save preferences.");
       setPreferencesError(message);
     } finally {
       setIsSavingPreferences(false);
@@ -251,7 +242,7 @@ export default function ClientProfilePage() {
                 <span className="text-xs text-slate-500">{preferenceForm.preferredDays.length} selected</span>
               </div>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                {weekDays.map((day) => {
+                {(configuration?.businessHours || []).map(({ day }) => {
                   const isSelected = preferenceForm.preferredDays.includes(day);
                   return (
                     <button
@@ -270,7 +261,8 @@ export default function ClientProfilePage() {
                 })}
               </div>
               <p className="mt-2 text-xs text-slate-500">
-                Sunday is unavailable. Saturday sessions run from 05:00 to 10:00.
+                Training is available on the days shown.
+                {lastSaturdaySlot ? ` Saturday's last start time is ${lastSaturdaySlot}.` : ""}
               </p>
             </div>
 
@@ -325,7 +317,11 @@ export default function ClientProfilePage() {
                 disabled={isSavingPreferences}
                 className="action-btn action-btn-primary w-full disabled:opacity-70"
               >
-                {isSavingPreferences ? "Saving..." : "Save Preferences"}
+                {isSavingPreferences
+                  ? "Saving..."
+                  : preferenceForm.preferredDays.length === 0
+                    ? "Clear Preferences"
+                    : "Save Preferences"}
               </button>
             </div>
           </div>

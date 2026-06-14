@@ -1,0 +1,1 @@
+CREATE DATABASE days4fitness_test;

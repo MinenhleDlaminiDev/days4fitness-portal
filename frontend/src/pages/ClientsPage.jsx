@@ -7,7 +7,7 @@ import {
   Search as SearchIcon
 } from "lucide-react";
 import { daysUntil } from "../lib/date.js";
-import { fetchClients } from "../lib/api.js";
+import { fetchClients, getApiErrorMessage } from "../lib/api.js";
 import ThemeToggle from "../components/ThemeToggle.jsx";
 
 const tabs = ["Active", "Expired", "All"];
@@ -38,7 +38,7 @@ export default function ClientsPage() {
         setClients(Array.isArray(rows) ? rows : []);
       } catch (error) {
         if (!mounted) return;
-        const message = error?.response?.data?.message || "Failed to load clients.";
+        const message = getApiErrorMessage(error, "Failed to load clients.");
         setLoadError(message);
       } finally {
         if (mounted) {

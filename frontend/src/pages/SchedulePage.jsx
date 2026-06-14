@@ -10,18 +10,8 @@ import {
   X as XIcon
 } from "lucide-react";
 import { clients, scheduleEntries } from "../data/mockData.js";
+import { useAppConfiguration } from "../context/AppConfigurationContext.jsx";
 import ThemeToggle from "../components/ThemeToggle.jsx";
-
-const weekDays = [
-  { key: 0, label: "Mon", day: 11 },
-  { key: 1, label: "Tue", day: 12 },
-  { key: 2, label: "Wed", day: 13 },
-  { key: 3, label: "Thu", day: 14 },
-  { key: 4, label: "Fri", day: 15 },
-  { key: 5, label: "Sat", day: 16 },
-  { key: 6, label: "Sun", day: 17 }
-];
-const timeSlots = Array.from({ length: 14 }, (_, index) => `${String(index + 5).padStart(2, "0")}:00`);
 
 function sessionAt(day, time) {
   return scheduleEntries.find((entry) => entry.day === day && entry.time === time);
@@ -130,30 +120,50 @@ function SessionDetailsModal({ session, onClose, isClosing }) {
 }
 
 export default function SchedulePage() {
+  const { configuration } = useAppConfiguration();
   const [activeSession, setActiveSession] = useState(null);
   const [isClosingModal, setIsClosingModal] = useState(false);
-  const [selectedDay, setSelectedDay] = useState(weekDays[0].key);
+  const [selectedDay, setSelectedDay] = useState(0);
+
+  const weekDays = useMemo(
+    () =>
+      (configuration?.businessHours || []).map((hours, index) => ({
+        key: index,
+        label: hours.day.slice(0, 3),
+        day: 11 + index,
+        timeSlots: hours.timeSlots
+      })),
+    [configuration]
+  );
+  const timeSlots = useMemo(
+    () => [...new Set(weekDays.flatMap((day) => day.timeSlots))],
+    [weekDays]
+  );
 
   const grid = useMemo(() => {
     return timeSlots.map((time) =>
       weekDays.map((day) => ({
         day: day.key,
         time,
-        session: sessionAt(day.key, time)
+        available: day.timeSlots.includes(time),
+        session: day.timeSlots.includes(time) ? sessionAt(day.key, time) : null
       }))
     );
-  }, []);
+  }, [timeSlots, weekDays]);
 
   const sessionsByDay = useMemo(() => {
     return weekDays.map((day) => ({
       ...day,
       sessions: scheduleEntries
-        .filter((entry) => entry.day === day.key)
+        .filter((entry) => entry.day === day.key && day.timeSlots.includes(entry.time))
         .sort((a, b) => a.time.localeCompare(b.time))
     }));
-  }, []);
+  }, [weekDays]);
 
-  const selectedDayData = sessionsByDay.find((day) => day.key === selectedDay) ?? sessionsByDay[0];
+  const selectedDayData =
+    sessionsByDay.find((day) => day.key === selectedDay) ??
+    sessionsByDay[0] ??
+    { key: 0, label: "", day: "", sessions: [] };
 
   useEffect(() => {
     if (!isClosingModal) return;
@@ -278,7 +288,12 @@ export default function SchedulePage() {
                     {row[0].time}
                   </td>
                   {row.map((cell) => (
-                    <td key={`${cell.day}-${cell.time}`} className="h-20 border border-slate-200 p-1 align-top">
+                    <td
+                      key={`${cell.day}-${cell.time}`}
+                      className={`h-20 border border-slate-200 p-1 align-top ${
+                        cell.available ? "" : "bg-slate-100"
+                      }`}
+                    >
                       {cell.session && (
                         <button
                           type="button"

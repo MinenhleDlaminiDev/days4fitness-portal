@@ -1,21 +1,10 @@
 import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft as ArrowLeftIcon } from "lucide-react";
-import { addTwoMonths } from "../lib/date.js";
-import { createClient } from "../lib/api.js";
+import { addMonths, localDateInputValue } from "../lib/date.js";
+import { createClient, getApiErrorMessage } from "../lib/api.js";
+import { useAppConfiguration } from "../context/AppConfigurationContext.jsx";
 import ThemeToggle from "../components/ThemeToggle.jsx";
-
-const programs = [
-  "Weight Loss",
-  "Strength Training",
-  "Small Groups",
-  "Sports Specific Training",
-  "Toning and Shaping"
-];
-const packageSizes = [1, 4, 8, 12, 16];
-const weekDays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-const weekdayTimeSlots = Array.from({ length: 15 }, (_, index) => `${String(index + 5).padStart(2, "0")}:00`);
-const saturdayTimeSlots = Array.from({ length: 6 }, (_, index) => `${String(index + 5).padStart(2, "0")}:00`);
 
 const fieldClass =
   "mt-2 h-12 w-full rounded-xl border border-slate-300 bg-white px-4 text-sm outline-none transition focus:border-emerald-700 sm:text-base";
@@ -24,6 +13,7 @@ export default function ClientFormPage() {
   const navigate = useNavigate();
   const { id } = useParams();
   const isEdit = Boolean(id);
+  const { configuration, timeSlotsForDay } = useAppConfiguration();
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
 
@@ -34,17 +24,19 @@ export default function ClientFormPage() {
     program: "",
     sessionType: "One-on-One",
     packageSize: "",
-    purchaseDate: new Date().toISOString().slice(0, 10),
+    purchaseDate: localDateInputValue(),
     paid: false,
     preferredDays: [],
     preferredSchedule: {}
   });
 
-  const expiryDate = useMemo(() => addTwoMonths(form.purchaseDate), [form.purchaseDate]);
-
-  function timeSlotsForDay(day) {
-    return day === "Saturday" ? saturdayTimeSlots : weekdayTimeSlots;
-  }
+  const expiryMonths = configuration?.packageExpiryMonths ?? 0;
+  const expiryDate = useMemo(
+    () => (expiryMonths ? addMonths(form.purchaseDate, expiryMonths) : ""),
+    [expiryMonths, form.purchaseDate]
+  );
+  const saturdayHours = configuration?.businessHours.find((item) => item.day === "Saturday");
+  const lastSaturdaySlot = saturdayHours?.timeSlots.at(-1);
 
   function updateField(name, value) {
     setForm((current) => ({ ...current, [name]: value }));
@@ -85,10 +77,6 @@ export default function ClientFormPage() {
       setSaveError("Editing is not available yet.");
       return;
     }
-    if (form.preferredDays.length === 0) {
-      setSaveError("Please select at least one preferred training day.");
-      return;
-    }
     for (const day of form.preferredDays) {
       const slots = form.preferredSchedule[day] || [];
       if (slots.length === 0) {
@@ -106,7 +94,7 @@ export default function ClientFormPage() {
       });
       navigate(`/clients/${savedClient.id}`);
     } catch (error) {
-      const message = error?.response?.data?.message || "Unable to save client right now.";
+      const message = getApiErrorMessage(error, "Unable to save client right now.");
       setSaveError(message);
     } finally {
       setIsSaving(false);
@@ -181,9 +169,11 @@ export default function ClientFormPage() {
                 className={fieldClass}
               >
                 <option value="">Select a program</option>
-                {programs.map((program) => (
-                  <option key={program} value={program}>
-                    {program}
+                {(configuration?.programs || [])
+                  .filter((program) => program.sessionType === form.sessionType)
+                  .map((program) => (
+                  <option key={program.id} value={program.name}>
+                    {program.name}
                   </option>
                 ))}
               </select>
@@ -196,7 +186,13 @@ export default function ClientFormPage() {
                   <button
                     key={type}
                     type="button"
-                    onClick={() => updateField("sessionType", type)}
+                    onClick={() =>
+                      setForm((current) => ({
+                        ...current,
+                        sessionType: type,
+                        program: ""
+                      }))
+                    }
                     className={`h-12 rounded-xl border text-sm font-semibold transition sm:text-base ${
                       form.sessionType === type
                         ? "border-emerald-700 bg-emerald-50 text-emerald-700"
@@ -218,7 +214,7 @@ export default function ClientFormPage() {
                 className={fieldClass}
               >
                 <option value="">Select package size</option>
-                {packageSizes.map((size) => (
+                {(configuration?.packageSizes || []).map((size) => (
                   <option key={size} value={size}>
                     {size} Session{size > 1 ? "s" : ""}
                   </option>
@@ -239,11 +235,11 @@ export default function ClientFormPage() {
 
             <div>
               <div className="mb-2 flex items-center justify-between gap-2">
-                <p className="text-sm font-medium sm:text-base">Preferred Training Days *</p>
+                <p className="text-sm font-medium sm:text-base">Preferred Training Days (Optional)</p>
                 <span className="text-xs text-slate-500">{form.preferredDays.length} selected</span>
               </div>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                {weekDays.map((day) => {
+                {(configuration?.businessHours || []).map(({ day }) => {
                   const isSelected = form.preferredDays.includes(day);
                   return (
                     <button
@@ -262,7 +258,8 @@ export default function ClientFormPage() {
                 })}
               </div>
               <p className="mt-2 text-xs text-slate-500">
-                Sunday is unavailable. Saturday sessions run from 05:00 to 10:00.
+                Training is available on the days shown.
+                {lastSaturdaySlot ? ` Saturday's last start time is ${lastSaturdaySlot}.` : ""}
               </p>
             </div>
 
@@ -305,7 +302,9 @@ export default function ClientFormPage() {
             <div className="rounded-xl border-l-4 border-amber-500 bg-amber-50 p-3">
               <p className="text-sm text-slate-600">Package Expires</p>
               <p className="text-lg font-semibold text-amber-700 sm:text-xl">{expiryDate}</p>
-              <p className="text-sm text-slate-500">2 months from purchase date</p>
+              <p className="text-sm text-slate-500">
+                {expiryMonths} months from purchase date
+              </p>
             </div>
           </div>
         </article>
@@ -323,7 +322,11 @@ export default function ClientFormPage() {
           </label>
         </article>
 
-        <button type="submit" disabled={isSaving} className="action-btn action-btn-primary w-full disabled:opacity-70">
+        <button
+          type="submit"
+          disabled={isSaving}
+          className="action-btn action-btn-primary w-full disabled:opacity-70"
+        >
           {isSaving ? "Saving..." : "Save Client"}
         </button>
       </form>

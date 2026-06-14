@@ -5,22 +5,35 @@ export const api = axios.create({
   timeout: 10000
 });
 
+function responseData(response) {
+  return response.data?.data;
+}
+
+export function getApiErrorMessage(error, fallback) {
+  return error?.response?.data?.error?.message || error?.message || fallback;
+}
+
 export async function fetchClients() {
   const response = await api.get("/clients");
-  return response.data;
+  return responseData(response);
 }
 
 export async function fetchClientById(clientId) {
   const response = await api.get(`/clients/${clientId}`);
-  return response.data;
+  return responseData(response);
 }
 
 export async function createClient(payload) {
   const response = await api.post("/clients", payload);
-  return response.data;
+  return responseData(response);
 }
 
 export async function updateClientPreferences(clientId, payload) {
   const response = await api.patch(`/clients/${clientId}/preferences`, payload);
-  return response.data;
+  return responseData(response);
+}
+
+export async function fetchConfiguration() {
+  const response = await api.get("/configuration");
+  return responseData(response);
 }

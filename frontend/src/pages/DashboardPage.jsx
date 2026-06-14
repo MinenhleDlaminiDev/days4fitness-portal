@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { clients, todaySessions } from "../data/mockData.js";
 import { daysUntil } from "../lib/date.js";
-import { packagePrice } from "../lib/pricing.js";
+import { useAppConfiguration } from "../context/AppConfigurationContext.jsx";
 import ThemeToggle from "../components/ThemeToggle.jsx";
 
 function clientById(clientId) {
@@ -17,6 +17,7 @@ function clientById(clientId) {
 }
 
 export default function DashboardPage() {
+  const { packagePrice } = useAppConfiguration();
   const [sessionState, setSessionState] = useState(todaySessions);
 
   const unpaidPackages = useMemo(() => clients.filter((client) => !client.paid), []);
