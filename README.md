@@ -21,29 +21,59 @@ days4fitness-portal/
       pages/
       lib/api.js
   database/
+    init/                  # Local Docker database initialization
     migrations/            # SQL migrations and seed data
+  docker-compose.yml       # Local PostgreSQL service
 ```
 
-## 1) PostgreSQL Local Setup (Windows)
+## 1) Start the Local Database
 
-1. Install PostgreSQL from the official installer:
-   - https://www.postgresql.org/download/windows/
-2. During install, keep note of:
-   - `postgres` superuser password
-   - default port (usually `5432`)
-3. Open `psql` (SQL shell) and run:
+Install and start Docker Desktop, then verify Docker is available:
 
-```sql
-CREATE DATABASE days4fitness;
+```powershell
+docker --version
+docker compose version
 ```
 
-4. Copy backend env file:
+From the repository root, start PostgreSQL:
+
+```powershell
+docker compose up -d
+```
+
+Check that the container is healthy:
+
+```powershell
+docker compose ps
+```
+
+The Docker setup creates:
+
+- Development database: `days4fitness`
+- Test database: `days4fitness_test`
+- PostgreSQL user: `postgres`
+- PostgreSQL password: `postgres`
+- Host port: `5433`
+
+Port `5433` is used to avoid conflicts with PostgreSQL installations that commonly use port `5432`.
+
+Copy the backend environment file:
 
 ```powershell
 Copy-Item backend/.env.example backend/.env
 ```
 
-5. Update credentials in `backend/.env` to match your local PostgreSQL setup.
+Ensure `backend/.env` contains:
+
+```env
+NODE_ENV=development
+PORT=5000
+CORS_ORIGINS=http://localhost:5173
+DATABASE_URL=postgresql://postgres:postgres@localhost:5433/days4fitness
+TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5433/days4fitness_test
+```
+
+`backend/.env` is ignored by Git and must not be committed.
 
 ## 2) Install Dependencies
 
@@ -57,6 +87,8 @@ npm install
 ```
 
 ## 3) Run Database Migrations
+
+With the Docker database running:
 
 ```powershell
 cd backend
@@ -72,7 +104,56 @@ This creates:
 
 It also seeds programs + pricing based on your provided rate card.
 
-## 4) Run Backend
+To verify the database directly:
+
+```powershell
+docker exec -it days4fitness-postgres psql -U postgres -d days4fitness
+```
+
+Inside `psql`:
+
+```sql
+\dt
+SELECT * FROM programs;
+\q
+```
+
+### Database Commands
+
+Run these from the repository root:
+
+```powershell
+# Start PostgreSQL
+docker compose up -d
+
+# View container status
+docker compose ps
+
+# Follow PostgreSQL logs
+docker compose logs -f postgres
+
+# Stop PostgreSQL while preserving data
+docker compose down
+
+# Restart PostgreSQL
+docker compose restart postgres
+```
+
+Avoid `docker compose down -v` unless you intentionally want to delete all local database data.
+
+### pgAdmin Connection
+
+Use these settings to connect pgAdmin to the Docker database:
+
+```text
+Host: localhost
+Port: 5433
+Maintenance database: days4fitness
+Username: postgres
+Password: postgres
+```
+
+## 4) Run the Backend
 
 ```powershell
 cd backend
@@ -82,9 +163,11 @@ npm run dev
 Test endpoints:
 - `GET http://localhost:5000/`
 - `GET http://localhost:5000/api/health`
-- `GET http://localhost:5000/api/clients` (example database endpoint)
+- `GET http://localhost:5000/api/health/ready`
+- `GET http://localhost:5000/api/configuration`
+- `GET http://localhost:5000/api/clients`
 
-## 5) Run Frontend
+## 5) Run the Frontend
 
 In another terminal:
 
@@ -108,7 +191,8 @@ Configured routes:
 ## Development vs Production DB Notes
 
 - Development:
-  - Use local PostgreSQL with `.env` secrets stored locally only.
+  - Use the Docker PostgreSQL service with `.env` secrets stored locally only.
+  - Use `days4fitness_test` only for automated database integration tests.
   - Keep migrations in `database/migrations` and run them in CI and local.
 - Production:
   - Use managed PostgreSQL (Neon, Supabase, Railway, Render, AWS RDS).
