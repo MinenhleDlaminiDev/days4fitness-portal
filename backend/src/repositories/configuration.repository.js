@@ -17,5 +17,14 @@ export const configurationRepository = {
        ORDER BY program_type, sessions_total`
     );
     return result.rows;
+  },
+
+  async getSchedulingSettings() {
+    const result = await query(
+      `SELECT group_capacity, session_duration_minutes
+       FROM scheduling_settings
+       WHERE id = 1`
+    );
+    return result.rows[0];
   }
 };

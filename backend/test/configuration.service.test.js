@@ -9,6 +9,9 @@ test("returns database programs and pricing with backend business rules", async 
     },
     async listPricing() {
       return [{ program_type: "one_on_one", sessions_total: 4, price: "1520.00" }];
+    },
+    async getSchedulingSettings() {
+      return { group_capacity: 10, session_duration_minutes: 60 };
     }
   });
 
@@ -20,7 +23,7 @@ test("returns database programs and pricing with backend business rules", async 
   assert.equal(configuration.pricing[0].price, 1520);
   assert.equal(configuration.businessHours.at(-1).day, "Saturday");
   assert.equal(configuration.businessHours.at(-1).timeSlots.at(-1), "10:00");
-  assert.equal(configuration.groupCapacity, 8);
+  assert.equal(configuration.groupCapacity, 10);
   assert.equal(configuration.sessionDurationMinutes, 60);
   assert.equal(configuration.packageExpiryMonths, 2);
 });

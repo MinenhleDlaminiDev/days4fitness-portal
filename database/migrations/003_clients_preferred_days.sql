@@ -1,6 +1,2 @@
-BEGIN;
-
 ALTER TABLE clients
 ADD COLUMN IF NOT EXISTS preferred_days TEXT[] NOT NULL DEFAULT '{}';
-
-COMMIT;

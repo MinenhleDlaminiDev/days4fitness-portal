@@ -32,16 +32,16 @@ This checklist is the source of truth for backend development. Items are checked
 
 ## Phase 2: Scheduling Data Model
 
-- [ ] Create a migration for recurring booking requests.
-- [ ] Create a migration for approved recurring bookings.
-- [ ] Redesign scheduled sessions to support one-on-one and group sessions.
-- [ ] Add session attendance records so group sessions can contain multiple clients.
-- [ ] Add configurable group capacity with a default of 8.
-- [ ] Add session status values: scheduled, completed, cancelled, and no-show.
-- [ ] Add rescheduling links between original and replacement sessions.
-- [ ] Preserve existing client preference data during migration.
-- [ ] Add database constraints and indexes for conflicts and common queries.
-- [ ] Add migration and schema tests.
+- [x] Create a migration for recurring booking requests.
+- [x] Create a migration for approved recurring bookings.
+- [x] Redesign scheduled sessions to support one-on-one and group sessions.
+- [x] Add session attendance records so group sessions can contain multiple clients.
+- [x] Add configurable group capacity with a default of 8.
+- [x] Add session status values: scheduled, completed, cancelled, and no-show.
+- [x] Add rescheduling links between original and replacement sessions.
+- [x] Preserve existing client preference data during migration.
+- [x] Add database constraints and indexes for conflicts and common queries.
+- [x] Add migration and schema tests.
 - [ ] **Phase 2 review and approval**
 
 ## Phase 3: Preference Approval And Recurrence

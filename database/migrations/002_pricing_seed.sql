@@ -1,5 +1,3 @@
-BEGIN;
-
 CREATE TABLE IF NOT EXISTS package_pricing (
   id BIGSERIAL PRIMARY KEY,
   program_type TEXT NOT NULL CHECK (program_type IN ('one_on_one', 'group')),
@@ -22,6 +20,3 @@ VALUES
   ('group', 16, 4000.00)
 ON CONFLICT (program_type, sessions_total) DO UPDATE
 SET price = EXCLUDED.price;
-
-COMMIT;
-

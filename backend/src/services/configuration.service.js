@@ -1,9 +1,7 @@
 import {
   BUSINESS_HOURS,
-  GROUP_CAPACITY,
   PACKAGE_EXPIRY_MONTHS,
   PACKAGE_SIZES,
-  SESSION_DURATION_MINUTES,
   sessionTypeFromDatabase
 } from "../config/businessRules.js";
 import { configurationRepository } from "../repositories/configuration.repository.js";
@@ -11,9 +9,10 @@ import { configurationRepository } from "../repositories/configuration.repositor
 export function createConfigurationService(repository = configurationRepository) {
   return {
     async getConfiguration() {
-      const [programRows, pricingRows] = await Promise.all([
+      const [programRows, pricingRows, schedulingSettings] = await Promise.all([
         repository.listPrograms(),
-        repository.listPricing()
+        repository.listPricing(),
+        repository.getSchedulingSettings()
       ]);
 
       return {
@@ -29,8 +28,8 @@ export function createConfigurationService(repository = configurationRepository)
           price: Number(row.price)
         })),
         businessHours: BUSINESS_HOURS,
-        sessionDurationMinutes: SESSION_DURATION_MINUTES,
-        groupCapacity: GROUP_CAPACITY,
+        sessionDurationMinutes: schedulingSettings.session_duration_minutes,
+        groupCapacity: schedulingSettings.group_capacity,
         packageExpiryMonths: PACKAGE_EXPIRY_MONTHS
       };
     }

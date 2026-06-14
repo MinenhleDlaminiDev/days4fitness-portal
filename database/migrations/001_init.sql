@@ -1,5 +1,3 @@
-BEGIN;
-
 CREATE TABLE IF NOT EXISTS clients (
   id BIGSERIAL PRIMARY KEY,
   name TEXT NOT NULL,
@@ -56,6 +54,3 @@ VALUES
   ('Sports Specific Training', 'one_on_one'),
   ('Toning & Shaping', 'group')
 ON CONFLICT (name, type) DO NOTHING;
-
-COMMIT;
-
