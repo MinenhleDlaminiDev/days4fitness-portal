@@ -37,3 +37,7 @@ All errors use:
 - `GET /api/clients/:id`: one client with their latest package.
 - `POST /api/clients`: create a client and initial package.
 - `PATCH /api/clients/:id/preferences`: update scheduling preferences.
+- `POST /api/clients/:id/preferences`: create or replace pending scheduling preferences.
+- `GET /api/booking-requests/pending`: list pending weekly preference slots.
+- `POST /api/booking-requests/:id/approve`: approve one weekly slot and allocate sessions.
+- `POST /api/booking-requests/:id/reject`: reject one weekly slot.

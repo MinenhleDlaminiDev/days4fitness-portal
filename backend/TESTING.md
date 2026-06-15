@@ -31,8 +31,9 @@ This command:
 1. Refuses to run unless the database name contains `test`.
 2. Applies all migrations to the test database.
 3. Verifies migration history and the scheduling schema against PostgreSQL.
-4. Runs repository tests against PostgreSQL.
-5. Cleans records created by each test.
+4. Verifies preference approval, recurrence, conflicts, capacity, and expiry against PostgreSQL.
+5. Runs repository tests against PostgreSQL.
+6. Cleans records created by each test.
 
 Run all unit and integration tests with:
 

@@ -42,24 +42,25 @@ This checklist is the source of truth for backend development. Items are checked
 - [x] Preserve existing client preference data during migration.
 - [x] Add database constraints and indexes for conflicts and common queries.
 - [x] Add migration and schema tests.
-- [ ] **Phase 2 review and approval**
+- [x] **Phase 2 review and approval**
 
 ## Phase 3: Preference Approval And Recurrence
 
-- [ ] Make preferences optional during client creation.
-- [ ] Add endpoints to create and update booking preferences.
-- [ ] Add an endpoint for trainers to list pending preferences.
-- [ ] Add trainer approval and rejection endpoints.
-- [ ] Support multiple approved weekly slots per client.
-- [ ] Generate weekly sessions up to package expiry.
-- [ ] Stop allocation when all package credits have been assigned.
-- [ ] Prevent Sunday bookings.
-- [ ] Enforce weekday and Saturday operating hours.
-- [ ] Detect one-on-one time conflicts.
-- [ ] Enforce group capacity.
-- [ ] Handle partial approval when only some preferred slots are available.
-- [ ] Add recurrence, conflict, capacity, and expiry tests.
-- [ ] **Phase 3 review and approval**
+- [x] Make preferences optional during client creation.
+- [x] Add endpoints to create and update booking preferences.
+- [x] Add an endpoint for trainers to list pending preferences.
+- [x] Add trainer approval and rejection endpoints.
+- [x] Support multiple approved weekly slots per client.
+- [x] Generate weekly sessions up to package expiry.
+- [x] Stop allocation when all package credits have been assigned.
+- [x] Prevent Sunday bookings.
+- [x] Enforce weekday and Saturday operating hours.
+- [x] Detect one-on-one time conflicts.
+- [x] Enforce group capacity.
+- [x] Handle partial approval when only some preferred slots are available.
+- [x] Add the trainer UI for reviewing, approving, and rejecting preferred slots.
+- [x] Add recurrence, conflict, capacity, and expiry tests.
+- [x] **Phase 3 review and approval**
 
 ## Phase 4: Schedule Operations
 

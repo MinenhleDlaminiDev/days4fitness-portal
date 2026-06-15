@@ -5,6 +5,7 @@ import SchedulePage from "./pages/SchedulePage.jsx";
 import ClientsPage from "./pages/ClientsPage.jsx";
 import ClientProfilePage from "./pages/ClientProfilePage.jsx";
 import ClientFormPage from "./pages/ClientFormPage.jsx";
+import BookingRequestsPage from "./pages/BookingRequestsPage.jsx";
 import NotFoundPage from "./pages/NotFoundPage.jsx";
 import { useAppConfiguration } from "./context/AppConfigurationContext.jsx";
 
@@ -41,6 +42,7 @@ export default function App() {
         <Route path="/" element={<DashboardPage />} />
         <Route path="/schedule" element={<SchedulePage />} />
         <Route path="/clients" element={<ClientsPage />} />
+        <Route path="/requests" element={<BookingRequestsPage />} />
         <Route path="/clients/new" element={<ClientFormPage />} />
         <Route path="/clients/:id" element={<ClientProfilePage />} />
         <Route path="/clients/:id/edit" element={<ClientFormPage />} />

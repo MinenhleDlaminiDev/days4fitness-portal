@@ -24,6 +24,8 @@ function formatDate(value) {
   return new Date(value).toISOString().slice(0, 10);
 }
 
+const DAY_NAMES = ["", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
 function toClientDto(row) {
   return {
     id: row.id,
@@ -33,6 +35,13 @@ function toClientDto(row) {
     preferredDays: Array.isArray(row.preferred_days) ? row.preferred_days : [],
     preferredSchedule:
       row.preferred_schedule && typeof row.preferred_schedule === "object" ? row.preferred_schedule : {},
+    sessionPreferences: (Array.isArray(row.preference_statuses) ? row.preference_statuses : []).map(
+      (preference) => ({
+        day: DAY_NAMES[preference.dayOfWeek],
+        startTime: preference.startTime,
+        status: preference.status
+      })
+    ),
     program: row.program_name ?? "",
     sessionType: sessionTypeFromDatabase(row.program_type) ?? "One-on-One",
     sessionsTotal: row.sessions_total ?? 0,

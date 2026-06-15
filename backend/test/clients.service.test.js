@@ -10,6 +10,9 @@ function clientRow(overrides = {}) {
     email: "test@example.com",
     preferred_days: ["Monday"],
     preferred_schedule: { Monday: ["08:00"] },
+    preference_statuses: [
+      { dayOfWeek: 1, startTime: "08:00", status: "pending" }
+    ],
     program_name: "Weight Loss",
     program_type: "one_on_one",
     sessions_total: 4,
@@ -53,6 +56,9 @@ test("creates a client with a normalized package and schedule", async () => {
   assert.equal(capturedPackage.packageSize, 4);
   assert.equal(capturedPackage.expiryMonths, 2);
   assert.equal(result.sessionsTotal, 4);
+  assert.deepEqual(result.sessionPreferences, [
+    { day: "Monday", startTime: "08:00", status: "pending" }
+  ]);
 });
 
 test("creates a client without scheduling preferences", async () => {

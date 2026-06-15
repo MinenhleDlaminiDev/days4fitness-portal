@@ -91,7 +91,7 @@ body {
   }
 
   .theme-toggle {
-    @apply relative h-10 w-[76px] rounded-full border border-white/30 p-1 transition;
+    @apply relative h-10 w-[76px] min-w-[76px] shrink-0 rounded-full border border-white/30 p-1 transition;
     background: color-mix(in srgb, var(--brand-soft) 35%, transparent);
     backdrop-filter: blur(8px);
   }
@@ -258,6 +258,18 @@ html[data-theme="dark"] .schedule-page .bg-emerald-50 {
 }
 
 html[data-theme="dark"] .schedule-page .bg-red-50 {
+  background-color: #3a2023 !important;
+}
+
+html[data-theme="dark"] .booking-requests-page .text-red-700 {
+  color: var(--danger-text) !important;
+}
+
+html[data-theme="dark"] .booking-requests-page .border-red-200 {
+  border-color: #6b3538 !important;
+}
+
+html[data-theme="dark"] .booking-requests-page .bg-red-50 {
   background-color: #3a2023 !important;
 }
 

@@ -8,8 +8,8 @@
     "start": "node src/server.js",
     "migrate": "node src/db/migrate.js",
     "migrate:test": "node src/db/migrate-test.js",
-    "test": "node --test --test-isolation=none test/api-conventions.test.js test/clients.service.test.js test/configuration.service.test.js",
-    "test:integration": "npm run migrate:test && node --test --test-isolation=none --test-concurrency=1 test/clients.integration.test.js test/scheduling-schema.integration.test.js",
+    "test": "node --test --test-isolation=none test/api-conventions.test.js test/bookingRequests.service.test.js test/clients.service.test.js test/configuration.service.test.js",
+    "test:integration": "npm run migrate:test && node --test --test-isolation=none --test-concurrency=1 test/clients.integration.test.js test/scheduling-schema.integration.test.js test/bookingRequests.integration.test.js test/bookingRequests.http.integration.test.js",
     "test:all": "npm test && npm run test:integration",
     "check": "node --check src/server.js"
   },

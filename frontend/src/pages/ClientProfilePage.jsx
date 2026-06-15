@@ -95,6 +95,9 @@ export default function ClientProfilePage() {
   const sessionsLeft = client.sessionsTotal - client.sessionsUsed;
   const progress = client.sessionsTotal > 0 ? (client.sessionsUsed / client.sessionsTotal) * 100 : 0;
   const hasAnyPreference = Array.isArray(client.preferredDays) && client.preferredDays.length > 0;
+  const sessionPreferences = Array.isArray(client.sessionPreferences)
+    ? client.sessionPreferences
+    : [];
 
   function togglePreferredDay(day) {
     setPreferenceForm((current) => {
@@ -209,15 +212,52 @@ export default function ClientProfilePage() {
           </p>
         </div>
         <div className="mt-3">
-          <p className="text-sm text-slate-600">Preferred Hours</p>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm text-slate-600">Session Times</p>
+            {hasAnyPreference && (
+              <div className="flex gap-2 text-[11px] font-semibold">
+                <span className="rounded-full bg-emerald-100 px-2 py-1 text-emerald-700">
+                  Approved
+                </span>
+                <span className="rounded-full bg-amber-100 px-2 py-1 text-amber-800">
+                  Preference
+                </span>
+              </div>
+            )}
+          </div>
           {hasAnyPreference ? (
-            <div className="mt-1 space-y-1">
+            <div className="mt-2 space-y-2">
               {client.preferredDays.map((day) => {
                 const slots = Array.isArray(client.preferredSchedule?.[day]) ? client.preferredSchedule[day] : [];
                 return (
-                  <p key={day} className="text-sm text-slate-700 sm:text-base">
-                    <span className="font-semibold">{day}:</span> {slots.length ? slots.join(", ") : "Not set"}
-                  </p>
+                  <div key={day}>
+                    <p className="text-sm font-semibold text-slate-700 sm:text-base">{day}</p>
+                    <div className="mt-1 flex flex-wrap gap-2">
+                      {slots.map((slot) => {
+                        const preference = sessionPreferences.find(
+                          (item) => item.day === day && item.startTime === slot
+                        );
+                        const isApproved = preference?.status === "approved";
+                        return (
+                          <span
+                            key={`${day}-${slot}`}
+                            className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-bold sm:text-sm ${
+                              isApproved
+                                ? "border-emerald-200 bg-emerald-100 text-emerald-700"
+                                : "border-amber-200 bg-amber-100 text-amber-800"
+                            }`}
+                          >
+                            <span
+                              className={`h-1.5 w-1.5 rounded-full ${
+                                isApproved ? "bg-emerald-600" : "bg-amber-600"
+                              }`}
+                            />
+                            {slot}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </div>
                 );
               })}
             </div>
@@ -244,6 +284,16 @@ export default function ClientProfilePage() {
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                 {(configuration?.businessHours || []).map(({ day }) => {
                   const isSelected = preferenceForm.preferredDays.includes(day);
+                  const selectedSlots = preferenceForm.preferredSchedule[day] || [];
+                  const hasPendingSlot = selectedSlots.some(
+                    (slot) =>
+                      !sessionPreferences.some(
+                        (item) =>
+                          item.day === day &&
+                          item.startTime === slot &&
+                          item.status === "approved"
+                      )
+                  );
                   return (
                     <button
                       key={day}
@@ -251,7 +301,9 @@ export default function ClientProfilePage() {
                       onClick={() => togglePreferredDay(day)}
                       className={`h-10 rounded-xl border px-3 text-sm font-semibold transition ${
                         isSelected
-                          ? "border-emerald-700 bg-emerald-50 text-emerald-700"
+                          ? hasPendingSlot
+                            ? "border-amber-300 bg-amber-50 text-amber-800"
+                            : "border-emerald-700 bg-emerald-50 text-emerald-700"
                           : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
                       }`}
                     >
@@ -280,6 +332,12 @@ export default function ClientProfilePage() {
                       <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
                         {timeSlotsForDay(day).map((slot) => {
                           const isSelected = selectedSlots.includes(slot);
+                          const isApproved = sessionPreferences.some(
+                            (item) =>
+                              item.day === day &&
+                              item.startTime === slot &&
+                              item.status === "approved"
+                          );
                           return (
                             <button
                               key={`${day}-${slot}`}
@@ -287,7 +345,9 @@ export default function ClientProfilePage() {
                               onClick={() => togglePreferredTime(day, slot)}
                               className={`h-9 rounded-lg border px-2 text-xs font-semibold transition sm:text-sm ${
                                 isSelected
-                                  ? "border-emerald-700 bg-emerald-50 text-emerald-700"
+                                  ? isApproved
+                                    ? "border-emerald-700 bg-emerald-50 text-emerald-700"
+                                    : "border-amber-300 bg-amber-50 text-amber-800"
                                   : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
                               }`}
                             >

@@ -1,10 +1,16 @@
 import { NavLink } from "react-router-dom";
-import { Calendar as CalendarIcon, Clock as ClockIcon, Users as UsersIcon } from "lucide-react";
+import {
+  Calendar as CalendarIcon,
+  ClipboardCheck as ClipboardCheckIcon,
+  Clock as ClockIcon,
+  Users as UsersIcon
+} from "lucide-react";
 
 const items = [
   { to: "/", label: "Dashboard", icon: CalendarIcon },
   { to: "/schedule", label: "Schedule", icon: ClockIcon },
-  { to: "/clients", label: "Clients", icon: UsersIcon }
+  { to: "/clients", label: "Clients", icon: UsersIcon },
+  { to: "/requests", label: "Approvals", icon: ClipboardCheckIcon }
 ];
 
 export default function BottomNav() {

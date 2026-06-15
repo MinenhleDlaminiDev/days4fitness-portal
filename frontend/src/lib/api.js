@@ -33,6 +33,21 @@ export async function updateClientPreferences(clientId, payload) {
   return responseData(response);
 }
 
+export async function fetchPendingBookingRequests() {
+  const response = await api.get("/booking-requests/pending");
+  return responseData(response);
+}
+
+export async function approveBookingRequest(requestId) {
+  const response = await api.post(`/booking-requests/${requestId}/approve`);
+  return responseData(response);
+}
+
+export async function rejectBookingRequest(requestId) {
+  const response = await api.post(`/booking-requests/${requestId}/reject`);
+  return responseData(response);
+}
+
 export async function fetchConfiguration() {
   const response = await api.get("/configuration");
   return responseData(response);
