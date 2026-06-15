@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   ArrowLeft,
   ArrowRight,
@@ -62,6 +62,19 @@ function statusClasses(session) {
   return isPaid
     ? "border-emerald-200 bg-emerald-50 text-emerald-950"
     : "border-red-200 bg-red-50 text-red-950";
+}
+
+async function fetchAllActiveClients() {
+  const firstPage = await fetchClients({ status: "active", page: 1, pageSize: 50 });
+  const clients = [...(firstPage?.items || [])];
+  const totalPages = firstPage?.pagination?.totalPages || 1;
+
+  for (let page = 2; page <= totalPages; page += 1) {
+    const result = await fetchClients({ status: "active", page, pageSize: 50 });
+    clients.push(...(result?.items || []));
+  }
+
+  return clients;
 }
 
 function BookingForm({ clients, initial, title, submitLabel, onCancel, onSubmit, isSaving }) {
@@ -368,6 +381,7 @@ function SessionModal({
 
 export default function SchedulePage() {
   const { configuration } = useAppConfiguration();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [weekStart, setWeekStart] = useState(() => mondayFor());
   const [sessions, setSessions] = useState([]);
   const [clients, setClients] = useState([]);
@@ -416,10 +430,10 @@ export default function SchedulePage() {
       setError("");
        const [scheduleRows, clientRows] = await Promise.all([
          fetchScheduleWeek(weekStart),
-         fetchClients()
+         fetchAllActiveClients()
        ]);
       setSessions(scheduleRows || []);
-      setClients(clientRows || []);
+      setClients(clientRows);
     } catch (requestError) {
       setError(getApiErrorMessage(requestError, "Unable to load the weekly schedule."));
     } finally {
@@ -430,6 +444,12 @@ export default function SchedulePage() {
   useEffect(() => {
     loadSchedule();
   }, [weekStart]);
+
+  useEffect(() => {
+    if (clients.length === 0 || !searchParams.get("clientId")) return;
+    setError("");
+    setShowManualBooking(true);
+  }, [clients, searchParams]);
 
   useEffect(() => {
     if (!notice) return undefined;
@@ -474,6 +494,7 @@ export default function SchedulePage() {
     if (created) {
       setShowManualBooking(false);
       setActiveSession(created);
+      setSearchParams({});
     }
   }
 
@@ -682,11 +703,13 @@ export default function SchedulePage() {
           <div className="modal-panel mx-auto mt-5 max-w-xl overflow-hidden rounded-3xl bg-white shadow-2xl">
             <BookingForm
               clients={clients}
+              initial={{ clientId: searchParams.get("clientId") || "" }}
               title="Book a session"
               submitLabel="Book session"
               onCancel={() => {
                 setShowManualBooking(false);
                 setError("");
+                setSearchParams({});
               }}
               onSubmit={submitManual}
               isSaving={isSaving}

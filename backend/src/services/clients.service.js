@@ -49,7 +49,41 @@ function toClientDto(row) {
     paid: Boolean(row.paid),
     purchaseDate: formatDate(row.purchase_date),
     expiryDate: formatDate(row.expiry_date),
+    createdAt: row.created_at,
+    isActive: row.is_active !== false,
+    archivedAt: row.archived_at
+  };
+}
+
+function toPackageDto(row) {
+  return {
+    id: row.id,
+    program: row.program_name,
+    sessionType: sessionTypeFromDatabase(row.program_type),
+    sessionsTotal: row.sessions_total,
+    sessionsUsed: row.sessions_used,
+    price: Number(row.price),
+    paid: Boolean(row.paid),
+    purchaseDate: formatDate(row.purchase_date),
+    expiryDate: formatDate(row.expiry_date),
     createdAt: row.created_at
+  };
+}
+
+function toSessionHistoryDto(row) {
+  return {
+    id: row.id,
+    sessionDate: row.session_date,
+    startTime: row.start_time.slice(0, 5),
+    durationMinutes: row.duration_minutes,
+    sessionStatus: row.session_status,
+    attendanceStatus: row.attendance_status,
+    creditConsumed: row.credit_consumed,
+    hasStarted: row.has_started,
+    hasEnded: row.has_ended,
+    packageId: row.package_id,
+    program: row.program_name,
+    sessionType: sessionTypeFromDatabase(row.program_type)
   };
 }
 
@@ -132,8 +166,34 @@ export function normalizePreferredSchedule(inputDays, inputSchedule, options = {
 
 export function createClientsService(repository = clientsRepository) {
   return {
-    async listClients() {
-      return (await repository.findAll()).map(toClientDto);
+    async listClients(query = {}) {
+      const page = Math.max(1, Number(query.page) || 1);
+      const pageSize = Math.min(50, Math.max(1, Number(query.pageSize) || 10));
+      const status = ["active", "archived", "all"].includes(query.status)
+        ? query.status
+        : "active";
+      const packageStatus = ["active", "expired", "all"].includes(query.packageStatus)
+        ? query.packageStatus
+        : "all";
+      const result = await repository.findAll({
+        search: cleanString(query.search),
+        status,
+        packageStatus,
+        page,
+        pageSize
+      });
+      return {
+        items: result.rows.map(toClientDto),
+        summary: {
+          unpaid: result.unpaidTotal
+        },
+        pagination: {
+          page,
+          pageSize,
+          total: result.total,
+          totalPages: Math.max(1, Math.ceil(result.total / pageSize))
+        }
+      };
     },
 
     async getClient(clientId) {
@@ -206,9 +266,71 @@ export function createClientsService(repository = clientsRepository) {
         input.preferredSchedule,
         { allowEmpty: true }
       );
-      const row = await repository.updatePreferences(id, preferredDays, preferredSchedule);
+      try {
+        const row = await repository.updatePreferences(id, preferredDays, preferredSchedule);
+        if (!row) throw notFoundError("Client not found");
+        return toClientDto(row);
+      } catch (error) {
+        if (error.code === "CLIENT_ARCHIVED") {
+          throw conflictError("Restore this client before updating session preferences");
+        }
+        throw error;
+      }
+    },
+
+    async updateClient(clientId, input = {}) {
+      const id = requirePositiveInteger(clientId, "clientId");
+      requireFields(input, ["name", "phone"]);
+      const hasPreferences =
+        input.preferredDays !== undefined || input.preferredSchedule !== undefined;
+      const preferences = hasPreferences
+        ? normalizePreferredSchedule(input.preferredDays, input.preferredSchedule, {
+            allowEmpty: true
+          })
+        : null;
+      try {
+        const row = await repository.update(
+          id,
+          {
+            name: cleanString(input.name),
+            phone: cleanString(input.phone),
+            email: cleanString(input.email) || null
+          },
+          preferences
+        );
+        if (!row) throw notFoundError("Client not found");
+        return toClientDto(row);
+      } catch (error) {
+        if (error.code === "23505") throw conflictError("A client with that email already exists");
+        if (error.code === "CLIENT_ARCHIVED") {
+          throw conflictError("Restore this client before updating session preferences");
+        }
+        if (error.code === "PACKAGE_CONFIGURATION_MISSING") {
+          throw validationError("Client package is not available");
+        }
+        throw error;
+      }
+    },
+
+    async setClientActive(clientId, isActive) {
+      const id = requirePositiveInteger(clientId, "clientId");
+      const row = await repository.setActive(id, isActive);
       if (!row) throw notFoundError("Client not found");
       return toClientDto(row);
+    },
+
+    async getPackageHistory(clientId) {
+      const id = requirePositiveInteger(clientId, "clientId");
+      const client = await repository.findById(id);
+      if (!client) throw notFoundError("Client not found");
+      return (await repository.findPackageHistory(id)).map(toPackageDto);
+    },
+
+    async getSessionHistory(clientId) {
+      const id = requirePositiveInteger(clientId, "clientId");
+      const client = await repository.findById(id);
+      if (!client) throw notFoundError("Client not found");
+      return (await repository.findSessionHistory(id)).map(toSessionHistoryDto);
     }
   };
 }

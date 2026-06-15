@@ -193,7 +193,8 @@ test("partially approves weekly preferences and allocates only package credits",
   assert.equal((await pendingForClient(client.id)).length, 0);
   assert.deepEqual(clientAfterReview.sessionPreferences, [
     { day: "Monday", startTime: "08:00", status: "approved" },
-    { day: "Wednesday", startTime: "08:00", status: "approved" }
+    { day: "Wednesday", startTime: "08:00", status: "approved" },
+    { day: "Friday", startTime: "08:00", status: "rejected" }
   ]);
 });
 
@@ -946,7 +947,7 @@ test("does not regenerate a cancelled recurring occurrence during package reallo
   assert.equal(matchingOccurrences.rows[0].count, 1);
 });
 
-test("preference updates replace pending requests without removing approved slots", async () => {
+test("removing an approved preference reallocates credits and requires reapproval", async () => {
   const client = await createClient({
     suffix: "update",
     packageSize: 4,
@@ -955,20 +956,67 @@ test("preference updates replace pending requests without removing approved slot
   });
   const requests = await pendingForClient(client.id);
   await requestsService.approve(requests.find((request) => request.day === "Monday").id);
+  await requestsService.approve(requests.find((request) => request.day === "Wednesday").id);
 
   await clientsService.updatePreferences(client.id, {
-    preferredDays: ["Friday"],
-    preferredSchedule: { Friday: ["11:00"] }
+    preferredDays: ["Wednesday", "Friday"],
+    preferredSchedule: { Wednesday: ["11:00"], Friday: ["11:00"] }
   });
 
   const pending = await pendingForClient(client.id);
   const approved = await testPool.query(
-    "SELECT day_of_week FROM approved_recurring_bookings WHERE client_id = $1",
+    `SELECT day_of_week, status
+     FROM approved_recurring_bookings
+     WHERE client_id = $1
+     ORDER BY id`,
+    [client.id]
+  );
+  const mondayRequest = await testPool.query(
+    `SELECT status
+     FROM recurring_booking_requests
+     WHERE client_id = $1
+       AND day_of_week = 1
+       AND start_time = '11:00'`,
+    [client.id]
+  );
+  const scheduledMondayAttendance = await testPool.query(
+    `SELECT COUNT(*)::int AS count
+     FROM session_attendance attendance
+     JOIN sessions session ON session.id = attendance.session_id
+     WHERE attendance.client_id = $1
+       AND attendance.status = 'scheduled'
+       AND EXTRACT(ISODOW FROM session.session_date) = 1`,
+    [client.id]
+  );
+  const scheduledWednesdayAttendance = await testPool.query(
+    `SELECT COUNT(*)::int AS count
+     FROM session_attendance attendance
+     JOIN sessions session ON session.id = attendance.session_id
+     JOIN approved_recurring_bookings booking
+       ON booking.id = attendance.recurring_booking_id
+     WHERE attendance.client_id = $1
+       AND attendance.status = 'scheduled'
+       AND booking.status = 'active'
+       AND booking.day_of_week = 3`,
     [client.id]
   );
 
   assert.deepEqual(pending.map((request) => request.day), ["Friday"]);
-  assert.deepEqual(approved.rows.map((row) => row.day_of_week), [1]);
+  assert.deepEqual(approved.rows, [
+    { day_of_week: 1, status: "cancelled" },
+    { day_of_week: 3, status: "active" }
+  ]);
+  assert.equal(mondayRequest.rows[0].status, "rejected");
+  assert.equal(scheduledMondayAttendance.rows[0].count, 0);
+  assert.equal(scheduledWednesdayAttendance.rows[0].count, 4);
+
+  await clientsService.updatePreferences(client.id, {
+    preferredDays: ["Monday"],
+    preferredSchedule: { Monday: ["11:00"] }
+  });
+
+  const pendingAfterReadd = await pendingForClient(client.id);
+  assert.deepEqual(pendingAfterReadd.map((request) => request.day), ["Monday"]);
 });
 
 test("rejecting preferred slots removes them from the client preferences", async () => {

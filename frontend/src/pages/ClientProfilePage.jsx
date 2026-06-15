@@ -1,17 +1,32 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
+  Archive,
   ArrowLeft as ArrowLeftIcon,
+  CalendarPlus,
+  Check,
   CircleCheck as CheckCircleIcon,
   CircleX as XCircleIcon,
   Mail as MailIcon,
   Pencil as EditIcon,
-  Phone as PhoneIcon
+  Phone as PhoneIcon,
+  RotateCcw,
+  UserX
 } from "lucide-react";
-import { profileSessionHistory } from "../data/mockData.js";
 import { daysUntil, formatShortDate } from "../lib/date.js";
-import { fetchClientById, getApiErrorMessage, updateClientPreferences } from "../lib/api.js";
+import {
+  archiveClient,
+  completeSession,
+  fetchClientById,
+  fetchClientPackages,
+  fetchClientSessions,
+  getApiErrorMessage,
+  markSessionNoShow,
+  restoreClient,
+  updateClientPreferences
+} from "../lib/api.js";
 import { useAppConfiguration } from "../context/AppConfigurationContext.jsx";
+import SuccessToast from "../components/SuccessToast.jsx";
 import ThemeToggle from "../components/ThemeToggle.jsx";
 
 export default function ClientProfilePage() {
@@ -22,11 +37,19 @@ export default function ClientProfilePage() {
     .find((item) => item.day === "Saturday")
     ?.timeSlots.at(-1);
   const [client, setClient] = useState(null);
+  const [packages, setPackages] = useState([]);
+  const [sessions, setSessions] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
+  const [historyError, setHistoryError] = useState("");
   const [isEditingPreferences, setIsEditingPreferences] = useState(false);
   const [isSavingPreferences, setIsSavingPreferences] = useState(false);
   const [preferencesError, setPreferencesError] = useState("");
+  const [actionError, setActionError] = useState("");
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  const [showArchiveConfirmation, setShowArchiveConfirmation] = useState(false);
+  const [activeSessionAction, setActiveSessionAction] = useState(null);
+  const [notice, setNotice] = useState(null);
   const [preferenceForm, setPreferenceForm] = useState({
     preferredDays: [],
     preferredSchedule: {}
@@ -39,9 +62,22 @@ export default function ClientProfilePage() {
       try {
         setIsLoading(true);
         setLoadError("");
+        setHistoryError("");
+        setClient(null);
+        setPackages([]);
+        setSessions([]);
         const row = await fetchClientById(id);
+        const [packageResult, sessionResult] = await Promise.allSettled([
+          fetchClientPackages(id),
+          fetchClientSessions(id)
+        ]);
         if (!mounted) return;
         setClient(row);
+        setPackages(packageResult.status === "fulfilled" ? packageResult.value || [] : []);
+        setSessions(sessionResult.status === "fulfilled" ? sessionResult.value || [] : []);
+        if (packageResult.status === "rejected" || sessionResult.status === "rejected") {
+          setHistoryError("Some client history could not be loaded. Refresh to try again.");
+        }
         setPreferenceForm({
           preferredDays: Array.isArray(row.preferredDays) ? row.preferredDays : [],
           preferredSchedule:
@@ -64,6 +100,12 @@ export default function ClientProfilePage() {
     };
   }, [id]);
 
+  useEffect(() => {
+    if (!notice) return undefined;
+    const timeout = window.setTimeout(() => setNotice(null), 5000);
+    return () => window.clearTimeout(timeout);
+  }, [notice]);
+
   if (isLoading) {
     return (
       <section className="page-wrap">
@@ -72,7 +114,7 @@ export default function ClientProfilePage() {
     );
   }
 
-  if (!client || loadError) {
+  if (!client) {
     return (
       <section className="page-wrap space-y-4">
         <header className="page-header flex items-center justify-between gap-3">
@@ -165,6 +207,61 @@ export default function ClientProfilePage() {
     }
   }
 
+  async function toggleArchive() {
+    try {
+      setIsUpdatingStatus(true);
+      setActionError("");
+      const updated = client.isActive
+        ? await archiveClient(client.id)
+        : await restoreClient(client.id);
+      setClient(updated);
+      setIsEditingPreferences(false);
+      try {
+        const sessionRows = await fetchClientSessions(client.id);
+        setSessions(sessionRows || []);
+        setHistoryError("");
+      } catch {
+        setHistoryError("Session history could not be refreshed. Refresh to try again.");
+      }
+      setNotice({
+        title: updated.isActive ? "Client restored" : "Client archived",
+        message: updated.isActive
+          ? `${updated.name} is active again.`
+          : `${updated.name} has been removed from active client workflows.`
+      });
+    } catch (error) {
+      setActionError(getApiErrorMessage(error, "Unable to update client status."));
+    } finally {
+      setIsUpdatingStatus(false);
+    }
+  }
+
+  async function recordSessionOutcome(session, outcome) {
+    try {
+      setActiveSessionAction(`${session.id}-${outcome}`);
+      setActionError("");
+      if (outcome === "completed") {
+        await completeSession(session.id, client.id);
+      } else {
+        await markSessionNoShow(session.id, client.id);
+      }
+      const [updatedClient, sessionRows] = await Promise.all([
+        fetchClientById(client.id),
+        fetchClientSessions(client.id)
+      ]);
+      setClient(updatedClient);
+      setSessions(sessionRows || []);
+      setNotice({
+        title: outcome === "completed" ? "Session completed" : "No-show recorded",
+        message: "The session outcome and package credit were updated."
+      });
+    } catch (error) {
+      setActionError(getApiErrorMessage(error, "Unable to update this session."));
+    } finally {
+      setActiveSessionAction(null);
+    }
+  }
+
   return (
     <section className="page-wrap space-y-4 sm:space-y-5">
       <header className="page-header flex items-center justify-between gap-3">
@@ -179,11 +276,31 @@ export default function ClientProfilePage() {
         </div>
         <div className="flex items-center gap-2">
           <ThemeToggle />
-          <Link to={`/clients/${client.id}/edit`} aria-label="Edit client">
-            <EditIcon size={20} className="stroke-[1.75]" />
-          </Link>
+          {client.isActive && (
+            <Link to={`/clients/${client.id}/edit`} aria-label="Edit client">
+              <EditIcon size={20} className="stroke-[1.75]" />
+            </Link>
+          )}
         </div>
       </header>
+
+      {!client.isActive && (
+        <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm font-semibold text-amber-900">
+          This client is archived and excluded from active scheduling.
+        </div>
+      )}
+
+      {actionError && (
+        <div className="rounded-2xl border border-red-300 bg-red-50 p-4 text-sm font-semibold text-red-800">
+          {actionError}
+        </div>
+      )}
+
+      {historyError && (
+        <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm font-semibold text-amber-900">
+          {historyError}
+        </div>
+      )}
 
       <article className="surface-card">
         <h2 className="section-title text-base sm:text-lg">Contact Information</h2>
@@ -265,127 +382,136 @@ export default function ClientProfilePage() {
             <p className="text-base font-semibold sm:text-lg">Not set</p>
           )}
         </div>
-        {!isEditingPreferences ? (
-          <button type="button" onClick={openPreferencesEditor} className="action-btn action-btn-secondary mt-3 w-full">
-            {hasAnyPreference ? "Change Session Preferences" : "Set Session Preferences"}
-          </button>
-        ) : (
-          <div className="mt-3 space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
-            {preferencesError && (
-              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                {preferencesError}
+        {client.isActive &&
+          (!isEditingPreferences ? (
+            <button
+              type="button"
+              onClick={openPreferencesEditor}
+              className="action-btn action-btn-secondary mt-3 w-full"
+            >
+              {hasAnyPreference ? "Change Session Preferences" : "Set Session Preferences"}
+            </button>
+          ) : (
+            <div className="mt-3 space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+              {preferencesError && (
+                <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                  {preferencesError}
+                </div>
+              )}
+              <div>
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <p className="text-sm font-medium sm:text-base">Training Days</p>
+                  <span className="text-xs text-slate-500">
+                    {preferenceForm.preferredDays.length} selected
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  {(configuration?.businessHours || []).map(({ day }) => {
+                    const isSelected = preferenceForm.preferredDays.includes(day);
+                    const selectedSlots = preferenceForm.preferredSchedule[day] || [];
+                    const hasPendingSlot = selectedSlots.some(
+                      (slot) =>
+                        !sessionPreferences.some(
+                          (item) =>
+                            item.day === day &&
+                            item.startTime === slot &&
+                            item.status === "approved"
+                        )
+                    );
+                    return (
+                      <button
+                        key={day}
+                        type="button"
+                        onClick={() => togglePreferredDay(day)}
+                        className={`h-10 rounded-xl border px-3 text-sm font-semibold transition ${
+                          isSelected
+                            ? hasPendingSlot
+                              ? "border-amber-300 bg-amber-50 text-amber-800"
+                              : "border-emerald-700 bg-emerald-50 text-emerald-700"
+                            : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                        }`}
+                      >
+                        {day.slice(0, 3)}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="mt-2 text-xs text-slate-500">
+                  Training is available on the days shown.
+                  {lastSaturdaySlot ? ` Saturday's last start time is ${lastSaturdaySlot}.` : ""}
+                </p>
               </div>
-            )}
-            <div>
-              <div className="mb-2 flex items-center justify-between gap-2">
-                <p className="text-sm font-medium sm:text-base">Training Days</p>
-                <span className="text-xs text-slate-500">{preferenceForm.preferredDays.length} selected</span>
-              </div>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                {(configuration?.businessHours || []).map(({ day }) => {
-                  const isSelected = preferenceForm.preferredDays.includes(day);
-                  const selectedSlots = preferenceForm.preferredSchedule[day] || [];
-                  const hasPendingSlot = selectedSlots.some(
-                    (slot) =>
-                      !sessionPreferences.some(
-                        (item) =>
-                          item.day === day &&
-                          item.startTime === slot &&
-                          item.status === "approved"
-                      )
-                  );
-                  return (
-                    <button
-                      key={day}
-                      type="button"
-                      onClick={() => togglePreferredDay(day)}
-                      className={`h-10 rounded-xl border px-3 text-sm font-semibold transition ${
-                        isSelected
-                          ? hasPendingSlot
-                            ? "border-amber-300 bg-amber-50 text-amber-800"
-                            : "border-emerald-700 bg-emerald-50 text-emerald-700"
-                          : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
-                      }`}
-                    >
-                      {day.slice(0, 3)}
-                    </button>
-                  );
-                })}
-              </div>
-              <p className="mt-2 text-xs text-slate-500">
-                Training is available on the days shown.
-                {lastSaturdaySlot ? ` Saturday's last start time is ${lastSaturdaySlot}.` : ""}
-              </p>
-            </div>
 
-            {preferenceForm.preferredDays.length > 0 && (
-              <div className="space-y-3">
-                <p className="text-sm font-medium sm:text-base">Preferred Hours</p>
-                {preferenceForm.preferredDays.map((day) => {
-                  const selectedSlots = preferenceForm.preferredSchedule[day] || [];
-                  return (
-                    <div key={day} className="rounded-xl border border-slate-200 bg-white p-3">
-                      <div className="mb-2 flex items-center justify-between gap-2">
-                        <p className="text-sm font-semibold text-slate-800">{day}</p>
-                        <span className="text-xs text-slate-500">{selectedSlots.length} selected</span>
+              {preferenceForm.preferredDays.length > 0 && (
+                <div className="space-y-3">
+                  <p className="text-sm font-medium sm:text-base">Preferred Hours</p>
+                  {preferenceForm.preferredDays.map((day) => {
+                    const selectedSlots = preferenceForm.preferredSchedule[day] || [];
+                    return (
+                      <div key={day} className="rounded-xl border border-slate-200 bg-white p-3">
+                        <div className="mb-2 flex items-center justify-between gap-2">
+                          <p className="text-sm font-semibold text-slate-800">{day}</p>
+                          <span className="text-xs text-slate-500">
+                            {selectedSlots.length} selected
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
+                          {timeSlotsForDay(day).map((slot) => {
+                            const isSelected = selectedSlots.includes(slot);
+                            const isApproved = sessionPreferences.some(
+                              (item) =>
+                                item.day === day &&
+                                item.startTime === slot &&
+                                item.status === "approved"
+                            );
+                            return (
+                              <button
+                                key={`${day}-${slot}`}
+                                type="button"
+                                onClick={() => togglePreferredTime(day, slot)}
+                                className={`h-9 rounded-lg border px-2 text-xs font-semibold transition sm:text-sm ${
+                                  isSelected
+                                    ? isApproved
+                                      ? "border-emerald-700 bg-emerald-50 text-emerald-700"
+                                      : "border-amber-300 bg-amber-50 text-amber-800"
+                                    : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                                }`}
+                              >
+                                {slot}
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
-                      <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
-                        {timeSlotsForDay(day).map((slot) => {
-                          const isSelected = selectedSlots.includes(slot);
-                          const isApproved = sessionPreferences.some(
-                            (item) =>
-                              item.day === day &&
-                              item.startTime === slot &&
-                              item.status === "approved"
-                          );
-                          return (
-                            <button
-                              key={`${day}-${slot}`}
-                              type="button"
-                              onClick={() => togglePreferredTime(day, slot)}
-                              className={`h-9 rounded-lg border px-2 text-xs font-semibold transition sm:text-sm ${
-                                isSelected
-                                  ? isApproved
-                                    ? "border-emerald-700 bg-emerald-50 text-emerald-700"
-                                    : "border-amber-300 bg-amber-50 text-amber-800"
-                                  : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
-                              }`}
-                            >
-                              {slot}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+                    );
+                  })}
+                </div>
+              )}
 
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={closePreferencesEditor}
-                disabled={isSavingPreferences}
-                className="action-btn action-btn-secondary w-full"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={savePreferences}
-                disabled={isSavingPreferences}
-                className="action-btn action-btn-primary w-full disabled:opacity-70"
-              >
-                {isSavingPreferences
-                  ? "Saving..."
-                  : preferenceForm.preferredDays.length === 0
-                    ? "Clear Preferences"
-                    : "Save Preferences"}
-              </button>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={closePreferencesEditor}
+                  disabled={isSavingPreferences}
+                  className="action-btn action-btn-secondary w-full"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={savePreferences}
+                  disabled={isSavingPreferences}
+                  className="action-btn action-btn-primary w-full disabled:opacity-70"
+                >
+                  {isSavingPreferences
+                    ? "Saving..."
+                    : preferenceForm.preferredDays.length === 0
+                      ? "Clear Preferences"
+                      : "Save Preferences"}
+                </button>
+              </div>
             </div>
-          </div>
-        )}
+          ))}
       </article>
 
       <article className="surface-card">
@@ -450,31 +576,169 @@ export default function ClientProfilePage() {
         </div>
       </article>
 
-      <div className="surface-card space-y-2">
-        <button type="button" className="action-btn action-btn-primary w-full">
-          Mark Session Complete
-        </button>
-        <button type="button" className="action-btn action-btn-secondary w-full">
-          Schedule New Session
-        </button>
-      </div>
-
       <article className="surface-card">
-        <h2 className="section-title text-base sm:text-lg">Session History</h2>
-        <div className="space-y-2">
-          {profileSessionHistory.map((entry) => (
-            <div key={`${entry.date}-${entry.time}`} className="border-b border-slate-200 py-2 last:border-0">
-              <div className="flex items-center justify-between gap-3">
+        <h2 className="section-title text-base sm:text-lg">Package History</h2>
+        <div className="space-y-3">
+          {packages.length === 0 && (
+            <p className="text-sm text-slate-600">No package history recorded yet.</p>
+          )}
+          {packages.map((item) => (
+            <div key={item.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-base font-semibold sm:text-lg">{formatShortDate(entry.date)}</p>
-                  <p className="text-sm text-slate-600">{entry.time}</p>
+                  <p className="font-bold text-slate-900">{item.program}</p>
+                  <p className="text-sm text-slate-600">
+                    {item.sessionsUsed} of {item.sessionsTotal} sessions used
+                  </p>
                 </div>
-                <p className="text-sm text-slate-600">{entry.completed ? "Completed" : "Pending"}</p>
+                <span className="rounded-full bg-white px-2 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200">
+                  {formatShortDate(item.purchaseDate)}
+                </span>
               </div>
             </div>
           ))}
         </div>
       </article>
+
+      {client.isActive && (
+        <Link
+          to={`/schedule?clientId=${client.id}`}
+          className="action-btn action-btn-primary w-full"
+        >
+          <CalendarPlus size={18} className="mr-2" /> Schedule New Session
+        </Link>
+      )}
+
+      <article className="surface-card">
+        <h2 className="section-title text-base sm:text-lg">Session History</h2>
+        <div className="space-y-2">
+          {sessions.length === 0 && (
+            <p className="text-sm text-slate-600">No sessions recorded yet.</p>
+          )}
+          {sessions.map((entry) => (
+            <div key={entry.id} className="border-b border-slate-200 py-3 last:border-0">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-base font-semibold sm:text-lg">
+                    {formatShortDate(entry.sessionDate)}
+                  </p>
+                  <p className="text-sm text-slate-600">
+                    {entry.startTime} - {entry.program}
+                  </p>
+                </div>
+                <p className="text-sm font-semibold capitalize text-slate-600">
+                  {entry.attendanceStatus.replace("_", " ")}
+                </p>
+              </div>
+              {entry.attendanceStatus === "scheduled" && entry.hasStarted && (
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  {entry.hasEnded && (
+                    <button
+                      type="button"
+                      disabled={Boolean(activeSessionAction)}
+                      onClick={() => recordSessionOutcome(entry, "completed")}
+                      className="action-btn action-btn-primary h-10"
+                    >
+                      <Check size={16} className="mr-1" /> Complete
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    disabled={Boolean(activeSessionAction)}
+                    onClick={() => recordSessionOutcome(entry, "no_show")}
+                    className={`action-btn h-10 border border-amber-300 bg-amber-50 text-amber-800 ${
+                      entry.hasEnded ? "" : "col-span-2"
+                    }`}
+                  >
+                    <UserX size={16} className="mr-1" /> No-show
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </article>
+
+      <button
+        type="button"
+        onClick={() => {
+          if (client.isActive) {
+            setShowArchiveConfirmation(true);
+          } else {
+            toggleArchive();
+          }
+        }}
+        disabled={isUpdatingStatus}
+        className={`action-btn w-full ${
+          client.isActive
+            ? "border border-red-300 bg-white text-red-700"
+            : "action-btn-secondary"
+        }`}
+      >
+        {client.isActive ? (
+          <Archive size={18} className="mr-2" />
+        ) : (
+          <RotateCcw size={18} className="mr-2" />
+        )}
+        {isUpdatingStatus
+          ? "Updating..."
+          : client.isActive
+            ? "Archive Client"
+            : "Restore Client"}
+      </button>
+
+      {showArchiveConfirmation && (
+        <div
+          className="modal-backdrop fixed inset-0 z-50 overflow-auto bg-slate-950/60 p-3 backdrop-blur-sm"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setShowArchiveConfirmation(false);
+          }}
+        >
+          <div
+            className="modal-panel mx-auto mt-20 w-full max-w-md rounded-3xl bg-white p-5 shadow-2xl sm:p-6"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="archive-client-title"
+          >
+            <div className="grid h-12 w-12 place-items-center rounded-2xl bg-red-100 text-red-700">
+              <Archive size={22} />
+            </div>
+            <h2 id="archive-client-title" className="mt-4 text-xl font-bold text-slate-900">
+              Archive {client.name}?
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              This rejects pending preferences and cancels recurring bookings and future
+              sessions. Restoring the client later will not recreate those bookings.
+            </p>
+            <div className="mt-6 grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setShowArchiveConfirmation(false)}
+                className="action-btn action-btn-secondary"
+              >
+                Keep Active
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowArchiveConfirmation(false);
+                  toggleArchive();
+                }}
+                className="action-btn border border-red-600 bg-red-600 text-white"
+              >
+                Archive Client
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <SuccessToast
+        title={notice?.title}
+        message={notice?.message}
+        onDismiss={() => setNotice(null)}
+      />
     </section>
   );
 }

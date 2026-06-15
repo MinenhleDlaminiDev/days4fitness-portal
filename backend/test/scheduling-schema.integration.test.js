@@ -44,7 +44,8 @@ test("records migrations and does not reapply completed files", async () => {
       "007_scheduling_relationship_integrity.sql",
       "008_session_update_integrity.sql",
       "009_scheduling_state_integrity.sql",
-      "010_attendance_replacement_tracking.sql"
+      "010_attendance_replacement_tracking.sql",
+      "011_client_management.sql"
     ]
   );
   assert.deepEqual(appliedAgain, []);
@@ -274,7 +275,8 @@ test("preserves legacy preferences and session attendance during migration", asy
          "007_scheduling_relationship_integrity.sql",
          "008_session_update_integrity.sql",
          "009_scheduling_state_integrity.sql",
-         "010_attendance_replacement_tracking.sql"
+         "010_attendance_replacement_tracking.sql",
+         "011_client_management.sql"
       ]
     );
   } finally {

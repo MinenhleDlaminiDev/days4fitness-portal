@@ -64,34 +64,34 @@ This checklist is the source of truth for backend development. Items are checked
 
 ## Phase 4: Schedule Operations
 
-- [ ] Add weekly schedule query endpoints.
-- [ ] Add single-session detail endpoint.
-- [ ] Add manual session booking.
-- [ ] Add session rescheduling.
-- [ ] Add session cancellation without consuming a credit.
-- [ ] Add replacement booking flow for cancelled sessions.
-- [ ] Add mark-completed action that consumes one credit.
-- [ ] Add mark-no-show action that consumes one credit.
-- [ ] Prevent credits from being consumed twice.
-- [ ] Prevent booking against expired or exhausted packages.
-- [ ] Connect the Schedule page to real API data.
-- [ ] Connect previous-week and next-week navigation.
-- [ ] Connect schedule modal actions.
-- [ ] Add operation and concurrency tests.
-- [ ] **Phase 4 review and approval**
+- [x] Add weekly schedule query endpoints.
+- [x] Add single-session detail endpoint.
+- [x] Add manual session booking.
+- [x] Add session rescheduling.
+- [x] Add session cancellation without consuming a credit.
+- [x] Add replacement booking flow for cancelled sessions.
+- [x] Add mark-completed action that consumes one credit.
+- [x] Add mark-no-show action that consumes one credit.
+- [x] Prevent credits from being consumed twice.
+- [x] Prevent booking against expired or exhausted packages.
+- [x] Connect the Schedule page to real API data.
+- [x] Connect previous-week and next-week navigation.
+- [x] Connect schedule modal actions.
+- [x] Add operation and concurrency tests.
+- [x] **Phase 4 review and approval**
 
 ## Phase 5: Complete Client Management
 
-- [ ] Add update-client endpoint.
-- [ ] Connect the Edit Client form.
-- [ ] Add client archive/deactivate behavior.
-- [ ] Add server-side client search and filtering.
-- [ ] Add pagination for the clients list.
-- [ ] Add client package history endpoint.
-- [ ] Add real client session history endpoint.
-- [ ] Show pending, approved, and rejected preferences on the profile.
-- [ ] Connect profile session actions to the API.
-- [ ] Add client-management tests.
+- [x] Add update-client endpoint.
+- [x] Connect the Edit Client form.
+- [x] Add client archive/deactivate behavior.
+- [x] Add server-side client search and filtering.
+- [x] Add pagination for the clients list.
+- [x] Add client package history endpoint.
+- [x] Add real client session history endpoint.
+- [x] Show pending, approved, and rejected preferences on the profile.
+- [x] Connect profile session actions to the API.
+- [x] Add client-management tests.
 - [ ] **Phase 5 review and approval**
 
 ## Phase 6: Packages And Payments

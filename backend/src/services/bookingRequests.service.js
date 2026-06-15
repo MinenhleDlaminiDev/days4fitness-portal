@@ -32,6 +32,9 @@ function translateRepositoryError(error) {
   if (error.code === "SLOT_CONFLICT") {
     throw conflictError(error.message);
   }
+  if (error.code === "CLIENT_ARCHIVED") {
+    throw conflictError(error.message);
+  }
   if (error.code === "23505" || error.code === "23514") {
     throw conflictError("The requested slot cannot be approved");
   }

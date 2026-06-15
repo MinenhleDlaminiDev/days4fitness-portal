@@ -257,8 +257,48 @@ html[data-theme="dark"] .schedule-page .bg-emerald-50 {
   background-color: #1b3427 !important;
 }
 
+html[data-theme="dark"] .schedule-page .text-emerald-950 {
+  color: #d8f6e3 !important;
+}
+
+html[data-theme="dark"] .schedule-page .border-emerald-200 {
+  border-color: #69a982 !important;
+}
+
 html[data-theme="dark"] .schedule-page .bg-red-50 {
   background-color: #3a2023 !important;
+}
+
+html[data-theme="dark"] .schedule-page .text-red-950 {
+  color: #ffd6d6 !important;
+}
+
+html[data-theme="dark"] .schedule-page .border-red-200 {
+  border-color: #d58b91 !important;
+}
+
+html[data-theme="dark"] .schedule-page .bg-blue-50 {
+  background-color: #1b2d42 !important;
+}
+
+html[data-theme="dark"] .schedule-page .text-blue-900 {
+  color: #d7eaff !important;
+}
+
+html[data-theme="dark"] .schedule-page .border-blue-200 {
+  border-color: #6e9ac7 !important;
+}
+
+html[data-theme="dark"] .schedule-page .bg-amber-50 {
+  background-color: #3b2f1a !important;
+}
+
+html[data-theme="dark"] .schedule-page .text-amber-900 {
+  color: #ffe3ad !important;
+}
+
+html[data-theme="dark"] .schedule-page .border-amber-300 {
+  border-color: #c99a4f !important;
 }
 
 html[data-theme="dark"] .booking-requests-page .text-red-700 {

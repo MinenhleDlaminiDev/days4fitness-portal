@@ -1,4 +1,6 @@
 import { pool } from "../db/client.js";
+import { env } from "../config/env.js";
+import { allocatePackageSessions } from "./packageAllocation.repository.js";
 
 const CLIENT_SELECT_SQL = `
   SELECT
@@ -8,6 +10,8 @@ const CLIENT_SELECT_SQL = `
     c.email,
     c.preferred_days,
     c.preferred_schedule,
+    c.is_active,
+    c.archived_at,
     c.created_at,
     latest_package.sessions_total,
     latest_package.sessions_used,
@@ -38,7 +42,7 @@ const CLIENT_SELECT_SQL = `
     FROM recurring_booking_requests request
     WHERE request.package_id = latest_package.id
       AND request.source = 'client_preference'
-      AND request.status IN ('pending', 'approved')
+      AND request.status IN ('pending', 'approved', 'rejected')
   ) preference_statuses ON true
 `;
 
@@ -51,7 +55,102 @@ const DAY_NUMBERS = {
   Saturday: 6
 };
 
-async function syncPendingPreferenceRequests(db, clientId, packageId, preferredSchedule) {
+async function syncPreferenceRequests(db, clientId, packageId, preferredSchedule) {
+  const desiredSlots = new Set(
+    Object.entries(preferredSchedule).flatMap(([day, slots]) =>
+      slots.map((slot) => `${DAY_NUMBERS[day]}-${slot}`)
+    )
+  );
+  const approvedResult = await db.query(
+    `SELECT
+       request.id AS request_id,
+       request.day_of_week,
+       request.start_time::text,
+       booking.id AS booking_id,
+       booking.status AS booking_status
+     FROM recurring_booking_requests request
+     LEFT JOIN approved_recurring_bookings booking ON booking.request_id = request.id
+     WHERE request.client_id = $1
+       AND request.package_id = $2
+       AND request.source = 'client_preference'
+       AND request.status = 'approved'
+     ORDER BY request.id, booking.id
+     FOR UPDATE OF request`,
+    [clientId, packageId]
+  );
+  const requestGroups = new Map();
+
+  for (const row of approvedResult.rows) {
+    const group = requestGroups.get(row.request_id) || {
+      requestId: row.request_id,
+      slotKey: `${row.day_of_week}-${row.start_time.slice(0, 5)}`,
+      bookings: []
+    };
+    if (row.booking_id) {
+      group.bookings.push({ id: row.booking_id, status: row.booking_status });
+    }
+    requestGroups.set(row.request_id, group);
+  }
+
+  for (const group of requestGroups.values()) {
+    const desired = desiredSlots.has(group.slotKey);
+    const activeBookings = group.bookings.filter((booking) => booking.status === "active");
+    if (desired && activeBookings.length > 0) continue;
+
+    const activeBookingIds = activeBookings.map((booking) => booking.id);
+    let affectedSessionIds = [];
+    if (activeBookingIds.length > 0) {
+      const attendanceResult = await db.query(
+        `UPDATE session_attendance attendance
+         SET status = 'cancelled', credit_consumed = false, updated_at = NOW()
+         FROM sessions session
+         WHERE attendance.session_id = session.id
+           AND attendance.recurring_booking_id = ANY($1::bigint[])
+           AND attendance.status = 'scheduled'
+           AND (session.session_date + session.start_time) > LOCALTIMESTAMP
+         RETURNING attendance.session_id`,
+        [activeBookingIds]
+      );
+      affectedSessionIds = [
+        ...new Set(attendanceResult.rows.map((row) => row.session_id))
+      ];
+    }
+
+    await db.query(
+      `UPDATE approved_recurring_bookings
+       SET
+         status = CASE WHEN status = 'active' THEN 'cancelled' ELSE status END,
+         request_id = NULL,
+         updated_at = NOW()
+       WHERE request_id = $1`,
+      [group.requestId]
+    );
+    await db.query(
+      `UPDATE recurring_booking_requests
+       SET
+         status = $2,
+         reviewed_at = CASE WHEN $2 = 'pending' THEN NULL ELSE NOW() END,
+         updated_at = NOW()
+       WHERE id = $1`,
+      [group.requestId, desired ? "pending" : "rejected"]
+    );
+
+    if (affectedSessionIds.length > 0) {
+      await db.query(
+        `UPDATE sessions session
+         SET status = 'cancelled'
+         WHERE session.id = ANY($1::bigint[])
+           AND NOT EXISTS (
+             SELECT 1
+             FROM session_attendance attendance
+             WHERE attendance.session_id = session.id
+               AND attendance.status <> 'cancelled'
+           )`,
+        [affectedSessionIds]
+      );
+    }
+  }
+
   await db.query(
     `DELETE FROM recurring_booking_requests
      WHERE client_id = $1
@@ -82,13 +181,78 @@ async function syncPendingPreferenceRequests(db, clientId, packageId, preferredS
       );
     }
   }
+
+  await allocatePackageSessions(db, packageId);
 }
 
-export function createClientsRepository(dbPool = pool) {
+export function createClientsRepository(
+  dbPool = pool,
+  { businessTimezone = env.businessTimezone } = {}
+) {
   return {
-    async findAll() {
-      const result = await dbPool.query(`${CLIENT_SELECT_SQL} ORDER BY c.created_at DESC`);
-      return result.rows;
+    async findAll({ search, status, packageStatus, page, pageSize }) {
+      const conditions = [];
+      const values = [];
+      const addValue = (value) => {
+        values.push(value);
+        return `$${values.length}`;
+      };
+
+      if (search) {
+        const placeholder = addValue(`%${search.toLowerCase()}%`);
+        conditions.push(
+          `(LOWER(c.name) LIKE ${placeholder}
+            OR LOWER(COALESCE(c.email, '')) LIKE ${placeholder}
+            OR c.phone LIKE ${placeholder}
+            OR EXISTS (
+              SELECT 1
+              FROM packages search_package
+              JOIN programs search_program ON search_program.id = search_package.program_id
+              WHERE search_package.client_id = c.id
+                AND LOWER(search_program.name) LIKE ${placeholder}
+            ))`
+        );
+      }
+      if (status === "active") conditions.push("c.is_active = true");
+      if (status === "archived") conditions.push("c.is_active = false");
+      if (packageStatus === "active") {
+        conditions.push("latest_package.expiry_date >= CURRENT_DATE");
+      }
+      if (packageStatus === "expired") {
+        conditions.push("latest_package.expiry_date < CURRENT_DATE");
+      }
+
+      const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+      const countResult = await dbPool.query(
+        `SELECT
+           COUNT(*)::int AS total,
+           COUNT(*) FILTER (WHERE latest_package.paid IS NOT TRUE)::int AS unpaid_total
+         FROM clients c
+         LEFT JOIN LATERAL (
+           SELECT pk.expiry_date, pk.paid
+           FROM packages pk
+           WHERE pk.client_id = c.id
+           ORDER BY pk.created_at DESC, pk.id DESC
+           LIMIT 1
+         ) latest_package ON true
+         ${where}`,
+        values
+      );
+      const limitPlaceholder = addValue(pageSize);
+      const offsetPlaceholder = addValue((page - 1) * pageSize);
+      const result = await dbPool.query(
+        `${CLIENT_SELECT_SQL}
+         ${where}
+         ORDER BY c.created_at DESC, c.id DESC
+         LIMIT ${limitPlaceholder}
+         OFFSET ${offsetPlaceholder}`,
+        values
+      );
+      return {
+        rows: result.rows,
+        total: countResult.rows[0].total,
+        unpaidTotal: countResult.rows[0].unpaid_total
+      };
     },
 
     async findById(id, db = dbPool) {
@@ -170,7 +334,7 @@ export function createClientsRepository(dbPool = pool) {
           ]
         );
 
-        await syncPendingPreferenceRequests(
+        await syncPreferenceRequests(
           db,
           clientId,
           packageResult.rows[0].id,
@@ -188,10 +352,229 @@ export function createClientsRepository(dbPool = pool) {
       }
     },
 
+    async update(id, clientData, preferences = null) {
+      const db = await dbPool.connect();
+      try {
+        await db.query("BEGIN");
+        const clientResult = await db.query(
+          `SELECT id, is_active
+           FROM clients
+           WHERE id = $1
+           FOR UPDATE`,
+          [id]
+        );
+        if (!clientResult.rows[0]) {
+          await db.query("ROLLBACK");
+          return null;
+        }
+        if (preferences && !clientResult.rows[0].is_active) {
+          const error = new Error("Archived clients cannot update preferences");
+          error.code = "CLIENT_ARCHIVED";
+          throw error;
+        }
+
+        await db.query(
+          `UPDATE clients
+           SET name = $2, phone = $3, email = $4
+           WHERE id = $1`,
+          [id, clientData.name, clientData.phone, clientData.email]
+        );
+
+        if (preferences) {
+          await db.query("SELECT set_config('TimeZone', $1, true)", [businessTimezone]);
+          await db.query(
+            `UPDATE clients
+             SET preferred_days = $2, preferred_schedule = $3::jsonb
+             WHERE id = $1`,
+            [id, preferences.preferredDays, JSON.stringify(preferences.preferredSchedule)]
+          );
+          const packageResult = await db.query(
+            `SELECT id
+             FROM packages
+             WHERE client_id = $1
+             ORDER BY created_at DESC, id DESC
+             LIMIT 1
+             FOR UPDATE`,
+            [id]
+          );
+          if (!packageResult.rows[0]) {
+            const error = new Error("Client package is missing");
+            error.code = "PACKAGE_CONFIGURATION_MISSING";
+            throw error;
+          }
+          await syncPreferenceRequests(
+            db,
+            id,
+            packageResult.rows[0].id,
+            preferences.preferredSchedule
+          );
+        }
+
+        const saved = await this.findById(id, db);
+        await db.query("COMMIT");
+        return saved;
+      } catch (error) {
+        await db.query("ROLLBACK");
+        throw error;
+      } finally {
+        db.release();
+      }
+    },
+
+    async setActive(id, isActive) {
+      const db = await dbPool.connect();
+      try {
+        await db.query("BEGIN");
+        await db.query("SELECT set_config('TimeZone', $1, true)", [businessTimezone]);
+        const lockedClient = await db.query(
+          "SELECT id FROM clients WHERE id = $1 FOR UPDATE",
+          [id]
+        );
+        if (!lockedClient.rows[0]) {
+          await db.query("ROLLBACK");
+          return null;
+        }
+        const result = await db.query(
+          `UPDATE clients
+           SET
+             is_active = $2,
+             archived_at = CASE WHEN $2 THEN NULL ELSE NOW() END
+           WHERE id = $1
+           RETURNING id`,
+          [id, isActive]
+        );
+        if (!result.rows[0]) {
+          await db.query("ROLLBACK");
+          return null;
+        }
+
+        if (!isActive) {
+          await db.query(
+            `UPDATE approved_recurring_bookings
+             SET status = 'cancelled', request_id = NULL, updated_at = NOW()
+             WHERE client_id = $1
+               AND status = 'active'`,
+            [id]
+          );
+          await db.query(
+            `UPDATE recurring_booking_requests
+             SET status = 'rejected', reviewed_at = NOW(), updated_at = NOW()
+             WHERE client_id = $1
+               AND status IN ('pending', 'approved')`,
+            [id]
+          );
+          const removedResult = await db.query(
+            `UPDATE session_attendance attendance
+             SET status = 'cancelled', credit_consumed = false, updated_at = NOW()
+             FROM sessions session
+             WHERE attendance.session_id = session.id
+               AND attendance.client_id = $1
+               AND attendance.status = 'scheduled'
+               AND (session.session_date + session.start_time) > LOCALTIMESTAMP
+             RETURNING attendance.session_id`,
+            [id]
+          );
+          const sessionIds = [...new Set(removedResult.rows.map((row) => row.session_id))];
+          if (sessionIds.length > 0) {
+            await db.query(
+              `UPDATE sessions session
+               SET status = 'cancelled'
+               WHERE session.id = ANY($1::bigint[])
+                 AND NOT EXISTS (
+                   SELECT 1
+                   FROM session_attendance attendance
+                   WHERE attendance.session_id = session.id
+                     AND attendance.status <> 'cancelled'
+                 )`,
+              [sessionIds]
+            );
+          }
+        }
+
+        const saved = await this.findById(id, db);
+        await db.query("COMMIT");
+        return saved;
+      } catch (error) {
+        await db.query("ROLLBACK");
+        throw error;
+      } finally {
+        db.release();
+      }
+    },
+
+    async findPackageHistory(id) {
+      const result = await dbPool.query(
+        `SELECT
+           package.id,
+           package.sessions_total,
+           package.sessions_used,
+           package.price,
+           package.paid,
+           package.purchase_date::text,
+           package.expiry_date::text,
+           package.created_at,
+           program.name AS program_name,
+           program.type AS program_type
+         FROM packages package
+         JOIN programs program ON program.id = package.program_id
+         WHERE package.client_id = $1
+         ORDER BY package.created_at DESC, package.id DESC`,
+        [id]
+      );
+      return result.rows;
+    },
+
+    async findSessionHistory(id) {
+      const result = await dbPool.query(
+        `SELECT
+           session.id,
+           session.session_date::text,
+           session.start_time::text,
+           session.duration_minutes,
+           session.status AS session_status,
+           attendance.status AS attendance_status,
+           attendance.credit_consumed,
+           (session.session_date + session.start_time)
+             <= (CURRENT_TIMESTAMP AT TIME ZONE $2) AS has_started,
+           (
+             session.session_date
+             + session.start_time
+             + (session.duration_minutes * INTERVAL '1 minute')
+           ) <= (CURRENT_TIMESTAMP AT TIME ZONE $2) AS has_ended,
+           package.id AS package_id,
+           program.name AS program_name,
+           program.type AS program_type
+         FROM session_attendance attendance
+         JOIN sessions session ON session.id = attendance.session_id
+         JOIN packages package ON package.id = attendance.package_id
+         JOIN programs program ON program.id = session.program_id
+         WHERE attendance.client_id = $1
+         ORDER BY session.session_date DESC, session.start_time DESC, session.id DESC`,
+        [id, businessTimezone]
+      );
+      return result.rows;
+    },
+
     async updatePreferences(id, preferredDays, preferredSchedule) {
       const db = await dbPool.connect();
       try {
         await db.query("BEGIN");
+        const clientResult = await db.query(
+          `SELECT id, is_active
+           FROM clients
+           WHERE id = $1
+           FOR UPDATE`,
+          [id]
+        );
+        if (!clientResult.rows[0]) {
+          await db.query("ROLLBACK");
+          return null;
+        }
+        if (!clientResult.rows[0].is_active) {
+          const error = new Error("Archived clients cannot update preferences");
+          error.code = "CLIENT_ARCHIVED";
+          throw error;
+        }
         const updateResult = await db.query(
           `UPDATE clients
            SET preferred_days = $2, preferred_schedule = $3::jsonb
@@ -199,11 +582,6 @@ export function createClientsRepository(dbPool = pool) {
            RETURNING id`,
           [id, preferredDays, JSON.stringify(preferredSchedule)]
         );
-        if (!updateResult.rows[0]) {
-          await db.query("ROLLBACK");
-          return null;
-        }
-
         const packageResult = await db.query(
           `SELECT id
            FROM packages
@@ -218,7 +596,7 @@ export function createClientsRepository(dbPool = pool) {
           throw error;
         }
 
-        await syncPendingPreferenceRequests(
+        await syncPreferenceRequests(
           db,
           id,
           packageResult.rows[0].id,

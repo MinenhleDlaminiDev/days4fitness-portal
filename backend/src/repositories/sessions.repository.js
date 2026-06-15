@@ -95,6 +95,27 @@ async function lockPackages(db, packageIds) {
   return result.rows;
 }
 
+async function lockActiveClients(db, clientIds) {
+  const ids = [...new Set(clientIds)].sort((a, b) => Number(a) - Number(b));
+  if (ids.length === 0) return;
+  const result = await db.query(
+    `SELECT id, is_active
+     FROM clients
+     WHERE id = ANY($1::bigint[])
+     ORDER BY id
+     FOR UPDATE`,
+    [ids]
+  );
+  if (
+    result.rows.length !== ids.length ||
+    result.rows.some((client) => !client.is_active)
+  ) {
+    const error = new Error("Archived clients cannot be scheduled");
+    error.code = "CLIENT_ARCHIVED";
+    throw error;
+  }
+}
+
 async function lockTargetDate(db, sessionDate) {
   await db.query("SELECT pg_advisory_xact_lock($1, hashtext($2))", [44032, sessionDate]);
 }
@@ -291,6 +312,22 @@ export function createSessionsRepository(
       try {
         await db.query("BEGIN");
         await db.query("SELECT set_config('TimeZone', $1, true)", [businessTimezone]);
+        const clientResult = await db.query(
+          `SELECT id, is_active
+           FROM clients
+           WHERE id = $1
+           FOR UPDATE`,
+          [clientId]
+        );
+        if (!clientResult.rows[0]) {
+          await db.query("ROLLBACK");
+          return null;
+        }
+        if (!clientResult.rows[0].is_active) {
+          const error = new Error("Archived clients cannot be scheduled");
+          error.code = "CLIENT_ARCHIVED";
+          throw error;
+        }
         await lockTargetDate(db, sessionDate);
         const packageResult = await db.query(
           `SELECT
@@ -368,6 +405,14 @@ export function createSessionsRepository(
       try {
         await db.query("BEGIN");
         await db.query("SELECT set_config('TimeZone', $1, true)", [businessTimezone]);
+        const clientIdsResult = await db.query(
+          "SELECT client_id FROM session_attendance WHERE session_id = $1 ORDER BY client_id",
+          [sessionId]
+        );
+        await lockActiveClients(
+          db,
+          clientIdsResult.rows.map((row) => row.client_id)
+        );
         await lockTargetDate(db, sessionDate);
         const original = await findSession(db, sessionId, true);
         if (!original) {
@@ -433,6 +478,14 @@ export function createSessionsRepository(
       try {
         await db.query("BEGIN");
         await db.query("SELECT set_config('TimeZone', $1, true)", [businessTimezone]);
+        const clientIdsResult = await db.query(
+          "SELECT client_id FROM session_attendance WHERE session_id = $1 ORDER BY client_id",
+          [sessionId]
+        );
+        await lockActiveClients(
+          db,
+          clientIdsResult.rows.map((row) => row.client_id)
+        );
         await lockTargetDate(db, sessionDate);
         const original = await findSession(db, sessionId, true);
         if (!original) {

@@ -1,8 +1,13 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft as ArrowLeftIcon } from "lucide-react";
 import { addMonths, localDateInputValue } from "../lib/date.js";
-import { createClient, getApiErrorMessage } from "../lib/api.js";
+import {
+  createClient,
+  fetchClientById,
+  getApiErrorMessage,
+  updateClient
+} from "../lib/api.js";
 import { useAppConfiguration } from "../context/AppConfigurationContext.jsx";
 import ThemeToggle from "../components/ThemeToggle.jsx";
 
@@ -15,6 +20,8 @@ export default function ClientFormPage() {
   const isEdit = Boolean(id);
   const { configuration, timeSlotsForDay } = useAppConfiguration();
   const [isSaving, setIsSaving] = useState(false);
+  const [isLoading, setIsLoading] = useState(isEdit);
+  const [loadError, setLoadError] = useState("");
   const [saveError, setSaveError] = useState("");
 
   const [form, setForm] = useState({
@@ -37,6 +44,40 @@ export default function ClientFormPage() {
   );
   const saturdayHours = configuration?.businessHours.find((item) => item.day === "Saturday");
   const lastSaturdaySlot = saturdayHours?.timeSlots.at(-1);
+
+  useEffect(() => {
+    if (!isEdit) return;
+    let mounted = true;
+    setLoadError("");
+
+    fetchClientById(id)
+      .then((client) => {
+        if (!mounted) return;
+        setLoadError("");
+        setForm({
+          name: client.name,
+          phone: client.phone,
+          email: client.email,
+          program: client.program,
+          sessionType: client.sessionType,
+          packageSize: client.sessionsTotal,
+          purchaseDate: client.purchaseDate,
+          paid: client.paid,
+          preferredDays: client.preferredDays || [],
+          preferredSchedule: client.preferredSchedule || {}
+        });
+      })
+      .catch((error) => {
+        if (mounted) setLoadError(getApiErrorMessage(error, "Unable to load client."));
+      })
+      .finally(() => {
+        if (mounted) setIsLoading(false);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [id, isEdit]);
 
   function updateField(name, value) {
     setForm((current) => ({ ...current, [name]: value }));
@@ -73,10 +114,6 @@ export default function ClientFormPage() {
 
   async function submitForm(event) {
     event.preventDefault();
-    if (isEdit) {
-      setSaveError("Editing is not available yet.");
-      return;
-    }
     for (const day of form.preferredDays) {
       const slots = form.preferredSchedule[day] || [];
       if (slots.length === 0) {
@@ -88,10 +125,18 @@ export default function ClientFormPage() {
     try {
       setIsSaving(true);
       setSaveError("");
-      const savedClient = await createClient({
-        ...form,
-        packageSize: Number(form.packageSize)
-      });
+      const savedClient = isEdit
+        ? await updateClient(id, {
+            name: form.name,
+            phone: form.phone,
+            email: form.email,
+            preferredDays: form.preferredDays,
+            preferredSchedule: form.preferredSchedule
+          })
+        : await createClient({
+            ...form,
+            packageSize: Number(form.packageSize)
+          });
       navigate(`/clients/${savedClient.id}`);
     } catch (error) {
       const message = getApiErrorMessage(error, "Unable to save client right now.");
@@ -99,6 +144,34 @@ export default function ClientFormPage() {
     } finally {
       setIsSaving(false);
     }
+  }
+
+  if (isLoading) {
+    return (
+      <section className="page-wrap">
+        <div className="surface-card text-sm text-slate-600">Loading client...</div>
+      </section>
+    );
+  }
+
+  if (isEdit && loadError) {
+    return (
+      <section className="page-wrap space-y-4">
+        <header className="page-header flex items-start justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <button type="button" onClick={() => navigate(-1)} aria-label="Go back">
+              <ArrowLeftIcon size={20} className="stroke-[1.75]" />
+            </button>
+            <div>
+              <h1 className="page-title text-2xl sm:text-3xl">Unable to Edit Client</h1>
+              <p className="text-sm text-emerald-100">Client details were not loaded</p>
+            </div>
+          </div>
+          <ThemeToggle />
+        </header>
+        <div className="surface-card text-sm font-semibold text-red-700">{loadError}</div>
+      </section>
+    );
   }
 
   return (
@@ -158,9 +231,11 @@ export default function ClientFormPage() {
         </article>
 
         <article className="surface-card">
-          <h2 className="section-title text-base sm:text-lg">Package Details</h2>
+          <h2 className="section-title text-base sm:text-lg">
+            {isEdit ? "Session Preferences" : "Package Details"}
+          </h2>
           <div className="space-y-3">
-            <label className="block">
+            {!isEdit && <label className="block">
               <span className="text-sm font-medium sm:text-base">Program *</span>
               <select
                 required
@@ -177,9 +252,9 @@ export default function ClientFormPage() {
                   </option>
                 ))}
               </select>
-            </label>
+            </label>}
 
-            <div>
+            {!isEdit && <div>
               <p className="mb-2 text-sm font-medium sm:text-base">Session Type *</p>
               <div className="grid grid-cols-2 gap-3">
                 {["One-on-One", "Group"].map((type) => (
@@ -203,9 +278,9 @@ export default function ClientFormPage() {
                   </button>
                 ))}
               </div>
-            </div>
+            </div>}
 
-            <label className="block">
+            {!isEdit && <label className="block">
               <span className="text-sm font-medium sm:text-base">Package Size *</span>
               <select
                 required
@@ -220,9 +295,9 @@ export default function ClientFormPage() {
                   </option>
                 ))}
               </select>
-            </label>
+            </label>}
 
-            <label className="block">
+            {!isEdit && <label className="block">
               <span className="text-sm font-medium sm:text-base">Purchase Date *</span>
               <input
                 required
@@ -231,7 +306,7 @@ export default function ClientFormPage() {
                 onChange={(event) => updateField("purchaseDate", event.target.value)}
                 className={fieldClass}
               />
-            </label>
+            </label>}
 
             <div>
               <div className="mb-2 flex items-center justify-between gap-2">
@@ -299,17 +374,17 @@ export default function ClientFormPage() {
               </div>
             )}
 
-            <div className="rounded-xl border-l-4 border-amber-500 bg-amber-50 p-3">
+            {!isEdit && <div className="rounded-xl border-l-4 border-amber-500 bg-amber-50 p-3">
               <p className="text-sm text-slate-600">Package Expires</p>
               <p className="text-lg font-semibold text-amber-700 sm:text-xl">{expiryDate}</p>
               <p className="text-sm text-slate-500">
                 {expiryMonths} months from purchase date
               </p>
-            </div>
+            </div>}
           </div>
         </article>
 
-        <article className="surface-card">
+        {!isEdit && <article className="surface-card">
           <h2 className="section-title text-base sm:text-lg">Payment Status</h2>
           <label className="flex items-center gap-3 text-sm sm:text-base">
             <input
@@ -320,14 +395,14 @@ export default function ClientFormPage() {
             />
             Client has paid for this package
           </label>
-        </article>
+        </article>}
 
         <button
           type="submit"
           disabled={isSaving}
           className="action-btn action-btn-primary w-full disabled:opacity-70"
         >
-          {isSaving ? "Saving..." : "Save Client"}
+          {isSaving ? "Saving..." : isEdit ? "Save Changes" : "Save Client"}
         </button>
       </form>
     </section>

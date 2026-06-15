@@ -13,8 +13,8 @@ export function getApiErrorMessage(error, fallback) {
   return error?.response?.data?.error?.message || error?.message || fallback;
 }
 
-export async function fetchClients() {
-  const response = await api.get("/clients");
+export async function fetchClients(params = {}) {
+  const response = await api.get("/clients", { params });
   return responseData(response);
 }
 
@@ -30,6 +30,31 @@ export async function createClient(payload) {
 
 export async function updateClientPreferences(clientId, payload) {
   const response = await api.patch(`/clients/${clientId}/preferences`, payload);
+  return responseData(response);
+}
+
+export async function updateClient(clientId, payload) {
+  const response = await api.patch(`/clients/${clientId}`, payload);
+  return responseData(response);
+}
+
+export async function archiveClient(clientId) {
+  const response = await api.post(`/clients/${clientId}/archive`);
+  return responseData(response);
+}
+
+export async function restoreClient(clientId) {
+  const response = await api.post(`/clients/${clientId}/restore`);
+  return responseData(response);
+}
+
+export async function fetchClientPackages(clientId) {
+  const response = await api.get(`/clients/${clientId}/packages`);
+  return responseData(response);
+}
+
+export async function fetchClientSessions(clientId) {
+  const response = await api.get(`/clients/${clientId}/sessions`);
   return responseData(response);
 }
 

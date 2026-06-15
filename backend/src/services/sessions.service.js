@@ -63,6 +63,7 @@ function translateRepositoryError(error) {
     "ATTENDEE_NOT_FOUND",
     "CLIENT_REQUIRED",
     "CREDIT_ALREADY_CONSUMED",
+    "CLIENT_ARCHIVED",
     "23505",
     "23514"
   ]);
