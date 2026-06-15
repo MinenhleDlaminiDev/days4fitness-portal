@@ -4,8 +4,10 @@ import pg from "pg";
 import { env } from "../src/config/env.js";
 import { createBookingRequestsRepository } from "../src/repositories/bookingRequests.repository.js";
 import { createClientsRepository } from "../src/repositories/clients.repository.js";
+import { createSessionsRepository } from "../src/repositories/sessions.repository.js";
 import { createBookingRequestsService } from "../src/services/bookingRequests.service.js";
 import { createClientsService } from "../src/services/clients.service.js";
+import { createSessionsService } from "../src/services/sessions.service.js";
 
 const { Pool } = pg;
 
@@ -16,6 +18,7 @@ if (!env.testDatabaseUrl || !new URL(env.testDatabaseUrl).pathname.toLowerCase()
 const testPool = new Pool({ connectionString: env.testDatabaseUrl });
 const clientsService = createClientsService(createClientsRepository(testPool));
 const requestsService = createBookingRequestsService(createBookingRequestsRepository(testPool));
+const sessionsService = createSessionsService(createSessionsRepository(testPool));
 const createdEmails = [];
 const DAY_NAMES = ["", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -103,6 +106,31 @@ async function createManualRequest({ suffix, dayOfWeek, startTime }) {
     [client.rows[0].id, packageResult.rows[0].id, dayOfWeek, startTime]
   );
   return request.rows[0].id;
+}
+
+async function nextBookableDate(dayOfWeek, startTime) {
+  const result = await testPool.query(
+    `WITH business_now AS (
+       SELECT CURRENT_TIMESTAMP AT TIME ZONE $3 AS value
+     ),
+     candidate AS (
+       SELECT
+         value::date
+         + (($1::int - EXTRACT(ISODOW FROM value)::int + 7) % 7) AS session_date,
+         value
+       FROM business_now
+     )
+     SELECT (
+       CASE
+         WHEN session_date = value::date AND $2::time <= value::time
+           THEN session_date + 7
+         ELSE session_date
+       END
+     )::text AS session_date
+     FROM candidate`,
+    [dayOfWeek, startTime, env.businessTimezone]
+  );
+  return result.rows[0].session_date;
 }
 
 test("partially approves weekly preferences and allocates only package credits", async () => {
@@ -315,6 +343,45 @@ test("serializes concurrent approvals for overlapping one-hour intervals", async
     results.find((result) => result.status === "rejected").reason.status,
     409
   );
+});
+
+test("serializes a manual booking against a recurring approval for the same slot", async () => {
+  const recurringClient = await createClient({
+    suffix: "manual-recurring-lock",
+    packageSize: 1,
+    preferredDays: ["Wednesday"],
+    preferredSchedule: { Wednesday: ["08:00"] }
+  });
+  const manualClient = await createClient({
+    suffix: "manual-recurring-manual",
+    packageSize: 1,
+    preferredDays: [],
+    preferredSchedule: {}
+  });
+  const request = (await pendingForClient(recurringClient.id))[0];
+  const sessionDate = await nextBookableDate(3, "08:00");
+
+  const results = await Promise.allSettled([
+    requestsService.approve(request.id),
+    sessionsService.createManual({
+      clientId: manualClient.id,
+      sessionDate,
+      startTime: "08:00"
+    })
+  ]);
+  const attendanceResult = await testPool.query(
+    `SELECT COUNT(*)::int AS count
+     FROM session_attendance attendance
+     JOIN sessions session ON session.id = attendance.session_id
+     WHERE session.session_date = $1::date
+       AND session.start_time = '08:00'
+       AND attendance.client_id = ANY($2::bigint[])`,
+    [sessionDate, [recurringClient.id, manualClient.id]]
+  );
+
+  assert.equal(results.filter((result) => result.status === "fulfilled").length, 1);
+  assert.equal(results.filter((result) => result.status === "rejected").length, 1);
+  assert.equal(attendanceResult.rows[0].count, 1);
 });
 
 test("does not let expired recurring bookings block a weekly slot", async () => {
@@ -828,6 +895,55 @@ test("shares group sessions and enforces configured weekly capacity", async () =
   );
 
   assert.equal(groupSession.rows[0].attendees, 8);
+});
+
+test("does not regenerate a cancelled recurring occurrence during package reallocation", async () => {
+  const client = await createClient({
+    suffix: "cancelled-occurrence",
+    packageSize: 4,
+    preferredDays: ["Monday", "Wednesday"],
+    preferredSchedule: {
+      Monday: ["08:00"],
+      Wednesday: ["09:00"]
+    }
+  });
+  const requests = await pendingForClient(client.id);
+  const mondayRequest = requests.find((request) => request.day === "Monday");
+  const wednesdayRequest = requests.find((request) => request.day === "Wednesday");
+
+  await requestsService.approve(mondayRequest.id);
+  const occurrenceResult = await testPool.query(
+    `SELECT session.id, session.session_date::text, attendance.id AS attendance_id
+     FROM session_attendance attendance
+     JOIN sessions session ON session.id = attendance.session_id
+     WHERE attendance.client_id = $1
+       AND attendance.recurring_booking_id IS NOT NULL
+     ORDER BY session.session_date
+     LIMIT 1`,
+    [client.id]
+  );
+  const occurrence = occurrenceResult.rows[0];
+  await testPool.query("UPDATE sessions SET status = 'cancelled' WHERE id = $1", [
+    occurrence.id
+  ]);
+  await testPool.query(
+    `UPDATE session_attendance
+     SET status = 'cancelled', credit_consumed = false
+     WHERE id = $1`,
+    [occurrence.attendance_id]
+  );
+
+  await requestsService.approve(wednesdayRequest.id);
+
+  const matchingOccurrences = await testPool.query(
+    `SELECT COUNT(*)::int AS count
+     FROM session_attendance attendance
+     JOIN sessions session ON session.id = attendance.session_id
+     WHERE attendance.client_id = $1
+       AND session.session_date = $2::date`,
+    [client.id, occurrence.session_date]
+  );
+  assert.equal(matchingOccurrences.rows[0].count, 1);
 });
 
 test("preference updates replace pending requests without removing approved slots", async () => {

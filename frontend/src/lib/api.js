@@ -52,3 +52,47 @@ export async function fetchConfiguration() {
   const response = await api.get("/configuration");
   return responseData(response);
 }
+
+export async function fetchScheduleWeek(weekStart) {
+  const response = await api.get("/sessions", { params: { weekStart } });
+  return responseData(response);
+}
+
+export async function fetchSession(sessionId) {
+  const response = await api.get(`/sessions/${sessionId}`);
+  return responseData(response);
+}
+
+export async function createManualSession(payload) {
+  const response = await api.post("/sessions", payload);
+  return responseData(response);
+}
+
+export async function rescheduleSession(sessionId, payload) {
+  const response = await api.post(`/sessions/${sessionId}/reschedule`, payload);
+  return responseData(response);
+}
+
+export async function cancelSession(sessionId) {
+  const response = await api.post(`/sessions/${sessionId}/cancel`);
+  return responseData(response);
+}
+
+export async function createReplacementSession(sessionId, payload) {
+  const response = await api.post(`/sessions/${sessionId}/replacement`, payload);
+  return responseData(response);
+}
+
+export async function completeSession(sessionId, clientId) {
+  const response = await api.post(`/sessions/${sessionId}/complete`, {
+    ...(clientId ? { clientId } : {})
+  });
+  return responseData(response);
+}
+
+export async function markSessionNoShow(sessionId, clientId) {
+  const response = await api.post(`/sessions/${sessionId}/no-show`, {
+    ...(clientId ? { clientId } : {})
+  });
+  return responseData(response);
+}

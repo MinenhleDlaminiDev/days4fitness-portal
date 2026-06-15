@@ -12,6 +12,7 @@ import {
   X
 } from "lucide-react";
 import ThemeToggle from "../components/ThemeToggle.jsx";
+import SuccessToast from "../components/SuccessToast.jsx";
 import {
   approveBookingRequest,
   fetchPendingBookingRequests,
@@ -322,27 +323,11 @@ export default function BookingRequestsPage() {
         </div>
       )}
 
-      {notice && (
-        <div
-          role="status"
-          aria-live="polite"
-          className="fixed bottom-24 left-4 right-4 z-50 mx-auto flex max-w-lg items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-800 shadow-xl"
-        >
-          <CalendarCheck size={21} className="mt-0.5 shrink-0 stroke-[1.75]" />
-          <div className="min-w-0 flex-1">
-            <p className="font-bold">{notice.title}</p>
-            <p className="mt-0.5 text-sm">{notice.message}</p>
-          </div>
-          <button
-            type="button"
-            onClick={() => setNotice(null)}
-            className="grid h-8 w-8 shrink-0 place-items-center rounded-lg hover:bg-emerald-100"
-            aria-label="Dismiss confirmation"
-          >
-            <X size={17} />
-          </button>
-        </div>
-      )}
+      <SuccessToast
+        title={notice?.title}
+        message={notice?.message}
+        onDismiss={() => setNotice(null)}
+      />
     </section>
   );
 }

@@ -37,7 +37,7 @@ async function removeFutureAllocations(db, packageId) {
        AND attendance.status = 'scheduled'
        AND attendance.recurring_booking_id IS NOT NULL
        AND (session.session_date + session.start_time) > LOCALTIMESTAMP
-       AND session.rescheduled_from_session_id IS NULL
+       AND attendance.rescheduled_from_attendance_id IS NULL
      RETURNING attendance.session_id`,
     [packageId]
   );
@@ -103,7 +103,6 @@ async function allocatePackageSessions(db, packageId) {
          JOIN sessions session ON session.id = attendance.session_id
          WHERE attendance.recurring_booking_id = booking.id
            AND session.session_date = candidate_date::date
-           AND attendance.status <> 'cancelled'
        )
      ORDER BY candidate_date, booking.start_time, booking.id
      LIMIT $2`,
@@ -111,6 +110,10 @@ async function allocatePackageSessions(db, packageId) {
   );
 
   for (const candidate of candidatesResult.rows) {
+    await db.query("SELECT pg_advisory_xact_lock($1, hashtext($2))", [
+      44032,
+      candidate.session_date
+    ]);
     const overlappingSessions = await db.query(
       `SELECT id, program_id, session_type, start_time::text
        FROM sessions

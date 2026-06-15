@@ -43,7 +43,8 @@ test("records migrations and does not reapply completed files", async () => {
       "006_scheduling_integrity.sql",
       "007_scheduling_relationship_integrity.sql",
       "008_session_update_integrity.sql",
-      "009_scheduling_state_integrity.sql"
+      "009_scheduling_state_integrity.sql",
+      "010_attendance_replacement_tracking.sql"
     ]
   );
   assert.deepEqual(appliedAgain, []);
@@ -59,7 +60,16 @@ test("creates the Phase 2 scheduling schema and defaults", async () => {
      WHERE table_schema = 'public'
        AND table_name = 'sessions'`
   );
+  const attendanceColumns = await testPool.query(
+    `SELECT column_name
+     FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name = 'session_attendance'`
+  );
   const columnNames = new Set(sessionColumns.rows.map((row) => row.column_name));
+  const attendanceColumnNames = new Set(
+    attendanceColumns.rows.map((row) => row.column_name)
+  );
 
   assert.deepEqual(settings.rows[0], {
     group_capacity: 8,
@@ -67,7 +77,8 @@ test("creates the Phase 2 scheduling schema and defaults", async () => {
   });
   assert.equal(columnNames.has("session_type"), true);
   assert.equal(columnNames.has("status"), true);
-  assert.equal(columnNames.has("rescheduled_from_session_id"), true);
+  assert.equal(columnNames.has("rescheduled_from_session_id"), false);
+  assert.equal(attendanceColumnNames.has("rescheduled_from_attendance_id"), true);
   assert.equal(columnNames.has("client_id"), false);
   assert.equal(columnNames.has("package_id"), false);
   assert.equal(columnNames.has("completed"), false);
@@ -260,9 +271,10 @@ test("preserves legacy preferences and session attendance during migration", asy
         "004_clients_preferred_schedule.sql",
         "005_scheduling_data_model.sql",
         "006_scheduling_integrity.sql",
-        "007_scheduling_relationship_integrity.sql",
-        "008_session_update_integrity.sql",
-        "009_scheduling_state_integrity.sql"
+         "007_scheduling_relationship_integrity.sql",
+         "008_session_update_integrity.sql",
+         "009_scheduling_state_integrity.sql",
+         "010_attendance_replacement_tracking.sql"
       ]
     );
   } finally {
@@ -340,12 +352,11 @@ test("enforces training-day, status, and active-slot constraints", async () => {
          session_date,
          start_time,
          capacity,
-         status,
-         rescheduled_from_session_id
+         status
        )
-       VALUES ($1, 'one_on_one', '2026-06-16', '08:00', 1, 'scheduled', $2)`,
-      [program.rows[0].id, session.rows[0].id]
-    );
+       VALUES ($1, 'one_on_one', '2026-06-16', '08:00', 1, 'scheduled')`,
+       [program.rows[0].id]
+     );
   } finally {
     await testPool.query("DELETE FROM clients WHERE id = $1", [client.rows[0].id]);
     await testPool.query(

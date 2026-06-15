@@ -11,7 +11,15 @@ const SESSION_SELECT_SQL = `
     session.duration_minutes,
     session.capacity,
     session.status,
-    session.rescheduled_from_session_id,
+    (session.session_date + session.start_time)
+      <= (CURRENT_TIMESTAMP AT TIME ZONE $2) AS has_started,
+    (
+      session.session_date
+      + session.start_time
+      + (session.duration_minutes * INTERVAL '1 minute')
+    ) <= (CURRENT_TIMESTAMP AT TIME ZONE $2) AS has_ended,
+    origin_link.rescheduled_from_session_id,
+    replacement_link.replacement_session_id,
     program.name AS program_name,
     COALESCE(
       jsonb_agg(
@@ -34,6 +42,24 @@ const SESSION_SELECT_SQL = `
     ) AS attendees
   FROM sessions session
   JOIN programs program ON program.id = session.program_id
+  LEFT JOIN LATERAL (
+    SELECT
+      CASE
+        WHEN COUNT(DISTINCT original.session_id) = 1 THEN MIN(original.session_id)
+        ELSE NULL
+      END AS rescheduled_from_session_id
+    FROM session_attendance replacement_attendance
+    JOIN session_attendance original
+      ON original.id = replacement_attendance.rescheduled_from_attendance_id
+    WHERE replacement_attendance.session_id = session.id
+  ) origin_link ON true
+  LEFT JOIN LATERAL (
+    SELECT MIN(replacement_attendance.session_id) AS replacement_session_id
+    FROM session_attendance original
+    JOIN session_attendance replacement_attendance
+      ON replacement_attendance.rescheduled_from_attendance_id = original.id
+    WHERE original.session_id = session.id
+  ) replacement_link ON true
   LEFT JOIN session_attendance attendance ON attendance.session_id = session.id
   LEFT JOIN clients client ON client.id = attendance.client_id
   LEFT JOIN packages package ON package.id = attendance.package_id
@@ -54,7 +80,11 @@ async function lockPackages(db, packageIds) {
   const ids = [...new Set(packageIds)].sort((a, b) => Number(a) - Number(b));
   if (ids.length === 0) return [];
   const result = await db.query(
-    `SELECT package.*, program.name AS program_name, program.type AS program_type
+    `SELECT
+       package.*,
+       CURRENT_DATE::text AS current_date,
+       program.name AS program_name,
+       program.type AS program_type
      FROM packages package
      JOIN programs program ON program.id = package.program_id
      WHERE package.id = ANY($1::bigint[])
@@ -65,11 +95,8 @@ async function lockPackages(db, packageIds) {
   return result.rows;
 }
 
-async function lockTargetSlot(db, sessionDate, startTime) {
-  await db.query("SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))", [
-    sessionDate,
-    startTime
-  ]);
+async function lockTargetDate(db, sessionDate) {
+  await db.query("SELECT pg_advisory_xact_lock($1, hashtext($2))", [44032, sessionDate]);
 }
 
 async function findOverlaps(db, sessionDate, startTime) {
@@ -86,11 +113,10 @@ async function findOverlaps(db, sessionDate, startTime) {
   return result.rows;
 }
 
-async function createSessionRow(db, packageRow, sessionDate, startTime, rescheduledFromId = null) {
+async function createSessionRow(db, packageRow, sessionDate, startTime) {
   const overlaps = await findOverlaps(db, sessionDate, startTime);
   const compatibleGroup = overlaps.find(
     (session) =>
-      !rescheduledFromId &&
       packageRow.program_type === "group" &&
       session.session_type === "group" &&
       session.program_id === packageRow.program_id &&
@@ -103,7 +129,9 @@ async function createSessionRow(db, packageRow, sessionDate, startTime, reschedu
     throw error;
   }
 
-  if (compatibleGroup) return compatibleGroup.id;
+  if (compatibleGroup) {
+    return compatibleGroup.id;
+  }
 
   const settingsResult = await db.query(
     "SELECT group_capacity FROM scheduling_settings WHERE id = 1"
@@ -115,18 +143,16 @@ async function createSessionRow(db, packageRow, sessionDate, startTime, reschedu
        session_date,
        start_time,
        capacity,
-       status,
-       rescheduled_from_session_id
+       status
      )
-     VALUES ($1, $2, $3::date, $4::time, $5, 'scheduled', $6)
+     VALUES ($1, $2, $3::date, $4::time, $5, 'scheduled')
      RETURNING id`,
     [
       packageRow.program_id,
       packageRow.program_type,
       sessionDate,
       startTime,
-      packageRow.program_type === "group" ? settingsResult.rows[0].group_capacity : 1,
-      rescheduledFromId
+      packageRow.program_type === "group" ? settingsResult.rows[0].group_capacity : 1
     ]
   );
   return result.rows[0].id;
@@ -141,6 +167,16 @@ async function assertPackageCanBook(db, packageRow, sessionDate, creditAlreadyAl
     packageRow.expiry_date instanceof Date
       ? packageRow.expiry_date.toISOString().slice(0, 10)
       : String(packageRow.expiry_date);
+  if (sessionDate < packageRow.current_date) {
+    const error = new Error("Sessions cannot be booked in the past");
+    error.code = "PAST_SESSION";
+    throw error;
+  }
+  if (packageRow.current_date > expiryDate) {
+    const error = new Error("The package has expired");
+    error.code = "PACKAGE_EXPIRED";
+    throw error;
+  }
   if (sessionDate < purchaseDate) {
     const error = new Error("A session cannot be booked before the package purchase date");
     error.code = "PACKAGE_INACTIVE";
@@ -168,20 +204,50 @@ async function assertPackageCanBook(db, packageRow, sessionDate, creditAlreadyAl
   }
 }
 
+async function assertSessionTiming(db, session, operation) {
+  const result = await db.query(
+    `SELECT
+       ($1::date + $2::time) > LOCALTIMESTAMP AS has_not_started,
+       ($1::date + $2::time) <= LOCALTIMESTAMP AS has_started,
+       ($1::date + $2::time + ($3::int * INTERVAL '1 minute')) <= LOCALTIMESTAMP
+         AS has_ended`,
+    [session.session_date, session.start_time, session.duration_minutes]
+  );
+  const timing = result.rows[0];
+
+  if (operation === "before_start" && !timing.has_not_started) {
+    const error = new Error("This session has already started");
+    error.code = "SESSION_ALREADY_STARTED";
+    throw error;
+  }
+  if (operation === "after_start" && !timing.has_started) {
+    const error = new Error("This session has not started yet");
+    error.code = "SESSION_NOT_STARTED";
+    throw error;
+  }
+  if (operation === "after_end" && !timing.has_ended) {
+    const error = new Error("This session has not ended yet");
+    error.code = "SESSION_NOT_ENDED";
+    throw error;
+  }
+}
+
 async function insertAttendance(db, sessionId, attendee) {
   await db.query(
     `INSERT INTO session_attendance (
        session_id,
        client_id,
        package_id,
-       recurring_booking_id
+       recurring_booking_id,
+       rescheduled_from_attendance_id
      )
-     VALUES ($1, $2, $3, $4)`,
+     VALUES ($1, $2, $3, $4, $5)`,
     [
       sessionId,
       attendee.client_id,
       attendee.package_id,
-      attendee.recurring_booking_id || null
+      attendee.recurring_booking_id || null,
+      attendee.rescheduled_from_attendance_id || null
     ]
   );
 }
@@ -195,9 +261,13 @@ export function createSessionsRepository(
       const result = await dbPool.query(
         `${SESSION_SELECT_SQL}
          WHERE session.session_date BETWEEN $1::date AND ($1::date + 6)
-         GROUP BY session.id, program.name
+         GROUP BY
+           session.id,
+           program.name,
+           origin_link.rescheduled_from_session_id,
+           replacement_link.replacement_session_id
          ORDER BY session.session_date, session.start_time, session.id`,
-        [weekStart]
+        [weekStart, businessTimezone]
       );
       return result.rows;
     },
@@ -206,8 +276,12 @@ export function createSessionsRepository(
       const result = await db.query(
         `${SESSION_SELECT_SQL}
          WHERE session.id = $1
-         GROUP BY session.id, program.name`,
-        [sessionId]
+         GROUP BY
+           session.id,
+           program.name,
+           origin_link.rescheduled_from_session_id,
+           replacement_link.replacement_session_id`,
+        [sessionId, businessTimezone]
       );
       return result.rows[0] || null;
     },
@@ -217,9 +291,13 @@ export function createSessionsRepository(
       try {
         await db.query("BEGIN");
         await db.query("SELECT set_config('TimeZone', $1, true)", [businessTimezone]);
-        await lockTargetSlot(db, sessionDate, startTime);
+        await lockTargetDate(db, sessionDate);
         const packageResult = await db.query(
-          `SELECT package.*, program.name AS program_name, program.type AS program_type
+          `SELECT
+             package.*,
+             CURRENT_DATE::text AS current_date,
+             program.name AS program_name,
+             program.type AS program_type
            FROM packages package
            JOIN programs program ON program.id = package.program_id
            WHERE package.client_id = $1
@@ -254,6 +332,7 @@ export function createSessionsRepository(
       const db = await dbPool.connect();
       try {
         await db.query("BEGIN");
+        await db.query("SELECT set_config('TimeZone', $1, true)", [businessTimezone]);
         const session = await findSession(db, sessionId, true);
         if (!session) {
           await db.query("ROLLBACK");
@@ -264,6 +343,7 @@ export function createSessionsRepository(
           error.code = "SESSION_FINALIZED";
           throw error;
         }
+        await assertSessionTiming(db, session, "before_start");
         await db.query("UPDATE sessions SET status = 'cancelled' WHERE id = $1", [sessionId]);
         await db.query(
           `UPDATE session_attendance
@@ -288,7 +368,7 @@ export function createSessionsRepository(
       try {
         await db.query("BEGIN");
         await db.query("SELECT set_config('TimeZone', $1, true)", [businessTimezone]);
-        await lockTargetSlot(db, sessionDate, startTime);
+        await lockTargetDate(db, sessionDate);
         const original = await findSession(db, sessionId, true);
         if (!original) {
           await db.query("ROLLBACK");
@@ -300,7 +380,12 @@ export function createSessionsRepository(
           throw error;
         }
         const existingReplacement = await db.query(
-          "SELECT id FROM sessions WHERE rescheduled_from_session_id = $1",
+          `SELECT replacement.id
+           FROM session_attendance original
+           JOIN session_attendance replacement
+             ON replacement.rescheduled_from_attendance_id = original.id
+           WHERE original.session_id = $1
+           LIMIT 1`,
           [sessionId]
         );
         if (existingReplacement.rows[0]) {
@@ -309,9 +394,13 @@ export function createSessionsRepository(
           throw error;
         }
         const attendanceResult = await db.query(
-          `SELECT client_id, package_id
+          `SELECT
+             id AS rescheduled_from_attendance_id,
+             client_id,
+             package_id
            FROM session_attendance
            WHERE session_id = $1
+             AND status = 'cancelled'
            ORDER BY package_id
            FOR UPDATE`,
           [sessionId]
@@ -324,13 +413,7 @@ export function createSessionsRepository(
           await assertPackageCanBook(db, packageRow, sessionDate, true);
         }
         const packageRow = packages[0];
-        const replacementId = await createSessionRow(
-          db,
-          packageRow,
-          sessionDate,
-          startTime,
-          sessionId
-        );
+        const replacementId = await createSessionRow(db, packageRow, sessionDate, startTime);
         for (const attendee of attendanceResult.rows) {
           await insertAttendance(db, replacementId, attendee);
         }
@@ -350,7 +433,7 @@ export function createSessionsRepository(
       try {
         await db.query("BEGIN");
         await db.query("SELECT set_config('TimeZone', $1, true)", [businessTimezone]);
-        await lockTargetSlot(db, sessionDate, startTime);
+        await lockTargetDate(db, sessionDate);
         const original = await findSession(db, sessionId, true);
         if (!original) {
           await db.query("ROLLBACK");
@@ -361,8 +444,12 @@ export function createSessionsRepository(
           error.code = "SESSION_FINALIZED";
           throw error;
         }
+        await assertSessionTiming(db, original, "before_start");
         const attendanceResult = await db.query(
-          `SELECT client_id, package_id
+          `SELECT
+             id AS rescheduled_from_attendance_id,
+             client_id,
+             package_id
            FROM session_attendance
            WHERE session_id = $1
              AND status = 'scheduled'
@@ -385,13 +472,7 @@ export function createSessionsRepository(
              AND status = 'scheduled'`,
           [sessionId]
         );
-        const replacementId = await createSessionRow(
-          db,
-          packages[0],
-          sessionDate,
-          startTime,
-          sessionId
-        );
+        const replacementId = await createSessionRow(db, packages[0], sessionDate, startTime);
         for (const attendee of attendanceResult.rows) {
           await insertAttendance(db, replacementId, attendee);
         }
@@ -410,6 +491,7 @@ export function createSessionsRepository(
       const db = await dbPool.connect();
       try {
         await db.query("BEGIN");
+        await db.query("SELECT set_config('TimeZone', $1, true)", [businessTimezone]);
         const session = await findSession(db, sessionId, true);
         if (!session) {
           await db.query("ROLLBACK");
@@ -420,6 +502,11 @@ export function createSessionsRepository(
           error.code = "SESSION_FINALIZED";
           throw error;
         }
+        await assertSessionTiming(
+          db,
+          session,
+          outcome === "completed" ? "after_end" : "after_start"
+        );
         const attendanceResult = await db.query(
           `SELECT *
            FROM session_attendance
