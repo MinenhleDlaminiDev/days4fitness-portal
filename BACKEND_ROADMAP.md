@@ -92,21 +92,21 @@ This checklist is the source of truth for backend development. Items are checked
 - [x] Show pending, approved, and rejected preferences on the profile.
 - [x] Connect profile session actions to the API.
 - [x] Add client-management tests.
-- [ ] **Phase 5 review and approval**
+- [x] **Phase 5 review and approval**
 
 ## Phase 6: Packages And Payments
 
-- [ ] Add package status and package-history rules.
-- [ ] Add package renewal and new-package endpoints.
-- [ ] Enforce the two-month expiry rule in the backend and database.
-- [ ] Define payment methods and payment statuses.
-- [ ] Create payment records with amount, date, method, and reference.
-- [ ] Calculate paid amount and outstanding balance.
-- [ ] Replace the package `paid` boolean workflow with payment records.
-- [ ] Add payment correction or reversal handling.
-- [ ] Connect package and payment controls in the UI.
-- [ ] Add package, expiry, and payment tests.
-- [ ] **Phase 6 review and approval**
+- [x] Add package status and package-history rules.
+- [x] Add package renewal and new-package endpoints.
+- [x] Enforce the two-month expiry rule in the backend and database.
+- [x] Define payment methods and payment statuses.
+- [x] Create payment records with amount, date, method, and reference.
+- [x] Calculate paid amount and outstanding balance.
+- [x] Replace the package `paid` boolean workflow with payment records.
+- [x] Add payment correction or reversal handling.
+- [x] Connect package and payment controls in the UI.
+- [x] Add package, expiry, and payment tests.
+- [x] **Phase 6 review and approval**
 
 ## Phase 7: Dashboard And Reporting
 
