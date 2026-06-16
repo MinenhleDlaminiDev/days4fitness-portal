@@ -44,6 +44,13 @@ function mondayFor(date = new Date()) {
   return localDateInputValue(copy);
 }
 
+function safeWeekStart(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value || "")) return mondayFor();
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return mondayFor();
+  return mondayFor(date);
+}
+
 function displayDate(dateText, options = {}) {
   return new Date(`${dateText}T00:00:00`).toLocaleDateString("en-ZA", options);
 }
@@ -382,7 +389,7 @@ function SessionModal({
 export default function SchedulePage() {
   const { configuration } = useAppConfiguration();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [weekStart, setWeekStart] = useState(() => mondayFor());
+  const [weekStart, setWeekStart] = useState(() => safeWeekStart(searchParams.get("weekStart")));
   const [sessions, setSessions] = useState([]);
   const [clients, setClients] = useState([]);
   const [selectedDay, setSelectedDay] = useState(0);

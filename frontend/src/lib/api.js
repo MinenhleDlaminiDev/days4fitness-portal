@@ -93,6 +93,16 @@ export async function fetchConfiguration() {
   return responseData(response);
 }
 
+export async function fetchDashboard() {
+  const response = await api.get("/dashboard");
+  return responseData(response);
+}
+
+export async function fetchTodaySessions() {
+  const response = await api.get("/dashboard/today-sessions");
+  return responseData(response);
+}
+
 export async function fetchScheduleWeek(weekStart) {
   const response = await api.get("/sessions", { params: { weekStart } });
   return responseData(response);

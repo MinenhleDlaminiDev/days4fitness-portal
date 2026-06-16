@@ -1,44 +1,90 @@
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   Calendar as CalendarIcon,
   CircleAlert as AlertCircleIcon,
-  CircleCheck as CheckCircleIcon,
-  CircleX as XCircleIcon,
-  Plus as PlusIcon
+  Coins,
+  Plus as PlusIcon,
+  WalletCards
 } from "lucide-react";
-import { clients, todaySessions } from "../data/mockData.js";
+import { fetchDashboard, getApiErrorMessage } from "../lib/api.js";
 import { daysUntil } from "../lib/date.js";
-import { useAppConfiguration } from "../context/AppConfigurationContext.jsx";
 import ThemeToggle from "../components/ThemeToggle.jsx";
 
-function clientById(clientId) {
-  return clients.find((item) => item.id === clientId);
+const emptyDashboard = {
+  summary: {
+    todaySessions: 0,
+    completedSessions: 0,
+    remainingSessions: 0,
+    unpaidPackages: 0,
+    outstandingBalance: 0,
+    expiringPackages: 0,
+    monthRevenue: 0,
+    netRevenue: 0
+  },
+  todaySessions: [],
+  unpaidPackages: [],
+  expiringPackages: []
+};
+
+function currency(value) {
+  return `R${Number(value || 0).toFixed(2)}`;
+}
+
+function mondayForDate(dateText) {
+  const date = new Date(`${dateText}T00:00:00`);
+  const day = date.getDay();
+  date.setDate(date.getDate() - (day === 0 ? 6 : day - 1));
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const dayOfMonth = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${dayOfMonth}`;
+}
+
+function sessionStatusLabel(session) {
+  if (session.status === "completed") return "Completed";
+  if (session.status === "no_show") return "No-show";
+  const scheduledAttendees = session.attendees.filter(
+    (attendee) => attendee.attendanceStatus === "scheduled"
+  );
+  return scheduledAttendees.length > 0 ? "Scheduled" : "Reviewed";
 }
 
 export default function DashboardPage() {
-  const { packagePrice } = useAppConfiguration();
-  const [sessionState, setSessionState] = useState(todaySessions);
+  const [dashboard, setDashboard] = useState(emptyDashboard);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
 
-  const unpaidPackages = useMemo(() => clients.filter((client) => !client.paid), []);
-  const expiringSoon = useMemo(() => clients.filter((client) => daysUntil(client.expiryDate) <= 7), []);
-  const completedSessions = useMemo(
-    () => sessionState.filter((session) => session.completed).length,
-    [sessionState]
-  );
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadDashboard() {
+      try {
+        setIsLoading(true);
+        setLoadError("");
+        const result = await fetchDashboard();
+        if (!mounted) return;
+        setDashboard(result || emptyDashboard);
+      } catch (error) {
+        if (!mounted) return;
+        setLoadError(getApiErrorMessage(error, "Unable to load dashboard reporting."));
+      } finally {
+        if (mounted) setIsLoading(false);
+      }
+    }
+
+    loadDashboard();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const { summary } = dashboard;
   const stats = [
-    { label: "Sessions", value: sessionState.length },
-    { label: "Unpaid", value: unpaidPackages.length },
-    { label: "Complete", value: completedSessions }
+    { label: "Today", value: summary.todaySessions },
+    { label: "Unpaid", value: summary.unpaidPackages },
+    { label: "Active credits", value: summary.remainingSessions }
   ];
-
-  function markComplete(sessionId) {
-    setSessionState((current) =>
-      current.map((session) =>
-        session.id === sessionId ? { ...session, completed: true } : session
-      )
-    );
-  }
 
   return (
     <section className="page-wrap space-y-4 sm:space-y-5">
@@ -63,6 +109,12 @@ export default function DashboardPage() {
         </div>
       </header>
 
+      {loadError && (
+        <article className="surface-card border border-red-200 bg-red-50 text-sm font-semibold text-red-700">
+          {loadError}
+        </article>
+      )}
+
       <article className="surface-card">
         <div className="mb-4 flex items-center justify-between gap-3">
           <h2 className="section-title mb-0 text-base sm:text-lg">
@@ -70,55 +122,48 @@ export default function DashboardPage() {
             Today&apos;s Sessions
           </h2>
           <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
-            {completedSessions}/{sessionState.length} complete
+            {dashboard.todaySessions.length} sessions
           </span>
         </div>
         <div className="stagger-list space-y-3">
-          {sessionState.map((session, index) => {
-            const client = clientById(session.clientId);
-            if (!client) return null;
+          {isLoading && (
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+              Loading today&apos;s sessions...
+            </div>
+          )}
+          {!isLoading && dashboard.todaySessions.length === 0 && (
+            <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-600">
+              No sessions scheduled for today.
+            </div>
+          )}
+          {dashboard.todaySessions.map((session, index) => {
+            const firstAttendee = session.attendees[0];
             return (
-              <div
+              <Link
                 key={session.id}
-                className="stagger-item rounded-2xl border border-slate-200 bg-white p-3"
+                to={`/schedule?weekStart=${mondayForDate(session.sessionDate)}`}
+                className="interactive-card stagger-item block rounded-2xl border border-slate-200 bg-white p-3 hover:bg-slate-50"
                 style={{ "--stagger": index }}
               >
-                <Link
-                  to={`/clients/${client.id}`}
-                  className="interactive-card flex items-start justify-between gap-3 rounded-xl p-2 -m-2 hover:bg-slate-50"
-                >
+                <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-base font-semibold sm:text-lg">{client.name}</p>
-                    <p className="text-sm text-slate-600">{client.program}</p>
-                    <p className="mt-1 text-xs font-medium tracking-wide text-slate-500">{session.time}</p>
+                    <p className="text-base font-semibold sm:text-lg">
+                      {session.startTime} - {session.program}
+                    </p>
+                    <p className="text-sm text-slate-600">
+                      {firstAttendee
+                        ? session.attendees.map((attendee) => attendee.clientName).join(", ")
+                        : "No attendees"}
+                    </p>
+                    <p className="mt-1 text-xs font-medium uppercase tracking-wide text-slate-500">
+                      {session.sessionType}
+                    </p>
                   </div>
-                  <span
-                    className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs font-semibold ${
-                      client.paid ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"
-                    }`}
-                  >
-                    {client.paid ? (
-                      <>
-                        <CheckCircleIcon size={14} className="stroke-[1.75] text-emerald-600" />
-                        Paid
-                      </>
-                    ) : (
-                      <>
-                        <XCircleIcon size={14} className="stroke-[1.75] text-red-600" />
-                        Pending
-                      </>
-                    )}
+                  <span className="rounded-full bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-700">
+                    {sessionStatusLabel(session)}
                   </span>
-                </Link>
-                <button
-                  type="button"
-                  onClick={() => markComplete(session.id)}
-                  disabled={session.completed}
-                  className="action-btn action-btn-primary mt-3 h-10 w-full"
-                >
-                  {session.completed ? "Completed" : "Mark Complete"}
-                </button>
-              </div>
+                </div>
+              </Link>
             );
           })}
         </div>
@@ -127,24 +172,67 @@ export default function DashboardPage() {
       <div className="grid gap-4 md:grid-cols-2">
         <article className="surface-card">
           <h2 className="section-title text-base sm:text-lg">
+            <WalletCards size={18} className="stroke-[1.75] text-emerald-700" />
+            Package Credits
+          </h2>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-2xl border border-slate-200 bg-white p-4">
+              <p className="text-sm text-slate-600">Sessions completed</p>
+              <p className="mt-1 text-2xl font-bold text-slate-900">{summary.completedSessions}</p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white p-4">
+              <p className="text-sm text-slate-600">Unused active credits</p>
+              <p className="mt-1 text-2xl font-bold text-emerald-700">{summary.remainingSessions}</p>
+            </div>
+          </div>
+        </article>
+
+        <article className="surface-card">
+          <h2 className="section-title text-base sm:text-lg">
+            <Coins size={18} className="stroke-[1.75] text-amber-600" />
+            Revenue
+          </h2>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-2xl border border-slate-200 bg-white p-4">
+              <p className="text-sm text-slate-600">Payments this month</p>
+              <p className="mt-1 text-2xl font-bold text-slate-900">{currency(summary.monthRevenue)}</p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white p-4">
+              <p className="text-sm text-slate-600">Still unpaid</p>
+              <p className="mt-1 text-2xl font-bold text-red-700">{currency(summary.outstandingBalance)}</p>
+            </div>
+          </div>
+        </article>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <article className="surface-card">
+          <h2 className="section-title text-base sm:text-lg">
             <AlertCircleIcon size={18} className="stroke-[1.75] text-red-500" />
             Unpaid Packages
           </h2>
           <div className="stagger-list space-y-2">
-            {unpaidPackages.map((client, index) => (
+            {!isLoading && dashboard.unpaidPackages.length === 0 && (
+              <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-600">
+                No unpaid packages right now.
+              </p>
+            )}
+            {dashboard.unpaidPackages.map((item, index) => (
               <Link
-                key={client.id}
-                to={`/clients/${client.id}`}
+                key={item.id}
+                to={`/clients/${item.clientId}`}
                 className="interactive-card stagger-item block rounded-xl border border-slate-200 bg-white p-3 hover:border-red-200 hover:bg-red-50/50"
                 style={{ "--stagger": index }}
               >
                 <div className="flex items-center justify-between gap-3">
-                  <p className="text-base font-semibold sm:text-lg">{client.name}</p>
-                  <span className="rounded-full bg-red-100 px-2 py-1 text-xs font-semibold text-red-700">Pending</span>
+                  <p className="text-base font-semibold sm:text-lg">{item.clientName}</p>
+                  <span className="rounded-full bg-red-100 px-2 py-1 text-xs font-semibold text-red-700">
+                    {currency(item.outstandingBalance)}
+                  </span>
                 </div>
-                <p className="text-sm text-slate-600">{client.sessionsTotal} sessions</p>
+                <p className="text-sm text-slate-600">{item.program}</p>
                 <p className="text-sm font-semibold text-red-700 sm:text-base">
-                  R{packagePrice(client.sessionType, client.sessionsTotal)}
+                  {currency(item.paidAmount)} paid of {currency(item.price)}
                 </p>
               </Link>
             ))}
@@ -157,23 +245,27 @@ export default function DashboardPage() {
             Expiring Soon
           </h2>
           <div className="stagger-list space-y-2">
-            {expiringSoon.map((client, index) => (
+            {!isLoading && dashboard.expiringPackages.length === 0 && (
+              <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-600">
+                No packages expiring in the next 7 days.
+              </p>
+            )}
+            {dashboard.expiringPackages.map((item, index) => (
               <Link
-                key={client.id}
-                to={`/clients/${client.id}`}
+                key={item.id}
+                to={`/clients/${item.clientId}`}
                 className="interactive-card stagger-item block rounded-xl border border-slate-200 bg-white p-3 hover:border-amber-200 hover:bg-amber-50/50"
                 style={{ "--stagger": index }}
               >
                 <div className="flex items-center justify-between gap-3">
-                  <p className="text-base font-semibold sm:text-lg">{client.name}</p>
+                  <p className="text-base font-semibold sm:text-lg">{item.clientName}</p>
                   <span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-700">
-                    {daysUntil(client.expiryDate)}d
+                    {item.daysUntilExpiry ?? daysUntil(item.expiryDate)}d
                   </span>
                 </div>
-                <p className="text-sm text-slate-600">{client.program}</p>
+                <p className="text-sm text-slate-600">{item.program}</p>
                 <p className="text-sm text-amber-700">
-                  {client.sessionsTotal - client.sessionsUsed} sessions left - {daysUntil(client.expiryDate)} days
-                  remaining
+                  {item.sessionsRemaining} sessions left
                 </p>
               </Link>
             ))}

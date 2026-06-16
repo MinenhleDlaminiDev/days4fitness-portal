@@ -110,15 +110,16 @@ This checklist is the source of truth for backend development. Items are checked
 
 ## Phase 7: Dashboard And Reporting
 
-- [ ] Add today's sessions endpoint.
-- [ ] Add completed and remaining session totals.
-- [ ] Add unpaid and outstanding-balance summaries.
-- [ ] Add expiring-package summaries.
-- [ ] Add basic revenue summaries.
-- [ ] Connect the Dashboard page to real API data.
-- [ ] Remove remaining dashboard mock data.
-- [ ] Add dashboard query tests.
-- [ ] **Phase 7 review and approval**
+- [x] Add today's sessions endpoint.
+- [x] Add completed and remaining session totals.
+- [x] Add unpaid and outstanding-balance summaries.
+- [x] Add expiring-package summaries.
+- [x] Add basic revenue summaries.
+- [x] Connect the Dashboard page to real API data.
+- [x] Remove remaining dashboard mock data.
+- [x] Add dashboard query tests.
+- [x] Complete Phase 7 browser tests.
+- [x] **Phase 7 review and approval**
 
 ## Phase 8: Authentication And Production Readiness
 
