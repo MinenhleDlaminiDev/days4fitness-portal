@@ -33,6 +33,7 @@ export default function ClientFormPage() {
     packageSize: "",
     purchaseDate: localDateInputValue(),
     paid: false,
+    paymentMethod: "eft",
     preferredDays: [],
     preferredSchedule: {}
   });
@@ -63,6 +64,7 @@ export default function ClientFormPage() {
           packageSize: client.sessionsTotal,
           purchaseDate: client.purchaseDate,
           paid: client.paid,
+          paymentMethod: "eft",
           preferredDays: client.preferredDays || [],
           preferredSchedule: client.preferredSchedule || {}
         });
@@ -395,6 +397,20 @@ export default function ClientFormPage() {
             />
             Client has paid for this package
           </label>
+          {form.paid && (
+            <label className="mt-4 block text-sm font-medium text-slate-700 sm:text-base">
+              Payment method
+              <select
+                value={form.paymentMethod}
+                onChange={(event) => updateField("paymentMethod", event.target.value)}
+                className={fieldClass}
+              >
+                <option value="cash">Cash</option>
+                <option value="eft">EFT</option>
+                <option value="card">Card</option>
+              </select>
+            </label>
+          )}
         </article>}
 
         <button

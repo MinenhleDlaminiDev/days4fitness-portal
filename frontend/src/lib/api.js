@@ -53,6 +53,21 @@ export async function fetchClientPackages(clientId) {
   return responseData(response);
 }
 
+export async function createClientPackage(clientId, payload) {
+  const response = await api.post(`/clients/${clientId}/packages`, payload);
+  return responseData(response);
+}
+
+export async function addPackagePayment(packageId, payload) {
+  const response = await api.post(`/packages/${packageId}/payments`, payload);
+  return responseData(response);
+}
+
+export async function reversePackagePayment(paymentId, payload) {
+  const response = await api.post(`/packages/payments/${paymentId}/reverse`, payload);
+  return responseData(response);
+}
+
 export async function fetchClientSessions(clientId) {
   const response = await api.get(`/clients/${clientId}/sessions`);
   return responseData(response);

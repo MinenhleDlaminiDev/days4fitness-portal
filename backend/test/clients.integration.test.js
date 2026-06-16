@@ -99,6 +99,7 @@ test("updates, filters, archives, and restores a client", async () => {
     const searchResult = await service.listClients({
       search: updatedEmail,
       status: "active",
+      packageStatus: "active",
       page: 1,
       pageSize: 1
     });

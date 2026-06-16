@@ -45,7 +45,11 @@ test("records migrations and does not reapply completed files", async () => {
       "008_session_update_integrity.sql",
       "009_scheduling_state_integrity.sql",
       "010_attendance_replacement_tracking.sql",
-      "011_client_management.sql"
+      "011_client_management.sql",
+      "012_packages_and_payments.sql",
+      "013_phase6_payment_integrity.sql",
+      "014_legacy_payment_method.sql",
+      "015_validate_package_expiry.sql"
     ]
   );
   assert.deepEqual(appliedAgain, []);
@@ -200,10 +204,11 @@ test("preserves legacy preferences and session attendance during migration", asy
          program_id,
          sessions_total,
          price,
+         paid,
          purchase_date,
          expiry_date
        )
-       VALUES ($1, $2, 4, 1520, '2026-06-01', '2026-08-01')
+       VALUES ($1, $2, 4, 1520, true, '2026-06-01', '2026-08-01')
        RETURNING id`,
       [clientResult.rows[0].id, programResult.rows[0].id]
     );
@@ -232,6 +237,12 @@ test("preserves legacy preferences and session attendance during migration", asy
     const migratedSession = await db.query(
       "SELECT session_type, status, duration_minutes, capacity FROM sessions WHERE id = $1",
       [sessionResult.rows[0].id]
+    );
+    const migratedPayment = await db.query(
+      `SELECT amount, method, reference
+       FROM package_payments
+       WHERE package_id = $1`,
+      [packageResult.rows[0].id]
     );
     const appliedMigrations = await db.query(
       "SELECT filename FROM schema_migrations ORDER BY filename"
@@ -263,6 +274,11 @@ test("preserves legacy preferences and session attendance during migration", asy
       duration_minutes: 60,
       capacity: 1
     });
+    assert.deepEqual(migratedPayment.rows[0], {
+      amount: "1520.00",
+      method: "legacy",
+      reference: "Migrated paid package"
+    });
     assert.deepEqual(
       appliedMigrations.rows.map((row) => row.filename),
       [
@@ -276,7 +292,11 @@ test("preserves legacy preferences and session attendance during migration", asy
          "008_session_update_integrity.sql",
          "009_scheduling_state_integrity.sql",
          "010_attendance_replacement_tracking.sql",
-         "011_client_management.sql"
+         "011_client_management.sql",
+         "012_packages_and_payments.sql",
+         "013_phase6_payment_integrity.sql",
+         "014_legacy_payment_method.sql",
+         "015_validate_package_expiry.sql"
       ]
     );
   } finally {

@@ -89,6 +89,42 @@ test("creates a client without scheduling preferences", async () => {
   assert.deepEqual(result.preferredDays, []);
 });
 
+test("requires and passes an explicit payment method for a paid new package", async () => {
+  let capturedPackage;
+  const service = createClientsService({
+    async createWithPackage(client, packageData) {
+      capturedPackage = packageData;
+      return clientRow({ paid: true, paid_amount: "1200.00", price: "1200.00" });
+    }
+  });
+
+  await service.createClient({
+    name: "Paid Client",
+    phone: "+27 82 000 0002",
+    program: "Weight Loss",
+    sessionType: "One-on-One",
+    packageSize: 4,
+    purchaseDate: "2026-06-01",
+    paid: true,
+    paymentMethod: "card"
+  });
+
+  assert.equal(capturedPackage.paymentMethod, "card");
+
+  await assert.rejects(
+    service.createClient({
+      name: "Missing Method",
+      phone: "+27 82 000 0003",
+      program: "Weight Loss",
+      sessionType: "One-on-One",
+      packageSize: 4,
+      purchaseDate: "2026-06-01",
+      paid: true
+    }),
+    (error) => error.status === 400 && error.details.field === "paymentMethod"
+  );
+});
+
 test("clears existing scheduling preferences", async () => {
   let updatedDays;
   let updatedSchedule;

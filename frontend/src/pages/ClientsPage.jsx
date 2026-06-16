@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import {
   CircleCheck as CheckCircleIcon,
   CircleX as XCircleIcon,
+  CreditCard,
   Plus as PlusIcon,
   Search as SearchIcon
 } from "lucide-react";
@@ -133,6 +134,19 @@ export default function ClientsPage() {
           {clients.map((client, index) => {
             const sessionsLeft = client.sessionsTotal - client.sessionsUsed;
             const remainingDays = daysUntil(client.expiryDate);
+            const paymentStatus =
+              client.paymentStatus ||
+              (client.paid
+                ? "paid"
+                : Number(client.paidAmount || 0) > 0
+                  ? "partially_paid"
+                  : "unpaid");
+            const paymentLabel =
+              paymentStatus === "paid"
+                ? "Paid"
+                : paymentStatus === "partially_paid"
+                  ? "Partial"
+                  : "Unpaid";
             return (
               <Link
                 key={client.id}
@@ -144,8 +158,10 @@ export default function ClientsPage() {
                   <div>
                     <div className="flex items-center gap-2">
                       <h2 className="text-base font-semibold leading-tight sm:text-lg">{client.name}</h2>
-                      {client.paid ? (
+                      {paymentStatus === "paid" ? (
                         <CheckCircleIcon size={14} className="stroke-[1.75] text-emerald-600" />
+                      ) : paymentStatus === "partially_paid" ? (
+                        <CreditCard size={14} className="stroke-[1.75] text-amber-600" />
                       ) : (
                         <XCircleIcon size={14} className="stroke-[1.75] text-red-500" />
                       )}
@@ -155,10 +171,14 @@ export default function ClientsPage() {
                   </div>
                   <span
                     className={`rounded-full px-2 py-1 text-xs font-semibold ${
-                      client.paid ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"
+                      paymentStatus === "paid"
+                        ? "bg-emerald-100 text-emerald-700"
+                        : paymentStatus === "partially_paid"
+                          ? "bg-amber-100 text-amber-800"
+                          : "bg-red-100 text-red-700"
                     }`}
                   >
-                    {client.paid ? "Paid" : "Pending"}
+                    {paymentLabel}
                   </span>
                 </div>
 

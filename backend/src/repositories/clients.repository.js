@@ -15,7 +15,10 @@ const CLIENT_SELECT_SQL = `
     c.created_at,
     latest_package.sessions_total,
     latest_package.sessions_used,
-    latest_package.paid,
+    latest_package.price,
+    latest_package.paid_amount,
+    GREATEST(latest_package.price - latest_package.paid_amount, 0) AS outstanding_balance,
+    latest_package.ledger_paid AS paid,
     latest_package.purchase_date::text AS purchase_date,
     latest_package.expiry_date::text AS expiry_date,
     program.name AS program_name,
@@ -23,8 +26,16 @@ const CLIENT_SELECT_SQL = `
     COALESCE(preference_statuses.items, '[]'::jsonb) AS preference_statuses
   FROM clients c
   LEFT JOIN LATERAL (
-    SELECT pk.*
+    SELECT
+      pk.*,
+      COALESCE(payment_totals.paid_amount, 0)::numeric(10,2) AS paid_amount,
+      COALESCE(payment_totals.paid_amount, 0) >= pk.price AS ledger_paid
     FROM packages pk
+    LEFT JOIN LATERAL (
+      SELECT COALESCE(SUM(payment.amount), 0) AS paid_amount
+      FROM package_payments payment
+      WHERE payment.package_id = pk.id
+    ) payment_totals ON true
     WHERE pk.client_id = c.id
     ORDER BY pk.created_at DESC, pk.id DESC
     LIMIT 1
@@ -216,7 +227,11 @@ export function createClientsRepository(
       if (status === "active") conditions.push("c.is_active = true");
       if (status === "archived") conditions.push("c.is_active = false");
       if (packageStatus === "active") {
-        conditions.push("latest_package.expiry_date >= CURRENT_DATE");
+        conditions.push(
+          "latest_package.purchase_date <= CURRENT_DATE",
+          "latest_package.expiry_date >= CURRENT_DATE",
+          "latest_package.sessions_used < latest_package.sessions_total"
+        );
       }
       if (packageStatus === "expired") {
         conditions.push("latest_package.expiry_date < CURRENT_DATE");
@@ -226,11 +241,24 @@ export function createClientsRepository(
       const countResult = await dbPool.query(
         `SELECT
            COUNT(*)::int AS total,
-           COUNT(*) FILTER (WHERE latest_package.paid IS NOT TRUE)::int AS unpaid_total
+           COUNT(*) FILTER (
+             WHERE COALESCE(latest_package.paid_amount, 0) < latest_package.price
+           )::int AS unpaid_total
          FROM clients c
          LEFT JOIN LATERAL (
-           SELECT pk.expiry_date, pk.paid
+           SELECT
+             pk.purchase_date,
+             pk.expiry_date,
+             pk.sessions_total,
+             pk.sessions_used,
+             pk.price,
+             COALESCE(payment_totals.paid_amount, 0) AS paid_amount
            FROM packages pk
+           LEFT JOIN LATERAL (
+             SELECT COALESCE(SUM(payment.amount), 0) AS paid_amount
+             FROM package_payments payment
+             WHERE payment.package_id = pk.id
+           ) payment_totals ON true
            WHERE pk.client_id = c.id
            ORDER BY pk.created_at DESC, pk.id DESC
            LIMIT 1
@@ -328,11 +356,30 @@ export function createClientsRepository(
             programResult.rows[0].id,
             packageData.packageSize,
             priceResult.rows[0].price,
-            packageData.paid,
+            false,
             packageData.purchaseDate,
             packageData.expiryMonths
           ]
         );
+
+        if (packageData.paid) {
+          await db.query(
+            `INSERT INTO package_payments (
+               package_id,
+               amount,
+               payment_date,
+               method,
+               reference
+             )
+             VALUES ($1, $2, $3::date, $4, 'Paid during client creation')`,
+            [
+              packageResult.rows[0].id,
+              priceResult.rows[0].price,
+              packageData.purchaseDate,
+              packageData.paymentMethod
+            ]
+          );
+        }
 
         await syncPreferenceRequests(
           db,
@@ -509,7 +556,12 @@ export function createClientsRepository(
            package.sessions_total,
            package.sessions_used,
            package.price,
-           package.paid,
+           COALESCE(payment_totals.paid_amount, 0) >= package.price AS paid,
+           COALESCE(payment_totals.paid_amount, 0)::numeric(10,2) AS paid_amount,
+           GREATEST(
+             package.price - COALESCE(payment_totals.paid_amount, 0),
+             0
+           )::numeric(10,2) AS outstanding_balance,
            package.purchase_date::text,
            package.expiry_date::text,
            package.created_at,
@@ -517,6 +569,11 @@ export function createClientsRepository(
            program.type AS program_type
          FROM packages package
          JOIN programs program ON program.id = package.program_id
+         LEFT JOIN LATERAL (
+           SELECT COALESCE(SUM(payment.amount), 0) AS paid_amount
+           FROM package_payments payment
+           WHERE payment.package_id = package.id
+         ) payment_totals ON true
          WHERE package.client_id = $1
          ORDER BY package.created_at DESC, package.id DESC`,
         [id]

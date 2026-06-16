@@ -30,7 +30,7 @@ const SESSION_SELECT_SQL = `
           'packageId', package.id,
           'sessionsTotal', package.sessions_total,
           'sessionsUsed', package.sessions_used,
-          'paid', package.paid,
+          'paid', COALESCE(payment_totals.paid_amount, 0) >= package.price,
           'purchaseDate', package.purchase_date::text,
           'expiryDate', package.expiry_date::text,
           'status', attendance.status,
@@ -63,6 +63,11 @@ const SESSION_SELECT_SQL = `
   LEFT JOIN session_attendance attendance ON attendance.session_id = session.id
   LEFT JOIN clients client ON client.id = attendance.client_id
   LEFT JOIN packages package ON package.id = attendance.package_id
+  LEFT JOIN LATERAL (
+    SELECT COALESCE(SUM(payment.amount), 0) AS paid_amount
+    FROM package_payments payment
+    WHERE payment.package_id = package.id
+  ) payment_totals ON true
 `;
 
 async function findSession(db, sessionId, lock = false) {

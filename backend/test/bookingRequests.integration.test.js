@@ -89,7 +89,7 @@ async function createManualRequest({ suffix, dayOfWeek, startTime }) {
        purchase_date,
        expiry_date
      )
-     VALUES ($1, $2, 1, 380, CURRENT_DATE, CURRENT_DATE + 60)
+     VALUES ($1, $2, 1, 380, CURRENT_DATE, CURRENT_DATE + INTERVAL '2 months')
      RETURNING id`,
     [client.rows[0].id, program.rows[0].id]
   );
@@ -406,7 +406,14 @@ test("does not let expired recurring bookings block a weekly slot", async () => 
        purchase_date,
        expiry_date
      )
-     VALUES ($1, $2, 1, 380, CURRENT_DATE - 90, CURRENT_DATE - 30)
+     VALUES (
+       $1,
+       $2,
+       1,
+       380,
+       CURRENT_DATE - INTERVAL '3 months',
+       CURRENT_DATE - INTERVAL '1 month'
+     )
      RETURNING id`,
     [expiredClient.rows[0].id, program.rows[0].id]
   );
@@ -476,7 +483,14 @@ test("allows the same weekly slot when recurring date ranges do not overlap", as
        purchase_date,
        expiry_date
      )
-     VALUES ($1, $2, 1, 380, CURRENT_DATE + 120, CURRENT_DATE + 180)
+     VALUES (
+       $1,
+       $2,
+       1,
+       380,
+       CURRENT_DATE + INTERVAL '4 months',
+       CURRENT_DATE + INTERVAL '6 months'
+     )
      RETURNING id`,
     [futureClient.rows[0].id, program.rows[0].id]
   );
@@ -599,7 +613,14 @@ test("rejects approval when the package has already expired", async () => {
        purchase_date,
        expiry_date
      )
-     VALUES ($1, $2, 1, 380, CURRENT_DATE - 90, CURRENT_DATE - 30)
+     VALUES (
+       $1,
+       $2,
+       1,
+       380,
+       CURRENT_DATE - INTERVAL '3 months',
+       CURRENT_DATE - INTERVAL '1 month'
+     )
      RETURNING id`,
     [client.rows[0].id, program.rows[0].id]
   );

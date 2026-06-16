@@ -25,8 +25,17 @@ function formatDate(value) {
 }
 
 const DAY_NAMES = ["", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const PAYMENT_METHODS = ["cash", "eft", "card"];
 
 function toClientDto(row) {
+  const price = Number(row.price ?? 0);
+  const paidAmount = Number(row.paid_amount ?? 0);
+  const paymentStatus =
+    paidAmount >= price && price > 0
+      ? "paid"
+      : paidAmount > 0
+        ? "partially_paid"
+        : "unpaid";
   return {
     id: row.id,
     name: row.name,
@@ -46,7 +55,11 @@ function toClientDto(row) {
     sessionType: sessionTypeFromDatabase(row.program_type) ?? "One-on-One",
     sessionsTotal: row.sessions_total ?? 0,
     sessionsUsed: row.sessions_used ?? 0,
+    price,
     paid: Boolean(row.paid),
+    paidAmount,
+    outstandingBalance: Number(row.outstanding_balance ?? row.price ?? 0),
+    paymentStatus,
     purchaseDate: formatDate(row.purchase_date),
     expiryDate: formatDate(row.expiry_date),
     createdAt: row.created_at,
@@ -64,6 +77,10 @@ function toPackageDto(row) {
     sessionsUsed: row.sessions_used,
     price: Number(row.price),
     paid: Boolean(row.paid),
+    paidAmount: Number(row.paid_amount ?? (row.paid ? row.price : 0)),
+    outstandingBalance: Number(
+      row.outstanding_balance ?? (row.paid ? 0 : row.price)
+    ),
     purchaseDate: formatDate(row.purchase_date),
     expiryDate: formatDate(row.expiry_date),
     createdAt: row.created_at
@@ -228,6 +245,10 @@ export function createClientsService(repository = clientsRepository) {
         { allowEmpty: true }
       );
       const programInput = cleanString(input.program);
+      const paid = optionalBoolean(input.paid, "paid");
+      const paymentMethod = paid
+        ? requireOneOf(input.paymentMethod, PAYMENT_METHODS, "paymentMethod")
+        : null;
 
       try {
         const row = await repository.createWithPackage(
@@ -244,7 +265,8 @@ export function createClientsService(repository = clientsRepository) {
             packageSize,
             purchaseDate,
             expiryMonths: PACKAGE_EXPIRY_MONTHS,
-            paid: optionalBoolean(input.paid, "paid")
+            paid,
+            paymentMethod
           }
         );
         return toClientDto(row);
