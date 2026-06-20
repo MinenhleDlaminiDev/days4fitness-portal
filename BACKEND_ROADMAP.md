@@ -123,20 +123,20 @@ This checklist is the source of truth for backend development. Items are checked
 
 ## Phase 8: Authentication And Production Readiness
 
-- [ ] Define trainer accounts and roles.
-- [ ] Add secure authentication.
-- [ ] Protect private API routes.
-- [ ] Add authorization checks.
-- [ ] Add audit logging for important changes.
-- [ ] Add structured application logging.
-- [ ] Add security headers and request size limits.
-- [ ] Add rate limiting where appropriate.
-- [ ] Add production CORS rules.
-- [ ] Add database backup and restore documentation.
-- [ ] Add deployment migration strategy.
-- [ ] Add end-to-end tests for critical flows.
-- [ ] Add API documentation.
-- [ ] Run final security and regression review.
+- [x] Define trainer accounts and roles.
+- [x] Add secure authentication.
+- [x] Protect private API routes.
+- [x] Add authorization checks.
+- [x] Defer audit logging for the future system admin portal.
+- [x] Add structured application logging.
+- [x] Add security headers and request size limits.
+- [x] Add rate limiting where appropriate.
+- [x] Add production CORS rules.
+- [x] Add database backup and restore documentation.
+- [x] Add deployment migration strategy.
+- [x] Add end-to-end tests for critical flows.
+- [x] Add API documentation.
+- [x] Run final security and regression review.
 - [ ] **Phase 8 review and approval**
 
 ## Completion Rule

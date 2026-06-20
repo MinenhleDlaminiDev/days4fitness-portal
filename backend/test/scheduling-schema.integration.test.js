@@ -49,7 +49,8 @@ test("records migrations and does not reapply completed files", async () => {
       "012_packages_and_payments.sql",
       "013_phase6_payment_integrity.sql",
       "014_legacy_payment_method.sql",
-      "015_validate_package_expiry.sql"
+      "015_validate_package_expiry.sql",
+      "016_trainer_auth.sql"
     ]
   );
   assert.deepEqual(appliedAgain, []);
@@ -296,7 +297,8 @@ test("preserves legacy preferences and session attendance during migration", asy
          "012_packages_and_payments.sql",
          "013_phase6_payment_integrity.sql",
          "014_legacy_payment_method.sql",
-         "015_validate_package_expiry.sql"
+         "015_validate_package_expiry.sql",
+         "016_trainer_auth.sql"
       ]
     );
   } finally {

@@ -145,7 +145,13 @@ test("simultaneous completion attempts consume exactly one package credit", asyn
     startTime: "16:00"
   });
   await testPool.query(
-    "UPDATE sessions SET session_date = CURRENT_DATE - 3 WHERE id = $1",
+    `UPDATE sessions
+     SET session_date = CASE
+       WHEN EXTRACT(DOW FROM CURRENT_DATE) = 0 THEN CURRENT_DATE - INTERVAL '2 days'
+       WHEN EXTRACT(DOW FROM CURRENT_DATE) = 1 THEN CURRENT_DATE - INTERVAL '3 days'
+       ELSE CURRENT_DATE - INTERVAL '1 day'
+     END
+     WHERE id = $1`,
     [session.id]
   );
 

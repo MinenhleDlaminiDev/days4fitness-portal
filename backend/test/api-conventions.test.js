@@ -2,12 +2,18 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { AppError } from "../src/errors/AppError.js";
 import { sendData } from "../src/lib/apiResponse.js";
+import { requireRole } from "../src/middleware/auth.js";
 import { errorHandler, notFoundHandler } from "../src/middleware/errorHandler.js";
+import { createRateLimiter, securityHeaders } from "../src/middleware/security.js";
 
 function responseDouble() {
   return {
     statusCode: 200,
     body: null,
+    headers: {},
+    setHeader(name, value) {
+      this.headers[name] = value;
+    },
     status(code) {
       this.statusCode = code;
       return this;
@@ -80,5 +86,37 @@ test("oversized JSON uses a 413 error envelope", () => {
       code: "PAYLOAD_TOO_LARGE",
       message: "Request body exceeds the allowed size"
     }
+  });
+});
+
+test("security headers are applied to responses", () => {
+  const res = responseDouble();
+  securityHeaders({}, res, () => {});
+
+  assert.equal(res.headers["X-Content-Type-Options"], "nosniff");
+  assert.equal(res.headers["X-Frame-Options"], "DENY");
+  assert.equal(res.headers["Cross-Origin-Opener-Policy"], "same-origin-allow-popups");
+});
+
+test("rate limiter returns a standard operational error after the limit", () => {
+  const limiter = createRateLimiter({ windowMs: 60000, max: 1, keyPrefix: "test" });
+  const req = { ip: "127.0.0.1" };
+  const res = responseDouble();
+
+  limiter(req, res, (error) => assert.equal(error, undefined));
+  limiter(req, res, (error) => {
+    assert.equal(error.status, 429);
+    assert.equal(error.code, "RATE_LIMITED");
+    assert.equal(res.headers["Retry-After"], "60");
+  });
+});
+
+test("role guard rejects users without an allowed role", () => {
+  const guard = requireRole("trainer", "admin");
+  const req = { auth: { user: { role: "viewer" } } };
+
+  guard(req, {}, (error) => {
+    assert.equal(error.status, 403);
+    assert.equal(error.code, "FORBIDDEN");
   });
 });

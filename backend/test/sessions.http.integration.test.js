@@ -138,7 +138,13 @@ test("session HTTP routes expose schedule operations with standard envelopes", a
 
   const completedSession = await createSession(clientId, "2026-07-13", "14:00");
   await testPool.query(
-    "UPDATE sessions SET session_date = CURRENT_DATE - 3 WHERE id = $1",
+    `UPDATE sessions
+     SET session_date = CASE
+       WHEN EXTRACT(DOW FROM CURRENT_DATE) = 0 THEN CURRENT_DATE - INTERVAL '2 days'
+       WHEN EXTRACT(DOW FROM CURRENT_DATE) = 1 THEN CURRENT_DATE - INTERVAL '3 days'
+       ELSE CURRENT_DATE - INTERVAL '1 day'
+     END
+     WHERE id = $1`,
     [completedSession.body.data.id]
   );
   const completed = await requestJson(
@@ -153,7 +159,13 @@ test("session HTTP routes expose schedule operations with standard envelopes", a
 
   const noShowSession = await createSession(clientId, "2026-07-14", "15:00");
   await testPool.query(
-    "UPDATE sessions SET session_date = CURRENT_DATE - 3 WHERE id = $1",
+    `UPDATE sessions
+     SET session_date = CASE
+       WHEN EXTRACT(DOW FROM CURRENT_DATE) = 0 THEN CURRENT_DATE - INTERVAL '2 days'
+       WHEN EXTRACT(DOW FROM CURRENT_DATE) = 1 THEN CURRENT_DATE - INTERVAL '3 days'
+       ELSE CURRENT_DATE - INTERVAL '1 day'
+     END
+     WHERE id = $1`,
     [noShowSession.body.data.id]
   );
   const noShow = await requestJson(`/api/sessions/${noShowSession.body.data.id}/no-show`, {

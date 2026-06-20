@@ -71,6 +71,7 @@ PORT=5000
 CORS_ORIGINS=http://localhost:5173
 DATABASE_URL=postgresql://postgres:postgres@localhost:5433/days4fitness
 TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5433/days4fitness_test
+GOOGLE_CLIENT_ID=
 ```
 
 `backend/.env` is ignored by Git and must not be committed.
@@ -165,7 +166,11 @@ Test endpoints:
 - `GET http://localhost:5000/api/health`
 - `GET http://localhost:5000/api/health/ready`
 - `GET http://localhost:5000/api/configuration`
-- `GET http://localhost:5000/api/clients`
+- `POST http://localhost:5000/api/auth/login`
+- `POST http://localhost:5000/api/auth/google`
+- `POST http://localhost:5000/api/auth/google/signup`
+
+Private endpoints such as `GET /api/clients` require a bearer token.
 
 ## 5) Run the Frontend
 
@@ -187,6 +192,13 @@ Configured routes:
 - `/clients/new`
 - `/clients/:id`
 - `/clients/:id/edit`
+
+## Documentation
+
+- API reference: `docs/API.md`
+- Backup and restore: `docs/BACKUP_AND_RESTORE.md`
+- Deployment and migrations: `docs/DEPLOYMENT.md`
+- Release test checklist: `docs/E2E_TESTS.md`
 
 ## Development vs Production DB Notes
 

@@ -1,9 +1,46 @@
 import axios from "axios";
 
+const AUTH_TOKEN_KEY = "days4fitness_auth_token";
+
 export const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || "http://localhost:5000/api",
   timeout: 10000
 });
+
+export function getStoredAuthToken() {
+  return window.localStorage.getItem(AUTH_TOKEN_KEY);
+}
+
+export function storeAuthToken(token) {
+  window.localStorage.setItem(AUTH_TOKEN_KEY, token);
+}
+
+export function clearStoredAuthToken() {
+  window.localStorage.removeItem(AUTH_TOKEN_KEY);
+}
+
+api.interceptors.request.use((config) => {
+  const token = getStoredAuthToken();
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (
+      error?.response?.status === 401 &&
+      !error?.config?.url?.includes("/auth/login") &&
+      getStoredAuthToken()
+    ) {
+      clearStoredAuthToken();
+      window.dispatchEvent(new Event("days4fitness:auth-expired"));
+    }
+    return Promise.reject(error);
+  }
+);
 
 function responseData(response) {
   return response.data?.data;
@@ -90,6 +127,31 @@ export async function rejectBookingRequest(requestId) {
 
 export async function fetchConfiguration() {
   const response = await api.get("/configuration");
+  return responseData(response);
+}
+
+export async function loginTrainer(payload) {
+  const response = await api.post("/auth/login", payload);
+  return responseData(response);
+}
+
+export async function loginTrainerWithGoogle(payload) {
+  const response = await api.post("/auth/google", payload);
+  return responseData(response);
+}
+
+export async function signupTrainerWithGoogle(payload) {
+  const response = await api.post("/auth/google/signup", payload);
+  return responseData(response);
+}
+
+export async function fetchCurrentTrainer() {
+  const response = await api.get("/auth/me");
+  return responseData(response);
+}
+
+export async function logoutTrainer() {
+  const response = await api.post("/auth/logout");
   return responseData(response);
 }
 
