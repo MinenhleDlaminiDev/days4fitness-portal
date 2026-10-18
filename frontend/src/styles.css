@@ -95,6 +95,14 @@
   --c-warn-soft: 59 47 26;
   --c-warn-border: 201 154 79;
   --c-warn-text: 255 227 173;
+
+  /*
+    The page wash is two soft radial tints in the top corners. In dark mode it
+    reuses the existing soft green and soft amber so the corners glow instead of
+    washing out, rather than keeping the light tints over a dark base.
+  */
+  --c-wash-one: 22 56 39;
+  --c-wash-two: 59 47 26;
 }
 
 body {
@@ -138,10 +146,15 @@ body {
     @apply mt-1 text-sm text-emerald-100 sm:text-base;
   }
 
+  /*
+    Opaque on purpose: at 92% the card picked up whatever the page wash was
+    painting behind it, so the same card read differently at the top of the page
+    than further down.
+  */
   .surface-card {
-    @apply rounded-3xl border p-4 shadow-sm backdrop-blur-sm transition sm:p-5;
-    border-color: color-mix(in srgb, rgb(var(--c-border)) 80%, white);
-    background: rgb(var(--c-surface) / 0.92);
+    @apply rounded-3xl border p-4 shadow-sm transition sm:p-5;
+    border-color: rgb(var(--c-border));
+    background: rgb(var(--c-surface));
   }
 
   .surface-card:hover {
