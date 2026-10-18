@@ -248,7 +248,12 @@ function SessionModal({
             </p>
             <h2 className="text-2xl font-bold">{session.program}</h2>
           </div>
-          <button type="button" onClick={onClose} aria-label="Close modal">
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close modal"
+            className="-mr-2 grid h-11 w-11 shrink-0 place-items-center rounded-xl"
+          >
             <X size={24} />
           </button>
         </header>
@@ -327,7 +332,7 @@ function SessionModal({
                               type="button"
                               disabled={isSaving}
                               onClick={() => onOutcome("complete", attendee.clientId)}
-                              className="action-btn action-btn-primary h-9 sm:h-9"
+                              className="action-btn action-btn-primary h-11 sm:h-11"
                             >
                               <Check size={15} className="mr-1" /> Complete
                             </button>
@@ -336,7 +341,7 @@ function SessionModal({
                             type="button"
                             disabled={isSaving}
                             onClick={() => onOutcome("no-show", attendee.clientId)}
-                            className="action-btn action-btn-warn h-9 sm:h-9"
+                            className="action-btn action-btn-warn h-11 sm:h-11"
                           >
                             No-show
                           </button>
@@ -543,6 +548,7 @@ export default function SchedulePage() {
               type="button"
               onClick={() => setWeekStart(addDays(weekStart, -7))}
               aria-label="Previous week"
+              className="-ml-2 grid h-11 w-11 shrink-0 place-items-center rounded-xl"
             >
               <ArrowLeft size={21} />
             </button>
@@ -554,7 +560,7 @@ export default function SchedulePage() {
               <button
                 type="button"
                 onClick={() => setWeekStart(mondayFor())}
-                className="text-xs font-semibold text-accent"
+                className="inline-flex min-h-[44px] items-center px-2 text-xs font-semibold text-accent"
               >
                 Return to current week
               </button>
@@ -563,6 +569,7 @@ export default function SchedulePage() {
               type="button"
               onClick={() => setWeekStart(addDays(weekStart, 7))}
               aria-label="Next week"
+              className="-mr-2 grid h-11 w-11 shrink-0 place-items-center rounded-xl"
             >
               <ArrowRight size={21} />
             </button>
@@ -590,15 +597,15 @@ export default function SchedulePage() {
                     key={day.date}
                     type="button"
                     onClick={() => setSelectedDay(day.key)}
-                    className={`rounded-lg border px-1 py-2 text-center ${
+                    className={`min-h-[44px] rounded-lg border px-1 py-2 text-center ${
                       selectedDay === day.key
                         ? "border-accent bg-brand-tint text-accent"
                         : "border-line bg-surface text-copy"
                     }`}
                   >
-                    <p className="text-[10px] font-bold">{day.label}</p>
+                    <p className="text-xs font-bold">{day.label}</p>
                     <p className="text-sm font-bold">{Number(day.date.slice(-2))}</p>
-                    <p className="text-[10px] text-subtle">{day.sessions.length}</p>
+                    <p className="text-xs text-subtle">{day.sessions.length}</p>
                   </button>
                 ))}
               </div>

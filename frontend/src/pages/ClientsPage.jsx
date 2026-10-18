@@ -73,11 +73,11 @@ export default function ClientsPage() {
         </div>
         <div className="mt-3 flex flex-wrap gap-2">
           <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5">
-            <span className="text-[11px] font-medium uppercase tracking-wide text-emerald-100">Showing</span>
+            <span className="text-xs font-medium uppercase tracking-wide text-emerald-100">Showing</span>
             <span className="text-sm font-semibold text-white">{pagination.total}</span>
           </span>
           <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5">
-            <span className="text-[11px] font-medium uppercase tracking-wide text-emerald-100">Unpaid</span>
+            <span className="text-xs font-medium uppercase tracking-wide text-emerald-100">Unpaid</span>
             <span className="text-sm font-semibold text-white">{summary.unpaid}</span>
           </span>
         </div>
@@ -208,7 +208,7 @@ export default function ClientsPage() {
               type="button"
               disabled={page <= 1}
               onClick={() => setPage((current) => current - 1)}
-              className="action-btn action-btn-secondary h-10 px-4 disabled:opacity-50"
+              className="action-btn action-btn-secondary h-11 px-4 disabled:opacity-50"
             >
               Previous
             </button>
@@ -219,7 +219,7 @@ export default function ClientsPage() {
               type="button"
               disabled={page >= pagination.totalPages}
               onClick={() => setPage((current) => current + 1)}
-              className="action-btn action-btn-secondary h-10 px-4 disabled:opacity-50"
+              className="action-btn action-btn-secondary h-11 px-4 disabled:opacity-50"
             >
               Next
             </button>

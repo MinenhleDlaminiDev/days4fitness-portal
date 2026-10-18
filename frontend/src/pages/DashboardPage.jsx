@@ -102,7 +102,7 @@ export default function DashboardPage() {
               key={item.label}
               className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5"
             >
-              <span className="text-[11px] font-medium uppercase tracking-wide text-emerald-100">{item.label}</span>
+              <span className="text-xs font-medium uppercase tracking-wide text-emerald-100">{item.label}</span>
               <span className="text-sm font-semibold text-white">{item.value}</span>
             </span>
           ))}

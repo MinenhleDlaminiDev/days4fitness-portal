@@ -178,7 +178,7 @@ export default function BookingRequestsPage() {
           type="button"
           onClick={loadRequests}
           disabled={isLoading}
-          className="inline-flex h-10 items-center gap-2 rounded-xl border border-line-strong bg-surface px-3 text-sm font-semibold text-copy transition hover:bg-raised disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex h-11 min-w-[44px] items-center justify-center gap-2 rounded-xl border border-line-strong bg-surface px-3 text-sm font-semibold text-copy transition hover:bg-raised disabled:cursor-not-allowed disabled:opacity-60"
         >
           <RefreshCw size={16} className={`stroke-[1.75] ${isLoading ? "animate-spin" : ""}`} />
           <span className="hidden sm:inline">Refresh</span>

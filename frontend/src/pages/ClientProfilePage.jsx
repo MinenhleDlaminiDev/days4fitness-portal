@@ -144,7 +144,12 @@ export default function ClientProfilePage() {
       <section className="page-wrap space-y-4">
         <header className="page-header flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <button type="button" onClick={() => navigate(-1)} aria-label="Go back">
+            <button
+              type="button"
+              onClick={() => navigate(-1)}
+              aria-label="Go back"
+              className="-ml-2 grid h-11 w-11 shrink-0 place-items-center rounded-xl"
+            >
               <ArrowLeftIcon size={20} className="stroke-[1.75]" />
             </button>
             <div>
@@ -386,7 +391,12 @@ export default function ClientProfilePage() {
     <section className="page-wrap space-y-4 sm:space-y-5">
       <header className="page-header flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <button type="button" onClick={() => navigate(-1)} aria-label="Go back">
+          <button
+              type="button"
+              onClick={() => navigate(-1)}
+              aria-label="Go back"
+              className="-ml-2 grid h-11 w-11 shrink-0 place-items-center rounded-xl"
+            >
             <ArrowLeftIcon size={20} className="stroke-[1.75]" />
           </button>
           <div>
@@ -397,7 +407,11 @@ export default function ClientProfilePage() {
         <div className="flex items-center gap-2">
           <ThemeToggle />
           {client.isActive && (
-            <Link to={`/clients/${client.id}/edit`} aria-label="Edit client">
+            <Link
+              to={`/clients/${client.id}/edit`}
+              aria-label="Edit client"
+              className="grid h-11 w-11 shrink-0 place-items-center rounded-xl"
+            >
               <EditIcon size={20} className="stroke-[1.75]" />
             </Link>
           )}
@@ -452,7 +466,7 @@ export default function ClientProfilePage() {
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-sm text-muted">Session Times</p>
             {hasAnyPreference && (
-              <div className="flex gap-2 text-[11px] font-semibold">
+              <div className="flex gap-2 text-xs font-semibold">
                 <span className="rounded-full bg-brand-tint px-2 py-1 text-accent">
                   Approved
                 </span>
@@ -543,7 +557,7 @@ export default function ClientProfilePage() {
                         key={day}
                         type="button"
                         onClick={() => togglePreferredDay(day)}
-                        className={`h-10 rounded-xl border px-3 text-sm font-semibold transition ${
+                        className={`h-11 rounded-xl border px-3 text-sm font-semibold transition ${
                           isSelected
                             ? hasPendingSlot
                               ? "border-warn-border bg-warn-soft text-warn-text"
@@ -589,7 +603,7 @@ export default function ClientProfilePage() {
                                 key={`${day}-${slot}`}
                                 type="button"
                                 onClick={() => togglePreferredTime(day, slot)}
-                                className={`h-9 rounded-lg border px-2 text-xs font-semibold transition sm:text-sm ${
+                                className={`h-11 rounded-lg border px-2 text-xs font-semibold transition sm:text-sm ${
                                   isSelected
                                     ? isApproved
                                       ? "border-accent bg-success-soft text-accent"
@@ -912,7 +926,7 @@ export default function ClientProfilePage() {
                               type="button"
                               disabled={Boolean(packageAction)}
                               onClick={() => setPaymentToReverse(payment)}
-                              className="inline-flex items-center gap-1 text-xs font-bold text-danger-strong"
+                              className="-mr-2 inline-flex min-h-[44px] items-center gap-1 px-2 text-xs font-bold text-danger-strong"
                             >
                               <ReverseIcon size={14} /> Reverse
                             </button>
@@ -965,7 +979,7 @@ export default function ClientProfilePage() {
                       type="button"
                       disabled={Boolean(activeSessionAction)}
                       onClick={() => recordSessionOutcome(entry, "completed")}
-                      className="action-btn action-btn-primary h-10"
+                      className="action-btn action-btn-primary h-11"
                     >
                       <Check size={16} className="mr-1" /> Complete
                     </button>
@@ -974,7 +988,7 @@ export default function ClientProfilePage() {
                     type="button"
                     disabled={Boolean(activeSessionAction)}
                     onClick={() => recordSessionOutcome(entry, "no_show")}
-                    className={`action-btn action-btn-warn h-10 ${
+                    className={`action-btn action-btn-warn h-11 ${
                       entry.hasEnded ? "" : "col-span-2"
                     }`}
                   >
@@ -1083,7 +1097,7 @@ export default function ClientProfilePage() {
               type="button"
               disabled={packageAction === `reverse-${paymentToReverse.id}`}
               onClick={() => setPaymentToReverse(null)}
-              className="absolute right-4 top-4 grid h-9 w-9 place-items-center rounded-xl text-subtle transition hover:bg-sunken hover:text-strong disabled:opacity-50"
+              className="absolute right-3 top-3 grid h-11 w-11 place-items-center rounded-xl text-subtle transition hover:bg-sunken hover:text-strong disabled:opacity-50"
               aria-label="Close payment reversal modal"
             >
               <X size={19} />

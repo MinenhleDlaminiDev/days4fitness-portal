@@ -161,7 +161,12 @@ export default function ClientFormPage() {
       <section className="page-wrap space-y-4">
         <header className="page-header flex items-start justify-between gap-3">
           <div className="flex items-center gap-3">
-            <button type="button" onClick={() => navigate(-1)} aria-label="Go back">
+            <button
+              type="button"
+              onClick={() => navigate(-1)}
+              aria-label="Go back"
+              className="-ml-2 grid h-11 w-11 shrink-0 place-items-center rounded-xl"
+            >
               <ArrowLeftIcon size={20} className="stroke-[1.75]" />
             </button>
             <div>
@@ -180,7 +185,12 @@ export default function ClientFormPage() {
     <section className="page-wrap space-y-4 sm:space-y-5">
       <header className="page-header flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
-          <button type="button" onClick={() => navigate(-1)} aria-label="Go back">
+          <button
+              type="button"
+              onClick={() => navigate(-1)}
+              aria-label="Go back"
+              className="-ml-2 grid h-11 w-11 shrink-0 place-items-center rounded-xl"
+            >
             <ArrowLeftIcon size={20} className="stroke-[1.75]" />
           </button>
           <div>
@@ -323,7 +333,7 @@ export default function ClientFormPage() {
                       key={day}
                       type="button"
                       onClick={() => togglePreferredDay(day)}
-                      className={`h-10 rounded-xl border px-3 text-sm font-semibold transition ${
+                      className={`h-11 rounded-xl border px-3 text-sm font-semibold transition ${
                         isSelected
                           ? "border-accent bg-success-soft text-accent"
                           : "border-line-strong bg-surface text-copy hover:bg-raised"
@@ -359,7 +369,7 @@ export default function ClientFormPage() {
                               key={`${day}-${slot}`}
                               type="button"
                               onClick={() => togglePreferredTime(day, slot)}
-                              className={`h-9 rounded-lg border px-2 text-xs font-semibold transition sm:text-sm ${
+                              className={`h-11 rounded-lg border px-2 text-xs font-semibold transition sm:text-sm ${
                                 isSelected
                                   ? "border-accent bg-success-soft text-accent"
                                   : "border-line-strong bg-surface text-copy hover:bg-raised"
