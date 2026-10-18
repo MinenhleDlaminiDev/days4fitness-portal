@@ -137,7 +137,33 @@ This checklist is the source of truth for backend development. Items are checked
 - [x] Add end-to-end tests for critical flows.
 - [x] Add API documentation.
 - [x] Run final security and regression review.
-- [ ] **Phase 8 review and approval**
+- [x] **Phase 8 review and approval**
+
+### Phase 8 review — 2026-10-18
+
+Every item above was re-verified against the code rather than taken on trust:
+
+- **Accounts, roles, route protection, authorization** — `requireAuth` and
+  `requireRole("trainer", "admin")` are applied once in `src/routes/index.js`
+  ahead of the clients, booking-request, session, package and dashboard
+  routers. Health, configuration and auth sit ahead of the guard by design.
+- **Structured logging** — `src/middleware/requestLogger.js`, one JSON line per
+  request, correlated by the `X-Request-Id` set in `src/middleware/security.js`.
+- **Security headers and body limits** — `securityHeaders` sets nosniff, frame
+  deny, referrer, COOP and permissions policy; `express.json` is capped at
+  `REQUEST_BODY_LIMIT` (100kb default).
+- **Rate limiting** — two tiers in `src/app.js`: a tighter bucket on
+  `/api/auth`, a general one on `/api`, both returning 429 with `Retry-After`.
+- **Production CORS** — `src/config/env.js` throws at boot if `NODE_ENV` is
+  production and `CORS_ORIGINS` is empty or contains a localhost origin.
+- **Backup/restore, deployment migrations, API docs** — `docs/BACKUP_AND_RESTORE.md`,
+  `docs/DEPLOYMENT.md`, `docs/API.md`, `docs/E2E_TESTS.md`.
+- **Tests** — `npm run test:all` passes: 45/45 unit, 54/54 integration.
+
+One defect was found and fixed before approval: the integration fixtures
+hardcoded July 2026 dates, so 13 tests began failing once the wall clock passed
+them. Fixtures are now derived from the current date (`backend/test/helpers/dates.js`),
+verified against 1100 simulated run days.
 
 ## Completion Rule
 
