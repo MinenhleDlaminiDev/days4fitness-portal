@@ -78,6 +78,47 @@ export function createConfigurationRepository(pool = dbPool) {
       }
     },
 
+    /**
+     * Applies the catalogue of package sizes in one transaction. Adding a size
+     * also seeds a price row for each session type so it is immediately
+     * sellable; removing one clears its prices first. A size that packages were
+     * sold at is protected by packages_sessions_total_fkey and surfaces as a
+     * foreign-key violation for the service to translate.
+     */
+    async replacePackageSizes(sizes) {
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+        const existing = (
+          await client.query("SELECT sessions_total FROM package_sizes")
+        ).rows.map((row) => row.sessions_total);
+
+        const removed = existing.filter((size) => !sizes.includes(size));
+        const added = sizes.filter((size) => !existing.includes(size));
+
+        for (const size of removed) {
+          await client.query("DELETE FROM package_pricing WHERE sessions_total = $1", [size]);
+          await client.query("DELETE FROM package_sizes WHERE sessions_total = $1", [size]);
+        }
+        for (const size of added) {
+          await client.query("INSERT INTO package_sizes (sessions_total) VALUES ($1)", [size]);
+          await client.query(
+            `INSERT INTO package_pricing (program_type, sessions_total, price)
+             VALUES ('one_on_one', $1, 0), ('group', $1, 0)
+             ON CONFLICT (program_type, sessions_total) DO NOTHING`,
+            [size]
+          );
+        }
+        await client.query("COMMIT");
+        return { added, removed };
+      } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+      } finally {
+        client.release();
+      }
+    },
+
     /** Replaces the whole week in one transaction so a failure changes nothing. */
     async replaceBusinessHours(slots) {
       const client = await pool.connect();

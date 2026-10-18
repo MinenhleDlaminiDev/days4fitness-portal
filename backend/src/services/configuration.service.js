@@ -5,7 +5,7 @@ import {
   groupBusinessHours,
   setSettings
 } from "../config/settingsCache.js";
-import { validationError } from "../errors/AppError.js";
+import { conflictError, validationError } from "../errors/AppError.js";
 import { configurationRepository } from "../repositories/configuration.repository.js";
 
 // The sessions table still constrains when a session may start, so a slot
@@ -142,6 +142,40 @@ export function createConfigurationService(repository = configurationRepository)
       });
 
       await repository.updatePricing(entries);
+      return loadConfiguration();
+    },
+
+    async updatePackageSizes(payload = {}) {
+      const sizes = requireArray(payload.packageSizes, "packageSizes");
+      if (sizes.length === 0) {
+        throw validationError("At least one package size must remain", {
+          field: "packageSizes"
+        });
+      }
+
+      const parsed = [];
+      for (const size of sizes) {
+        const value = requirePositiveInt(size, "packageSizes");
+        if (parsed.includes(value)) {
+          throw validationError(`${value} is listed more than once`, {
+            field: "packageSizes"
+          });
+        }
+        parsed.push(value);
+      }
+      parsed.sort((a, b) => a - b);
+
+      try {
+        await repository.replacePackageSizes(parsed);
+      } catch (error) {
+        // packages_sessions_total_fkey: the size has already been sold.
+        if (error?.code === "23503") {
+          throw conflictError(
+            "That package size cannot be removed because clients have already bought it."
+          );
+        }
+        throw error;
+      }
       return loadConfiguration();
     },
 

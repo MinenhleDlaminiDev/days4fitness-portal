@@ -13,6 +13,7 @@ export function createConfigurationRouter(controller = configurationController) 
   // guard in routes/index.js, so the guard is applied per route here.
   const guard = [requireAuth, requireRole("trainer", "admin")];
   router.put("/pricing", guard, controller.updatePricing);
+  router.put("/package-sizes", guard, controller.updatePackageSizes);
   router.put("/business-hours", guard, controller.updateBusinessHours);
   router.put("/scheduling", guard, controller.updateScheduling);
 

@@ -32,6 +32,7 @@ function createRepository(overrides = {}) {
       return { group_capacity: 10, session_duration_minutes: 60, package_expiry_months: 2 };
     },
     async updatePricing() {},
+    async replacePackageSizes() {},
     async replaceBusinessHours() {},
     async updateSchedulingSettings() {},
     ...overrides
@@ -192,4 +193,50 @@ test("saves scheduling settings and rejects non-positive or absent values", asyn
       `expected ${JSON.stringify(payload)} to be rejected`
     );
   }
+});
+
+test("saves package sizes and rejects empties, duplicates and non-positive values", async () => {
+  let saved = null;
+  const service = createConfigurationService(
+    createRepository({
+      async replacePackageSizes(sizes) {
+        saved = sizes;
+      }
+    })
+  );
+
+  await service.updatePackageSizes({ packageSizes: [10, 2, 6] });
+  assert.deepEqual(saved, [2, 6, 10], "sizes are stored in ascending order");
+
+  for (const payload of [
+    { packageSizes: [] },
+    { packageSizes: [4, 4] },
+    { packageSizes: [0] },
+    { packageSizes: [-3] },
+    { packageSizes: [2.5] },
+    { packageSizes: "four" }
+  ]) {
+    await assert.rejects(
+      service.updatePackageSizes(payload),
+      (error) => error.status === 400,
+      `expected ${JSON.stringify(payload)} to be rejected`
+    );
+  }
+});
+
+test("a size clients already bought cannot be removed", async () => {
+  const service = createConfigurationService(
+    createRepository({
+      async replacePackageSizes() {
+        const error = new Error("update or delete violates foreign key constraint");
+        error.code = "23503";
+        throw error;
+      }
+    })
+  );
+
+  await assert.rejects(
+    service.updatePackageSizes({ packageSizes: [4] }),
+    (error) => error.status === 409 && /already bought/.test(error.message)
+  );
 });

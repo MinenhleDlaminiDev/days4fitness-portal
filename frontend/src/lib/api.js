@@ -138,6 +138,11 @@ export async function updatePricing(pricing) {
   return responseData(response);
 }
 
+export async function updatePackageSizes(packageSizes) {
+  const response = await api.put("/configuration/package-sizes", { packageSizes });
+  return responseData(response);
+}
+
 export async function updateBusinessHours(businessHours) {
   const response = await api.put("/configuration/business-hours", { businessHours });
   return responseData(response);

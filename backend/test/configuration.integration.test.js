@@ -173,3 +173,51 @@ test("the package expiry trigger follows the configured window", async () => {
     await restore(saved);
   }
 });
+
+test("adds a package size, prices it at zero, and protects sold sizes", async () => {
+  const saved = await snapshot();
+  const originalSizes = saved.pricing
+    .map((row) => row.sessions_total)
+    .filter((size, index, all) => all.indexOf(size) === index)
+    .sort((a, b) => a - b);
+
+  try {
+    const updated = await service.updatePackageSizes({
+      packageSizes: [...originalSizes, 6]
+    });
+    assert.ok(updated.packageSizes.includes(6), "the new size is offered");
+    const seeded = updated.pricing.filter((row) => row.sessionsTotal === 6);
+    assert.equal(seeded.length, 2, "both session types get a price row");
+    assert.deepEqual(
+      seeded.map((row) => row.price),
+      [0, 0]
+    );
+
+    // Removing an unsold size is allowed and clears its prices with it.
+    const removed = await service.updatePackageSizes({ packageSizes: originalSizes });
+    assert.equal(removed.packageSizes.includes(6), false);
+    assert.equal(removed.pricing.some((row) => row.sessionsTotal === 6), false);
+
+    // A size that a package was sold at is protected by the foreign key.
+    const sold = await testPool.query(
+      "SELECT DISTINCT sessions_total FROM packages ORDER BY sessions_total LIMIT 1"
+    );
+    if (sold.rows.length > 0) {
+      const soldSize = sold.rows[0].sessions_total;
+      await assert.rejects(
+        service.updatePackageSizes({
+          packageSizes: originalSizes.filter((size) => size !== soldSize)
+        }),
+        (error) => error.status === 409
+      );
+      // The failed removal left the catalogue untouched.
+      const after = await service.getConfiguration();
+      assert.ok(after.packageSizes.includes(soldSize));
+    }
+  } finally {
+    // Put the catalogue back first: restore() rewrites prices for sizes that
+    // must already exist.
+    await service.updatePackageSizes({ packageSizes: originalSizes });
+    await restore(saved);
+  }
+});

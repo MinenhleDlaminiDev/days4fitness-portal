@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { Banknote, CalendarClock, Check, Plus, Settings as SettingsIcon } from "lucide-react";
+import { Banknote, CalendarClock, Check, Layers, Plus, Settings as SettingsIcon, X } from "lucide-react";
 import SuccessToast from "../components/SuccessToast.jsx";
 import { useAppConfiguration } from "../context/AppConfigurationContext.jsx";
 import {
   getApiErrorMessage,
   updateBusinessHours,
+  updatePackageSizes,
   updatePricing,
   updateSchedulingSettings
 } from "../lib/api.js";
@@ -100,6 +101,7 @@ function useSection(initial, request, applyConfiguration) {
 export default function SettingsPage() {
   const { configuration, applyConfiguration } = useAppConfiguration();
   const [notice, setNotice] = useState("");
+  const [newSize, setNewSize] = useState("");
 
   const initialPricing = useMemo(() => {
     const sizes = configuration?.packageSizes ?? [];
@@ -146,6 +148,11 @@ export default function SettingsPage() {
       ),
     applyConfiguration
   );
+  const sizes = useSection(
+    configuration?.packageSizes ?? [],
+    updatePackageSizes,
+    applyConfiguration
+  );
   const hours = useSection(initialHours, updateBusinessHours, applyConfiguration);
   const scheduling = useSection(
     initialScheduling,
@@ -172,6 +179,17 @@ export default function SettingsPage() {
     pricing.setValue(
       pricing.value.map((row, position) => (position === index ? { ...row, price: nextPrice } : row))
     );
+  }
+
+  function addSize() {
+    const value = Number(newSize);
+    if (!Number.isInteger(value) || value < 1 || sizes.value.includes(value)) return;
+    sizes.setValue([...sizes.value, value].sort((a, b) => a - b));
+    setNewSize("");
+  }
+
+  function removeSize(size) {
+    sizes.setValue(sizes.value.filter((item) => item !== size));
   }
 
   function toggleSlot(day, slot) {
@@ -206,6 +224,68 @@ export default function SettingsPage() {
         <h1 className="page-title">Settings</h1>
         <p className="page-subtitle">Your prices, training hours and scheduling rules</p>
       </header>
+
+      <Section
+        icon={Layers}
+        title="Package sizes"
+        description="How many sessions a package can be sold in."
+      >
+        <div className="flex flex-wrap gap-2">
+          {sizes.value.map((size) => (
+            <span
+              key={size}
+              className="inline-flex items-center gap-2 rounded-xl border border-line-strong bg-raised py-1 pl-3 pr-1 text-sm font-semibold text-copy"
+            >
+              {size}
+              <button
+                type="button"
+                onClick={() => removeSize(size)}
+                aria-label={`Remove the ${size} session package`}
+                className="grid h-9 w-9 place-items-center rounded-lg text-subtle"
+              >
+                <X size={14} />
+              </button>
+            </span>
+          ))}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            type="number"
+            min="1"
+            step="1"
+            inputMode="numeric"
+            placeholder="Sessions"
+            value={newSize}
+            onChange={(event) => setNewSize(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                addSize();
+              }
+            }}
+            className="h-11 w-32 rounded-xl border border-line-strong bg-surface px-3 text-sm outline-none transition focus:border-accent"
+          />
+          <button
+            type="button"
+            onClick={addSize}
+            disabled={!newSize}
+            className="action-btn action-btn-secondary"
+          >
+            <Plus size={15} className="mr-1" /> Add size
+          </button>
+        </div>
+        <p className="text-xs text-subtle">
+          A new size starts at R0 for both session types — set its price below. A size clients
+          have already bought cannot be removed.
+        </p>
+        <SaveRow
+          onSave={() => saveSection(sizes, "Package sizes saved.")}
+          isSaving={sizes.isSaving}
+          isDirty={sizes.isDirty}
+          error={sizes.error}
+          saved={sizes.saved}
+        />
+      </Section>
 
       <Section
         icon={Banknote}

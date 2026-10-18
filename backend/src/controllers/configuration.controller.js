@@ -19,6 +19,14 @@ export function createConfigurationController(service = configurationService) {
       }
     },
 
+    async updatePackageSizes(req, res, next) {
+      try {
+        sendData(res, await service.updatePackageSizes(req.body));
+      } catch (error) {
+        next(error);
+      }
+    },
+
     async updateBusinessHours(req, res, next) {
       try {
         sendData(res, await service.updateBusinessHours(req.body));
