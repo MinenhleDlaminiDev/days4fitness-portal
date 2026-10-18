@@ -8,8 +8,13 @@ import { errorHandler, notFoundHandler } from "../src/middleware/errorHandler.js
 import { createSessionsRepository } from "../src/repositories/sessions.repository.js";
 import { createSessionsRouter } from "../src/routes/sessions.routes.js";
 import { createSessionsService } from "../src/services/sessions.service.js";
+import { addDays, upcomingMonday } from "./helpers/dates.js";
 
 const { Pool } = pg;
+
+// Anchored to a future Monday so the fixtures do not expire as the clock moves.
+const WEEK_ONE_MONDAY = upcomingMonday();
+const day = (offset) => addDays(WEEK_ONE_MONDAY, offset);
 
 if (!env.testDatabaseUrl || !new URL(env.testDatabaseUrl).pathname.toLowerCase().includes("test")) {
   throw new Error("Session HTTP integration tests require a safe TEST_DATABASE_URL");
@@ -100,7 +105,7 @@ async function createSession(clientId, sessionDate, startTime) {
 
 test("session HTTP routes expose schedule operations with standard envelopes", async () => {
   const clientId = await createClientPackage();
-  const created = await createSession(clientId, "2026-07-06", "11:00");
+  const created = await createSession(clientId, day(0), "11:00");
   assert.equal(created.status, 201);
   assert.equal(created.body.data.attendees[0].clientId, Number(clientId));
 
@@ -109,13 +114,13 @@ test("session HTTP routes expose schedule operations with standard envelopes", a
   assert.equal(fetched.status, 200);
   assert.equal(fetched.body.data.id, sessionId);
 
-  const week = await requestJson("/api/sessions?weekStart=2026-07-06");
+  const week = await requestJson(`/api/sessions?weekStart=${day(0)}`);
   assert.equal(week.status, 200);
   assert.ok(week.body.data.some((session) => session.id === sessionId));
 
   const rescheduled = await requestJson(`/api/sessions/${sessionId}/reschedule`, {
     method: "POST",
-    body: JSON.stringify({ sessionDate: "2026-07-08", startTime: "12:00" })
+    body: JSON.stringify({ sessionDate: day(2), startTime: "12:00" })
   });
   assert.equal(rescheduled.status, 201);
   assert.equal(rescheduled.body.data.rescheduledFromSessionId, sessionId);
@@ -131,12 +136,12 @@ test("session HTTP routes expose schedule operations with standard envelopes", a
     `/api/sessions/${rescheduled.body.data.id}/replacement`,
     {
       method: "POST",
-      body: JSON.stringify({ sessionDate: "2026-07-10", startTime: "13:00" })
+      body: JSON.stringify({ sessionDate: day(4), startTime: "13:00" })
     }
   );
   assert.equal(replacement.status, 201);
 
-  const completedSession = await createSession(clientId, "2026-07-13", "14:00");
+  const completedSession = await createSession(clientId, day(7), "14:00");
   await testPool.query(
     `UPDATE sessions
      SET session_date = CASE
@@ -157,7 +162,7 @@ test("session HTTP routes expose schedule operations with standard envelopes", a
   assert.equal(completed.status, 200);
   assert.equal(completed.body.data.status, "completed");
 
-  const noShowSession = await createSession(clientId, "2026-07-14", "15:00");
+  const noShowSession = await createSession(clientId, day(8), "15:00");
   await testPool.query(
     `UPDATE sessions
      SET session_date = CASE
@@ -178,11 +183,11 @@ test("session HTTP routes expose schedule operations with standard envelopes", a
 
 test("session HTTP routes return validation, conflict, and not-found errors", async () => {
   const clientId = await createClientPackage();
-  const invalidWeek = await requestJson("/api/sessions?weekStart=2026-07-07");
+  const invalidWeek = await requestJson(`/api/sessions?weekStart=${day(1)}`);
   assert.equal(invalidWeek.status, 400);
   assert.equal(invalidWeek.body.error.code, "VALIDATION_ERROR");
 
-  const futureSession = await createSession(clientId, "2026-07-20", "16:00");
+  const futureSession = await createSession(clientId, day(14), "16:00");
   const prematureOutcome = await requestJson(
     `/api/sessions/${futureSession.body.data.id}/complete`,
     {

@@ -8,8 +8,16 @@ import { createSessionsRepository } from "../src/repositories/sessions.repositor
 import { createBookingRequestsService } from "../src/services/bookingRequests.service.js";
 import { createClientsService } from "../src/services/clients.service.js";
 import { createSessionsService } from "../src/services/sessions.service.js";
+import { addDays, addMonths, daysFromToday, upcomingMonday } from "./helpers/dates.js";
 
 const { Pool } = pg;
+
+// Derived from today so the fixtures never fall into the past. PURCHASE_DATE
+// feeds the exact two-month expiry constraint on packages.
+const PURCHASE_DATE = daysFromToday(0);
+const EXPIRY_DATE = addMonths(PURCHASE_DATE, 2);
+const WEEK_ONE_MONDAY = upcomingMonday();
+const day = (offset) => addDays(WEEK_ONE_MONDAY, offset);
 
 if (!env.testDatabaseUrl || !new URL(env.testDatabaseUrl).pathname.toLowerCase().includes("test")) {
   throw new Error("Integration tests require a safe TEST_DATABASE_URL");
@@ -35,7 +43,7 @@ test("creates and reads a client through the PostgreSQL repository", async () =>
       program: "Weight Loss",
       sessionType: "One-on-One",
       packageSize: 4,
-      purchaseDate: "2026-06-14",
+      purchaseDate: PURCHASE_DATE,
       paid: false
     });
 
@@ -53,12 +61,12 @@ test("creates and reads a client through the PostgreSQL repository", async () =>
 
     assert.equal(stored.email, email);
     assert.deepEqual(stored.preferredDays, []);
-    assert.equal(stored.purchaseDate, "2026-06-14");
-    assert.equal(stored.expiryDate, "2026-08-14");
+    assert.equal(stored.purchaseDate, PURCHASE_DATE);
+    assert.equal(stored.expiryDate, EXPIRY_DATE);
     assert.equal(packageResult.rows[0].sessions_total, 4);
     assert.equal(packageResult.rows[0].paid, false);
-    assert.equal(packageResult.rows[0].purchase_date, "2026-06-14");
-    assert.equal(packageResult.rows[0].expiry_date, "2026-08-14");
+    assert.equal(packageResult.rows[0].purchase_date, PURCHASE_DATE);
+    assert.equal(packageResult.rows[0].expiry_date, EXPIRY_DATE);
   } finally {
     await testPool.query("DELETE FROM clients WHERE email = $1", [email]);
   }
@@ -77,7 +85,7 @@ test("updates, filters, archives, and restores a client", async () => {
       program: "Weight Loss",
       sessionType: "One-on-One",
       packageSize: 4,
-      purchaseDate: "2026-06-14",
+      purchaseDate: PURCHASE_DATE,
       paid: false
     });
 
@@ -148,7 +156,7 @@ test("updates, filters, archives, and restores a client", async () => {
     const concurrentResults = await Promise.allSettled([
       sessionsService.createManual({
         clientId: created.id,
-        sessionDate: "2026-07-20",
+        sessionDate: day(14),
         startTime: "14:00"
       }),
       service.setClientActive(created.id, false)
@@ -159,8 +167,8 @@ test("updates, filters, archives, and restores a client", async () => {
        FROM session_attendance attendance
        JOIN sessions session ON session.id = attendance.session_id
        WHERE attendance.client_id = $1
-         AND session.session_date = '2026-07-20'`,
-      [created.id]
+         AND session.session_date = $2`,
+      [created.id, day(14)]
     );
     assert.ok(futureAttendance.rows.every((row) => row.status === "cancelled"));
   } finally {
@@ -180,7 +188,7 @@ test("rolls back contact changes when an atomic preference update fails", async 
       program: "Weight Loss",
       sessionType: "One-on-One",
       packageSize: 4,
-      purchaseDate: "2026-06-14",
+      purchaseDate: PURCHASE_DATE,
       paid: false
     });
     await testPool.query("DELETE FROM packages WHERE client_id = $1", [created.id]);

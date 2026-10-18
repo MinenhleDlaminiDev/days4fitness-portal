@@ -4,8 +4,18 @@ import pg from "pg";
 import { env } from "../src/config/env.js";
 import { createPackagesRepository } from "../src/repositories/packages.repository.js";
 import { createPackagesService } from "../src/services/packages.service.js";
+import { addDays, addMonths, daysFromToday } from "./helpers/dates.js";
 
 const { Pool } = pg;
+
+// Bought a week ago so every payment date below is in the past, while the
+// two-month expiry still lands in the future. The expiry must be computed
+// with addMonths because packages_exact_two_month_expiry_check is exact.
+const PURCHASE_DATE = daysFromToday(-7);
+const EXPIRY_DATE = addMonths(PURCHASE_DATE, 2);
+const RENEWAL_PURCHASE_DATE = daysFromToday(-1);
+const RENEWAL_EXPIRY_DATE = addMonths(RENEWAL_PURCHASE_DATE, 2);
+const payday = (offset) => addDays(PURCHASE_DATE, offset);
 
 if (!env.testDatabaseUrl || !new URL(env.testDatabaseUrl).pathname.toLowerCase().includes("test")) {
   throw new Error("Integration tests require a safe TEST_DATABASE_URL");
@@ -43,9 +53,15 @@ async function createClientAndPackage({ sessionsUsed = 0 } = {}) {
        purchase_date,
        expiry_date
      )
-     VALUES ($1, $2, 8, $3, 1600, false, '2026-06-15', '2026-08-15')
+     VALUES ($1, $2, 8, $3, 1600, false, $4::date, $5::date)
      RETURNING id`,
-    [clientResult.rows[0].id, programResult.rows[0].id, sessionsUsed]
+    [
+      clientResult.rows[0].id,
+      programResult.rows[0].id,
+      sessionsUsed,
+      PURCHASE_DATE,
+      EXPIRY_DATE
+    ]
   );
   return {
     clientId: clientResult.rows[0].id,
@@ -59,7 +75,7 @@ test("records partial and full payments, then reverses without mutating history"
   try {
     const first = await service.addPayment(fixture.packageId, {
       amount: 600,
-      paymentDate: "2026-06-15",
+      paymentDate: payday(0),
       method: "eft",
       reference: "EFT-100"
     });
@@ -70,7 +86,7 @@ test("records partial and full payments, then reverses without mutating history"
 
     await service.addPayment(fixture.packageId, {
       amount: 1000,
-      paymentDate: "2026-06-16",
+      paymentDate: payday(1),
       method: "card"
     });
     packages = await service.listClientPackages(fixture.clientId);
@@ -78,7 +94,7 @@ test("records partial and full payments, then reverses without mutating history"
     assert.equal(packages[0].outstandingBalance, 0);
 
     await service.reversePayment(first.id, {
-      paymentDate: "2026-06-17",
+      paymentDate: payday(2),
       reference: "Correction"
     });
     packages = await service.listClientPackages(fixture.clientId);
@@ -88,7 +104,7 @@ test("records partial and full payments, then reverses without mutating history"
 
     await assert.rejects(
       service.reversePayment(first.id, {
-        paymentDate: "2026-06-18"
+        paymentDate: payday(3)
       }),
       (error) => error.status === 409
     );
@@ -108,7 +124,7 @@ test("prevents overpayment and active-package renewal", async () => {
     await assert.rejects(
       service.addPayment(fixture.packageId, {
         amount: 1600.01,
-        paymentDate: "2026-06-15",
+        paymentDate: payday(0),
         method: "cash"
       }),
       (error) => error.status === 409
@@ -118,7 +134,7 @@ test("prevents overpayment and active-package renewal", async () => {
         program: "Weight Loss",
         sessionType: "One-on-One",
         sessionsTotal: 8,
-        purchaseDate: "2026-06-15"
+        purchaseDate: PURCHASE_DATE
       }),
       (error) => error.status === 409
     );
@@ -147,20 +163,20 @@ test("accepts an exact final payment after a decimal partial payment", async () 
        purchase_date,
        expiry_date
      )
-     VALUES ($1, $2, 1, 250, '2026-06-15', '2026-08-15')
+     VALUES ($1, $2, 1, 250, $3::date, $4::date)
      RETURNING id`,
-    [clientResult.rows[0].id, programResult.rows[0].id]
+    [clientResult.rows[0].id, programResult.rows[0].id, PURCHASE_DATE, EXPIRY_DATE]
   );
 
   try {
     await service.addPayment(packageResult.rows[0].id, {
       amount: 16.17,
-      paymentDate: "2026-06-15",
+      paymentDate: payday(0),
       method: "cash"
     });
     await service.addPayment(packageResult.rows[0].id, {
       amount: 233.83,
-      paymentDate: "2026-06-16",
+      paymentDate: payday(1),
       method: "cash"
     });
 
@@ -181,11 +197,11 @@ test("renews an exhausted package with an exact two-month expiry", async () => {
       program: "Weight Loss",
       sessionType: "One-on-One",
       sessionsTotal: 4,
-      purchaseDate: "2026-06-30"
+      purchaseDate: RENEWAL_PURCHASE_DATE
     });
 
-    assert.equal(created.purchaseDate, "2026-06-30");
-    assert.equal(created.expiryDate, "2026-08-30");
+    assert.equal(created.purchaseDate, RENEWAL_PURCHASE_DATE);
+    assert.equal(created.expiryDate, RENEWAL_EXPIRY_DATE);
     assert.equal(created.paymentStatus, "unpaid");
   } finally {
     await testPool.query("DELETE FROM clients WHERE id = $1", [fixture.clientId]);
@@ -215,8 +231,14 @@ test("rejects packages that do not expire exactly two months after purchase", as
            purchase_date,
            expiry_date
          )
-         VALUES ($1, $2, 4, 1200, '2026-06-15', '2026-08-16')`,
-        [clientResult.rows[0].id, programResult.rows[0].id]
+         VALUES ($1, $2, 4, 1200, $3::date, $4::date)`,
+        // One day past the exact two-month expiry: the constraint under test.
+        [
+          clientResult.rows[0].id,
+          programResult.rows[0].id,
+          PURCHASE_DATE,
+          addDays(EXPIRY_DATE, 1)
+        ]
       ),
       /packages_exact_two_month_expiry_check/
     );
