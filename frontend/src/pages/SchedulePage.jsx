@@ -423,8 +423,10 @@ export default function SchedulePage() {
       })),
     [configuration, weekStart]
   );
+  // Union of every day's slots. Sorted explicitly: days can offer different
+  // hours, so iteration order is not chronological.
   const timeSlots = useMemo(
-    () => [...new Set(weekDays.flatMap((day) => day.timeSlots))],
+    () => [...new Set(weekDays.flatMap((day) => day.timeSlots))].sort(),
     [weekDays]
   );
   const isVisible = useCallback(
