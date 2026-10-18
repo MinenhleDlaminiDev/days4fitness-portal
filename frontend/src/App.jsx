@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import Layout from "./components/Layout.jsx";
 import DashboardPage from "./pages/DashboardPage.jsx";
 import SchedulePage from "./pages/SchedulePage.jsx";
+import SettingsPage from "./pages/SettingsPage.jsx";
 import ClientsPage from "./pages/ClientsPage.jsx";
 import ClientProfilePage from "./pages/ClientProfilePage.jsx";
 import ClientFormPage from "./pages/ClientFormPage.jsx";
@@ -56,6 +57,7 @@ export default function App() {
         <Route path="/schedule" element={<SchedulePage />} />
         <Route path="/clients" element={<ClientsPage />} />
         <Route path="/requests" element={<BookingRequestsPage />} />
+        <Route path="/settings" element={<SettingsPage />} />
         <Route path="/clients/new" element={<ClientFormPage />} />
         <Route path="/clients/:id" element={<ClientProfilePage />} />
         <Route path="/clients/:id/edit" element={<ClientFormPage />} />

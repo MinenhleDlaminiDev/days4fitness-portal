@@ -3,6 +3,7 @@ import {
   Calendar as CalendarIcon,
   ClipboardCheck as ClipboardCheckIcon,
   Clock as ClockIcon,
+  Settings as SettingsIcon,
   Users as UsersIcon
 } from "lucide-react";
 
@@ -10,7 +11,8 @@ const items = [
   { to: "/", label: "Dashboard", icon: CalendarIcon },
   { to: "/schedule", label: "Schedule", icon: ClockIcon },
   { to: "/clients", label: "Clients", icon: UsersIcon },
-  { to: "/requests", label: "Approvals", icon: ClipboardCheckIcon }
+  { to: "/requests", label: "Approvals", icon: ClipboardCheckIcon },
+  { to: "/settings", label: "Settings", icon: SettingsIcon }
 ];
 
 export default function BottomNav() {

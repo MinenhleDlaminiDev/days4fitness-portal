@@ -32,6 +32,11 @@ export function AppConfigurationProvider({ children }) {
       configuration,
       error,
       isLoading: !configuration && !error,
+      // The settings endpoints return the full configuration, so a save can
+      // refresh the app without a round trip or a loading flash.
+      applyConfiguration(next) {
+        setConfiguration(next);
+      },
       reload() {
         setConfiguration(null);
         setRequestVersion((current) => current + 1);

@@ -133,6 +133,21 @@ export async function rejectBookingRequest(requestId) {
   return responseData(response);
 }
 
+export async function updatePricing(pricing) {
+  const response = await api.put("/configuration/pricing", { pricing });
+  return responseData(response);
+}
+
+export async function updateBusinessHours(businessHours) {
+  const response = await api.put("/configuration/business-hours", { businessHours });
+  return responseData(response);
+}
+
+export async function updateSchedulingSettings(payload) {
+  const response = await api.put("/configuration/scheduling", payload);
+  return responseData(response);
+}
+
 export async function fetchConfiguration() {
   const response = await api.get("/configuration");
   return responseData(response);
