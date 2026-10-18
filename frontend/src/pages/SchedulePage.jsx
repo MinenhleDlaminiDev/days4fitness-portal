@@ -6,6 +6,8 @@ import {
   Calendar,
   Check,
   Clock,
+  Eye,
+  EyeOff,
   Plus,
   RefreshCw,
   UserRound,
@@ -410,6 +412,7 @@ export default function SchedulePage() {
   const [activeSession, setActiveSession] = useState(null);
   const [modalMode, setModalMode] = useState(null);
   const [showManualBooking, setShowManualBooking] = useState(false);
+  const [showCancelled, setShowCancelled] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState("");
@@ -437,20 +440,30 @@ export default function SchedulePage() {
     () => [...new Set(weekDays.flatMap((day) => day.timeSlots))],
     [weekDays]
   );
+  const isVisible = useCallback(
+    (session) => showCancelled || session.status !== "cancelled",
+    [showCancelled]
+  );
   const sessionsByDay = useMemo(
     () =>
       weekDays.map((day) => ({
         ...day,
         sessions: sessions
-          .filter(
-            (session) =>
-              session.sessionDate === day.date && session.status !== "cancelled"
-          )
+          .filter((session) => session.sessionDate === day.date && isVisible(session))
           .sort((a, b) => a.startTime.localeCompare(b.startTime))
       })),
-    [sessions, weekDays]
+    [sessions, weekDays, isVisible]
   );
   const selectedDayData = sessionsByDay[selectedDay] || sessionsByDay[0];
+  const cancelledCount = useMemo(
+    () =>
+      sessions.filter(
+        (session) =>
+          session.status === "cancelled" &&
+          weekDays.some((day) => day.date === session.sessionDate)
+      ).length,
+    [sessions, weekDays]
+  );
 
   async function loadSchedule() {
     try {
@@ -589,6 +602,21 @@ export default function SchedulePage() {
               <ArrowRight size={21} />
             </button>
           </div>
+          {cancelledCount > 0 && (
+            <div className="mt-2 flex justify-center">
+              <button
+                type="button"
+                onClick={() => setShowCancelled((previous) => !previous)}
+                aria-pressed={!showCancelled}
+                className="inline-flex min-h-[44px] items-center gap-1.5 px-2 text-xs font-semibold text-muted"
+              >
+                {showCancelled ? <EyeOff size={14} /> : <Eye size={14} />}
+                {showCancelled
+                  ? `Hide ${cancelledCount} cancelled`
+                  : `Show ${cancelledCount} cancelled`}
+              </button>
+            </div>
+          )}
         </div>
 
         {isLoading && (
@@ -642,7 +670,10 @@ export default function SchedulePage() {
                         <p className="font-bold">
                           {session.attendees.map((attendee) => attendee.clientName).join(", ")}
                         </p>
-                        <p className="text-xs opacity-75">{session.program}</p>
+                        <p className="text-xs opacity-75">
+                          {session.program}
+                          {session.status === "cancelled" && " · Cancelled"}
+                        </p>
                       </div>
                       <p className="font-bold">{session.startTime}</p>
                     </div>
@@ -678,7 +709,7 @@ export default function SchedulePage() {
                               (session) =>
                                 session.sessionDate === day.date &&
                                 session.startTime === time &&
-                                session.status !== "cancelled"
+                                isVisible(session)
                             )
                           : [];
                         return (
@@ -699,7 +730,10 @@ export default function SchedulePage() {
                                   <p className="truncate text-sm font-bold">
                                     {session.attendees.map((attendee) => attendee.clientName).join(", ")}
                                   </p>
-                                  <p className="truncate text-xs opacity-75">{session.program}</p>
+                                  <p className="truncate text-xs opacity-75">
+                                    {session.program}
+                                    {session.status === "cancelled" && " · Cancelled"}
+                                  </p>
                                 </button>
                               ))}
                             </div>
