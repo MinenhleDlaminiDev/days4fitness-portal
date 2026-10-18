@@ -9,7 +9,6 @@ import {
 } from "lucide-react";
 import { daysUntil } from "../lib/date.js";
 import { fetchClients, getApiErrorMessage } from "../lib/api.js";
-import ThemeToggle from "../components/ThemeToggle.jsx";
 
 const tabs = ["Active", "Expired", "Archived", "All"];
 
@@ -69,7 +68,6 @@ export default function ClientsPage() {
             <h1 className="page-title">Clients</h1>
             <p className="page-subtitle">Client management overview</p>
           </div>
-          <ThemeToggle />
         </div>
         <div className="mt-3 flex flex-wrap gap-2">
           <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5">

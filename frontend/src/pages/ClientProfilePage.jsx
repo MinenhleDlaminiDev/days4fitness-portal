@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   Archive,
@@ -35,7 +35,7 @@ import {
 } from "../lib/api.js";
 import { useAppConfiguration } from "../context/AppConfigurationContext.jsx";
 import SuccessToast from "../components/SuccessToast.jsx";
-import ThemeToggle from "../components/ThemeToggle.jsx";
+import useDismissable from "../lib/useDismissable.js";
 
 export default function ClientProfilePage() {
   const navigate = useNavigate();
@@ -131,6 +131,12 @@ export default function ClientProfilePage() {
     return () => window.clearTimeout(timeout);
   }, [notice]);
 
+  // Declared before the early returns below so the hook order stays stable.
+  const closeArchiveConfirmation = useCallback(() => setShowArchiveConfirmation(false), []);
+  const [isArchiveClosing, dismissArchiveConfirmation] = useDismissable(closeArchiveConfirmation);
+  const closePaymentReversal = useCallback(() => setPaymentToReverse(null), []);
+  const [isReversalClosing, dismissPaymentReversal] = useDismissable(closePaymentReversal);
+
   if (isLoading) {
     return (
       <section className="page-wrap">
@@ -157,7 +163,6 @@ export default function ClientProfilePage() {
               <p className="text-sm text-emerald-100">Client profile</p>
             </div>
           </div>
-          <ThemeToggle />
         </header>
         <article className="surface-card text-sm text-danger-strong">{loadError || "This client does not exist."}</article>
       </section>
@@ -405,7 +410,6 @@ export default function ClientProfilePage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <ThemeToggle />
           {client.isActive && (
             <Link
               to={`/clients/${client.id}/edit`}
@@ -1039,14 +1043,18 @@ export default function ClientProfilePage() {
 
       {showArchiveConfirmation && (
         <div
-          className="modal-backdrop fixed inset-0 z-50 overflow-auto bg-slate-950/60 p-3 backdrop-blur-sm"
+          className={`modal-backdrop fixed inset-0 z-50 overflow-auto bg-slate-950/60 p-3 backdrop-blur-sm ${
+            isArchiveClosing ? "is-closing" : ""
+          }`}
           role="presentation"
           onMouseDown={(event) => {
-            if (event.target === event.currentTarget) setShowArchiveConfirmation(false);
+            if (event.target === event.currentTarget) dismissArchiveConfirmation();
           }}
         >
           <div
-            className="modal-panel relative mx-auto mt-20 w-full max-w-md rounded-3xl bg-surface p-5 shadow-2xl sm:p-6"
+            className={`modal-panel relative mx-auto mt-20 w-full max-w-md rounded-3xl bg-surface p-5 shadow-2xl sm:p-6 ${
+              isArchiveClosing ? "is-closing" : ""
+            }`}
             role="dialog"
             aria-modal="true"
             aria-labelledby="archive-client-title"
@@ -1064,7 +1072,7 @@ export default function ClientProfilePage() {
             <div className="mt-6 grid grid-cols-2 gap-3">
               <button
                 type="button"
-                onClick={() => setShowArchiveConfirmation(false)}
+                onClick={dismissArchiveConfirmation}
                 className="action-btn action-btn-secondary"
               >
                 Keep Active
@@ -1086,19 +1094,23 @@ export default function ClientProfilePage() {
 
       {paymentToReverse && (
         <div
-          className="modal-backdrop fixed inset-0 z-50 overflow-auto bg-slate-950/60 p-3 backdrop-blur-sm"
+          className={`modal-backdrop fixed inset-0 z-50 overflow-auto bg-slate-950/60 p-3 backdrop-blur-sm ${
+            isReversalClosing ? "is-closing" : ""
+          }`}
           role="presentation"
           onMouseDown={(event) => {
             if (
               event.target === event.currentTarget &&
               packageAction !== `reverse-${paymentToReverse.id}`
             ) {
-              setPaymentToReverse(null);
+              dismissPaymentReversal();
             }
           }}
         >
           <div
-            className="modal-panel relative mx-auto mt-20 w-full max-w-md rounded-3xl bg-surface p-5 shadow-2xl sm:p-6"
+            className={`modal-panel relative mx-auto mt-20 w-full max-w-md rounded-3xl bg-surface p-5 shadow-2xl sm:p-6 ${
+              isReversalClosing ? "is-closing" : ""
+            }`}
             role="dialog"
             aria-modal="true"
             aria-labelledby="reverse-payment-title"
@@ -1106,7 +1118,7 @@ export default function ClientProfilePage() {
             <button
               type="button"
               disabled={packageAction === `reverse-${paymentToReverse.id}`}
-              onClick={() => setPaymentToReverse(null)}
+              onClick={dismissPaymentReversal}
               className="absolute right-3 top-3 grid h-11 w-11 place-items-center rounded-xl text-subtle transition hover:bg-sunken hover:text-strong disabled:opacity-50"
               aria-label="Close payment reversal modal"
             >
@@ -1146,7 +1158,7 @@ export default function ClientProfilePage() {
               <button
                 type="button"
                 disabled={packageAction === `reverse-${paymentToReverse.id}`}
-                onClick={() => setPaymentToReverse(null)}
+                onClick={dismissPaymentReversal}
                 className="action-btn action-btn-secondary"
               >
                 Keep Payment

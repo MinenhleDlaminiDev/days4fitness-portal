@@ -9,7 +9,6 @@ import {
 } from "lucide-react";
 import { fetchDashboard, getApiErrorMessage } from "../lib/api.js";
 import { daysUntil } from "../lib/date.js";
-import ThemeToggle from "../components/ThemeToggle.jsx";
 
 const emptyDashboard = {
   summary: {
@@ -94,7 +93,6 @@ export default function DashboardPage() {
             <h1 className="page-title">Dashboard</h1>
             <p className="page-subtitle">Trainer management overview</p>
           </div>
-          <ThemeToggle />
         </div>
         <div className="mt-3 flex flex-wrap gap-2">
           {stats.map((item) => (

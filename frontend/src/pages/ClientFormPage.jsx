@@ -9,7 +9,6 @@ import {
   updateClient
 } from "../lib/api.js";
 import { useAppConfiguration } from "../context/AppConfigurationContext.jsx";
-import ThemeToggle from "../components/ThemeToggle.jsx";
 
 const fieldClass =
   "mt-2 h-12 w-full rounded-xl border border-line-strong bg-surface px-4 text-sm outline-none transition focus:border-accent sm:text-base";
@@ -174,7 +173,6 @@ export default function ClientFormPage() {
               <p className="text-sm text-emerald-100">Client details were not loaded</p>
             </div>
           </div>
-          <ThemeToggle />
         </header>
         <div className="surface-card text-sm font-semibold text-danger-strong">{loadError}</div>
       </section>
@@ -198,7 +196,6 @@ export default function ClientFormPage() {
             <p className="text-sm text-emerald-100">Client intake form</p>
           </div>
         </div>
-        <ThemeToggle />
       </header>
 
       <form className="space-y-4" onSubmit={submitForm}>

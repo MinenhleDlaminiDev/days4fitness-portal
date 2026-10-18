@@ -205,8 +205,11 @@ body {
     @apply mb-3 flex items-center gap-2 text-lg font-semibold sm:text-xl;
   }
 
+  /* Lives in the Layout top bar now, on the page background rather than the
+     brand gradient, so the border is a token instead of translucent white. */
   .theme-toggle {
-    @apply relative h-10 w-[76px] min-w-[76px] shrink-0 rounded-full border border-white/30 p-1 transition;
+    @apply relative h-10 w-[76px] min-w-[76px] shrink-0 rounded-full border p-1 transition;
+    border-color: rgb(var(--c-border-strong));
     background: rgb(var(--c-brand-soft) / 0.35);
     backdrop-filter: blur(8px);
   }

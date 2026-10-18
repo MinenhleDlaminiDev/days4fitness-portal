@@ -11,7 +11,6 @@ import {
   UserRound,
   X
 } from "lucide-react";
-import ThemeToggle from "../components/ThemeToggle.jsx";
 import SuccessToast from "../components/SuccessToast.jsx";
 import {
   approveBookingRequest,
@@ -142,7 +141,6 @@ export default function BookingRequestsPage() {
             <h1 className="page-title">Session Approvals</h1>
             <p className="page-subtitle">Review clients&apos; recurring weekly preferences</p>
           </div>
-          <ThemeToggle />
         </div>
 
         <div className="mt-5 flex flex-wrap gap-2">

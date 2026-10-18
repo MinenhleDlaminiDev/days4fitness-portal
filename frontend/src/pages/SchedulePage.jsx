@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import {
   ArrowLeft,
@@ -13,7 +13,6 @@ import {
   X
 } from "lucide-react";
 import SuccessToast from "../components/SuccessToast.jsx";
-import ThemeToggle from "../components/ThemeToggle.jsx";
 import { useAppConfiguration } from "../context/AppConfigurationContext.jsx";
 import {
   cancelSession,
@@ -28,6 +27,7 @@ import {
   rescheduleSession
 } from "../lib/api.js";
 import { localDateInputValue } from "../lib/date.js";
+import useDismissable from "../lib/useDismissable.js";
 
 const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -234,13 +234,22 @@ function SessionModal({
   onCancelSession,
   onOutcome
 }) {
+  const [isClosing, dismiss] = useDismissable(onClose);
   if (!session) return null;
   const hasStarted = session.hasStarted;
   const hasEnded = session.hasEnded;
 
   return (
-    <div className="modal-backdrop fixed inset-0 z-50 overflow-auto bg-slate-950/50 p-3 backdrop-blur-sm">
-      <div className="modal-panel mx-auto mt-5 w-full max-w-2xl overflow-hidden rounded-3xl bg-surface shadow-2xl">
+    <div
+      className={`modal-backdrop fixed inset-0 z-50 overflow-auto bg-slate-950/50 p-3 backdrop-blur-sm ${
+        isClosing ? "is-closing" : ""
+      }`}
+    >
+      <div
+        className={`modal-panel mx-auto mt-5 w-full max-w-2xl overflow-hidden rounded-3xl bg-surface shadow-2xl ${
+          isClosing ? "is-closing" : ""
+        }`}
+      >
         <header className="flex items-center justify-between bg-gradient-to-br from-emerald-900 to-emerald-700 px-5 py-5 text-white">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.16em] text-emerald-100">
@@ -250,7 +259,7 @@ function SessionModal({
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={dismiss}
             aria-label="Close modal"
             className="-mr-2 grid h-11 w-11 shrink-0 place-items-center rounded-xl"
           >
@@ -406,6 +415,13 @@ export default function SchedulePage() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
+  const closeManualBooking = useCallback(() => {
+    setShowManualBooking(false);
+    setError("");
+    setSearchParams({});
+  }, [setSearchParams]);
+  const [isManualClosing, dismissManualBooking] = useDismissable(closeManualBooking);
+
   const weekDays = useMemo(
     () =>
       DAY_NAMES.map((day, index) => ({
@@ -537,7 +553,6 @@ export default function SchedulePage() {
             <h1 className="page-title">Schedule</h1>
             <p className="page-subtitle">Book, track, and manage weekly sessions</p>
           </div>
-          <ThemeToggle />
         </div>
       </header>
 
@@ -713,18 +728,22 @@ export default function SchedulePage() {
       </button>
 
       {showManualBooking && (
-        <div className="modal-backdrop fixed inset-0 z-50 overflow-auto bg-slate-950/50 p-3 backdrop-blur-sm">
-          <div className="modal-panel mx-auto mt-5 max-w-xl overflow-hidden rounded-3xl bg-surface shadow-2xl">
+        <div
+          className={`modal-backdrop fixed inset-0 z-50 overflow-auto bg-slate-950/50 p-3 backdrop-blur-sm ${
+            isManualClosing ? "is-closing" : ""
+          }`}
+        >
+          <div
+            className={`modal-panel mx-auto mt-5 max-w-xl overflow-hidden rounded-3xl bg-surface shadow-2xl ${
+              isManualClosing ? "is-closing" : ""
+            }`}
+          >
             <BookingForm
               clients={clients}
               initial={{ clientId: searchParams.get("clientId") || "" }}
               title="Book a session"
               submitLabel="Book session"
-              onCancel={() => {
-                setShowManualBooking(false);
-                setError("");
-                setSearchParams({});
-              }}
+              onCancel={dismissManualBooking}
               onSubmit={submitManual}
               isSaving={isSaving}
             />

@@ -1,5 +1,6 @@
 import { Outlet } from "react-router-dom";
 import BottomNav from "./BottomNav.jsx";
+import ThemeToggle from "./ThemeToggle.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 
 export default function Layout() {
@@ -8,7 +9,8 @@ export default function Layout() {
   return (
     <div className="app-shell">
       <div className="mx-auto flex max-w-6xl items-center justify-end gap-3 px-4 pt-4 sm:px-6">
-        <span className="hidden rounded-full border border-success-border bg-white/80 px-3 py-1 text-xs font-semibold text-accent sm:inline-flex">
+        <ThemeToggle />
+        <span className="hidden rounded-full border border-success-border bg-surface/80 px-3 py-1 text-xs font-semibold text-accent sm:inline-flex">
           {trainer?.name}
         </span>
         <button
