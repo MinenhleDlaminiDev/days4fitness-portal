@@ -19,9 +19,9 @@ export default function SuccessToast({ title = "Schedule updated", message, onDi
         backgroundColor: "#0f172a",
         opacity: 1
       }}
-      className="flex items-start gap-3 rounded-2xl border border-emerald-400 p-4 text-white shadow-2xl ring-1 ring-white/10"
+      className="flex items-start gap-3 rounded-2xl border border-accent p-4 text-white shadow-2xl ring-1 ring-white/10"
     >
-      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-emerald-400 text-emerald-950">
+      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-brand text-success-text">
         <UserRoundCheck size={21} className="stroke-[2]" />
       </span>
       <div className="min-w-0 flex-1">

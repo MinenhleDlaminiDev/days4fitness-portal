@@ -161,7 +161,7 @@ export default function BookingRequestsPage() {
         </div>
       </header>
 
-      <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
+      <div className="flex items-start gap-3 rounded-2xl border border-warn-border bg-warn-soft p-4 text-warn-text">
         <AlertTriangle size={19} className="mt-0.5 shrink-0 stroke-[1.75]" />
         <p className="text-sm">
           These times are preferences until you approve them. Each approved slot repeats weekly
@@ -204,7 +204,7 @@ export default function BookingRequestsPage() {
 
       {!isLoading && !loadError && requests.length === 0 && (
         <div className="surface-card py-10 text-center">
-          <span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-emerald-100 text-emerald-700">
+          <span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-brand-tint text-accent">
             <CalendarCheck size={27} className="stroke-[1.6]" />
           </span>
           <h2 className="mt-4 text-xl font-bold text-strong">All caught up</h2>
@@ -213,7 +213,7 @@ export default function BookingRequestsPage() {
           </p>
           <Link
             to="/clients"
-            className="mt-5 inline-flex items-center gap-1 text-sm font-bold text-emerald-700 hover:text-emerald-800"
+            className="mt-5 inline-flex items-center gap-1 text-sm font-bold text-accent hover:text-accent"
           >
             View clients
             <ChevronRight size={16} />
@@ -234,7 +234,7 @@ export default function BookingRequestsPage() {
                   <div>
                     <Link
                       to={`/clients/${group.clientId}`}
-                      className="inline-flex items-center gap-1 text-lg font-bold text-strong hover:text-emerald-700"
+                      className="inline-flex items-center gap-1 text-lg font-bold text-strong hover:text-accent"
                     >
                       {group.clientName}
                       <ChevronRight size={17} />
@@ -242,7 +242,7 @@ export default function BookingRequestsPage() {
                     <p className="text-sm text-muted">{group.program}</p>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-bold text-emerald-700">
+                    <span className="rounded-full bg-brand-tint px-2.5 py-1 text-xs font-bold text-accent">
                       {group.sessionType}
                     </span>
                     <span className="rounded-full bg-surface px-2.5 py-1 text-xs font-semibold text-muted ring-1 ring-line">
@@ -262,7 +262,7 @@ export default function BookingRequestsPage() {
                     <div key={request.id} className="px-4 py-4 sm:px-5">
                       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                         <div className="flex items-center gap-3">
-                          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-emerald-50 text-emerald-700">
+                          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-success-soft text-accent">
                             <Clock size={20} className="stroke-[1.75]" />
                           </span>
                           <div>

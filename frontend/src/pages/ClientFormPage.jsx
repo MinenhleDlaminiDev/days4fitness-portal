@@ -12,7 +12,7 @@ import { useAppConfiguration } from "../context/AppConfigurationContext.jsx";
 import ThemeToggle from "../components/ThemeToggle.jsx";
 
 const fieldClass =
-  "mt-2 h-12 w-full rounded-xl border border-line-strong bg-surface px-4 text-sm outline-none transition focus:border-emerald-700 sm:text-base";
+  "mt-2 h-12 w-full rounded-xl border border-line-strong bg-surface px-4 text-sm outline-none transition focus:border-accent sm:text-base";
 
 export default function ClientFormPage() {
   const navigate = useNavigate();
@@ -171,7 +171,7 @@ export default function ClientFormPage() {
           </div>
           <ThemeToggle />
         </header>
-        <div className="surface-card text-sm font-semibold text-red-700">{loadError}</div>
+        <div className="surface-card text-sm font-semibold text-danger-strong">{loadError}</div>
       </section>
     );
   }
@@ -193,7 +193,7 @@ export default function ClientFormPage() {
 
       <form className="space-y-4" onSubmit={submitForm}>
         {saveError && (
-          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <div className="rounded-xl border border-danger-border bg-danger-soft px-4 py-3 text-sm text-danger-strong">
             {saveError}
           </div>
         )}
@@ -272,7 +272,7 @@ export default function ClientFormPage() {
                     }
                     className={`h-12 rounded-xl border text-sm font-semibold transition sm:text-base ${
                       form.sessionType === type
-                        ? "border-emerald-700 bg-emerald-50 text-emerald-700"
+                        ? "border-accent bg-success-soft text-accent"
                         : "border-line-strong bg-surface text-copy hover:bg-raised"
                     }`}
                   >
@@ -325,7 +325,7 @@ export default function ClientFormPage() {
                       onClick={() => togglePreferredDay(day)}
                       className={`h-10 rounded-xl border px-3 text-sm font-semibold transition ${
                         isSelected
-                          ? "border-emerald-700 bg-emerald-50 text-emerald-700"
+                          ? "border-accent bg-success-soft text-accent"
                           : "border-line-strong bg-surface text-copy hover:bg-raised"
                       }`}
                     >
@@ -361,7 +361,7 @@ export default function ClientFormPage() {
                               onClick={() => togglePreferredTime(day, slot)}
                               className={`h-9 rounded-lg border px-2 text-xs font-semibold transition sm:text-sm ${
                                 isSelected
-                                  ? "border-emerald-700 bg-emerald-50 text-emerald-700"
+                                  ? "border-accent bg-success-soft text-accent"
                                   : "border-line-strong bg-surface text-copy hover:bg-raised"
                               }`}
                             >
@@ -376,9 +376,9 @@ export default function ClientFormPage() {
               </div>
             )}
 
-            {!isEdit && <div className="rounded-xl border-l-4 border-amber-500 bg-amber-50 p-3">
+            {!isEdit && <div className="rounded-xl border-l-4 border-warn-border bg-warn-soft p-3">
               <p className="text-sm text-muted">Package Expires</p>
-              <p className="text-lg font-semibold text-amber-700 sm:text-xl">{expiryDate}</p>
+              <p className="text-lg font-semibold text-warn-text sm:text-xl">{expiryDate}</p>
               <p className="text-sm text-subtle">
                 {expiryMonths} months from purchase date
               </p>

@@ -63,7 +63,7 @@ export default function LoginPage() {
           </div>
 
           {!googleClientId && (
-            <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-800">
+            <p className="rounded-xl border border-warn-border bg-warn-soft p-3 text-sm font-semibold text-warn-text">
               Google sign-in is ready in the code, but needs a Google OAuth client ID before it can be used.
             </p>
           )}
@@ -78,7 +78,7 @@ export default function LoginPage() {
               placeholder="trainer@example.com"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
-              className="mt-2 h-12 w-full rounded-xl border border-line-strong bg-surface px-4 text-sm outline-none transition focus:border-emerald-700"
+              className="mt-2 h-12 w-full rounded-xl border border-line-strong bg-surface px-4 text-sm outline-none transition focus:border-accent"
             />
           </label>
 
@@ -92,12 +92,12 @@ export default function LoginPage() {
               placeholder="Enter your password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              className="mt-2 h-12 w-full rounded-xl border border-line-strong bg-surface px-4 text-sm outline-none transition focus:border-emerald-700"
+              className="mt-2 h-12 w-full rounded-xl border border-line-strong bg-surface px-4 text-sm outline-none transition focus:border-accent"
             />
           </label>
 
           {error && (
-            <p className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">
+            <p className="rounded-xl border border-danger-border bg-danger-soft p-3 text-sm font-semibold text-danger-strong">
               {error}
             </p>
           )}
@@ -118,7 +118,7 @@ export default function LoginPage() {
 
           <p className="text-center text-sm text-muted">
             New trainer?{" "}
-            <Link to="/signup" className="font-bold text-emerald-700 hover:text-emerald-800">
+            <Link to="/signup" className="font-bold text-accent hover:text-accent">
               Create an account
             </Link>
           </p>

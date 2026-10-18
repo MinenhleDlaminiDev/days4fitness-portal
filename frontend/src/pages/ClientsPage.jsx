@@ -107,7 +107,7 @@ export default function ClientsPage() {
                 setPage(1);
               }}
               className={`flex-1 rounded-lg px-2 py-2 transition ${
-                tab === item ? "bg-surface text-emerald-700 shadow-sm" : "hover:text-strong"
+                tab === item ? "bg-surface text-accent shadow-sm" : "hover:text-strong"
               }`}
             >
               {item}
@@ -122,7 +122,7 @@ export default function ClientsPage() {
             </div>
           )}
           {!isLoading && loadError && (
-            <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+            <div className="rounded-xl border border-danger-border bg-danger-soft p-4 text-sm text-danger-strong">
               {loadError}
             </div>
           )}
@@ -159,11 +159,11 @@ export default function ClientsPage() {
                     <div className="flex items-center gap-2">
                       <h2 className="text-base font-semibold leading-tight sm:text-lg">{client.name}</h2>
                       {paymentStatus === "paid" ? (
-                        <CheckCircleIcon size={14} className="stroke-[1.75] text-emerald-600" />
+                        <CheckCircleIcon size={14} className="stroke-[1.75] text-accent" />
                       ) : paymentStatus === "partially_paid" ? (
-                        <CreditCard size={14} className="stroke-[1.75] text-amber-600" />
+                        <CreditCard size={14} className="stroke-[1.75] text-warn-text" />
                       ) : (
-                        <XCircleIcon size={14} className="stroke-[1.75] text-red-500" />
+                        <XCircleIcon size={14} className="stroke-[1.75] text-danger-strong" />
                       )}
                     </div>
                     <p className="text-sm text-muted">{client.program}</p>
@@ -172,10 +172,10 @@ export default function ClientsPage() {
                   <span
                     className={`rounded-full px-2 py-1 text-xs font-semibold ${
                       paymentStatus === "paid"
-                        ? "bg-emerald-100 text-emerald-700"
+                        ? "bg-brand-tint text-accent"
                         : paymentStatus === "partially_paid"
-                          ? "bg-amber-100 text-amber-800"
-                          : "bg-red-100 text-red-700"
+                          ? "bg-warn-tint text-warn-text"
+                          : "bg-danger-tint text-danger-strong"
                     }`}
                   >
                     {paymentLabel}

@@ -154,7 +154,7 @@ export default function ClientProfilePage() {
           </div>
           <ThemeToggle />
         </header>
-        <article className="surface-card text-sm text-red-700">{loadError || "This client does not exist."}</article>
+        <article className="surface-card text-sm text-danger-strong">{loadError || "This client does not exist."}</article>
       </section>
     );
   }
@@ -405,19 +405,19 @@ export default function ClientProfilePage() {
       </header>
 
       {!client.isActive && (
-        <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm font-semibold text-amber-900">
+        <div className="rounded-2xl border border-warn-border bg-warn-soft p-4 text-sm font-semibold text-warn-text">
           This client is archived and excluded from active scheduling.
         </div>
       )}
 
       {actionError && (
-        <div className="rounded-2xl border border-red-300 bg-red-50 p-4 text-sm font-semibold text-red-800">
+        <div className="rounded-2xl border border-danger-border bg-danger-soft p-4 text-sm font-semibold text-danger-strong">
           {actionError}
         </div>
       )}
 
       {historyError && (
-        <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm font-semibold text-amber-900">
+        <div className="rounded-2xl border border-warn-border bg-warn-soft p-4 text-sm font-semibold text-warn-text">
           {historyError}
         </div>
       )}
@@ -426,13 +426,13 @@ export default function ClientProfilePage() {
         <h2 className="section-title text-base sm:text-lg">Contact Information</h2>
         <div className="space-y-2">
           <p className="flex items-center gap-2 text-sm text-copy sm:text-base">
-            <PhoneIcon size={18} className="stroke-[1.75] text-emerald-700" />
+            <PhoneIcon size={18} className="stroke-[1.75] text-accent" />
             <a href={`tel:${client.phone}`} className="underline underline-offset-4">
               {client.phone}
             </a>
           </p>
           <p className="flex items-center gap-2 text-sm text-copy sm:text-base">
-            <MailIcon size={18} className="stroke-[1.75] text-emerald-700" />
+            <MailIcon size={18} className="stroke-[1.75] text-accent" />
             {client.email ? (
               <a href={`mailto:${client.email}`} className="underline underline-offset-4">
                 {client.email}
@@ -453,10 +453,10 @@ export default function ClientProfilePage() {
             <p className="text-sm text-muted">Session Times</p>
             {hasAnyPreference && (
               <div className="flex gap-2 text-[11px] font-semibold">
-                <span className="rounded-full bg-emerald-100 px-2 py-1 text-emerald-700">
+                <span className="rounded-full bg-brand-tint px-2 py-1 text-accent">
                   Approved
                 </span>
-                <span className="rounded-full bg-amber-100 px-2 py-1 text-amber-800">
+                <span className="rounded-full bg-warn-tint px-2 py-1 text-warn-text">
                   Preference
                 </span>
               </div>
@@ -480,13 +480,13 @@ export default function ClientProfilePage() {
                             key={`${day}-${slot}`}
                             className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-bold sm:text-sm ${
                               isApproved
-                                ? "border-emerald-200 bg-emerald-100 text-emerald-700"
-                                : "border-amber-200 bg-amber-100 text-amber-800"
+                                ? "border-success-border bg-brand-tint text-accent"
+                                : "border-warn-border bg-warn-tint text-warn-text"
                             }`}
                           >
                             <span
                               className={`h-1.5 w-1.5 rounded-full ${
-                                isApproved ? "bg-emerald-600" : "bg-amber-600"
+                                isApproved ? "bg-brand" : "bg-warn-solid"
                               }`}
                             />
                             {slot}
@@ -514,7 +514,7 @@ export default function ClientProfilePage() {
           ) : (
             <div className="mt-3 space-y-3 rounded-xl border border-line bg-raised p-3">
               {preferencesError && (
-                <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                <div className="rounded-lg border border-danger-border bg-danger-soft px-3 py-2 text-sm text-danger-strong">
                   {preferencesError}
                 </div>
               )}
@@ -546,8 +546,8 @@ export default function ClientProfilePage() {
                         className={`h-10 rounded-xl border px-3 text-sm font-semibold transition ${
                           isSelected
                             ? hasPendingSlot
-                              ? "border-amber-300 bg-amber-50 text-amber-800"
-                              : "border-emerald-700 bg-emerald-50 text-emerald-700"
+                              ? "border-warn-border bg-warn-soft text-warn-text"
+                              : "border-accent bg-success-soft text-accent"
                             : "border-line-strong bg-surface text-copy hover:bg-raised"
                         }`}
                       >
@@ -592,8 +592,8 @@ export default function ClientProfilePage() {
                                 className={`h-9 rounded-lg border px-2 text-xs font-semibold transition sm:text-sm ${
                                   isSelected
                                     ? isApproved
-                                      ? "border-emerald-700 bg-emerald-50 text-emerald-700"
-                                      : "border-amber-300 bg-amber-50 text-amber-800"
+                                      ? "border-accent bg-success-soft text-accent"
+                                      : "border-warn-border bg-warn-soft text-warn-text"
                                     : "border-line-strong bg-surface text-copy hover:bg-raised"
                                 }`}
                               >
@@ -638,18 +638,18 @@ export default function ClientProfilePage() {
         <div className="mb-3 flex items-center justify-between gap-3">
           <h2 className="section-title mb-0 text-base sm:text-lg">Current Package</h2>
           {paymentStatus === "paid" ? (
-            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-1 text-sm font-semibold text-emerald-700">
-              <CheckCircleIcon size={14} className="stroke-[1.75] text-emerald-600" />
+            <span className="inline-flex items-center gap-1 rounded-full bg-brand-tint px-2 py-1 text-sm font-semibold text-accent">
+              <CheckCircleIcon size={14} className="stroke-[1.75] text-accent" />
               Paid
             </span>
           ) : paymentStatus === "partially_paid" ? (
-            <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-1 text-sm font-semibold text-amber-800">
-              <CreditCard size={14} className="stroke-[1.75] text-amber-700" />
+            <span className="inline-flex items-center gap-1 rounded-full bg-warn-tint px-2 py-1 text-sm font-semibold text-warn-text">
+              <CreditCard size={14} className="stroke-[1.75] text-warn-text" />
               Partially paid
             </span>
           ) : (
-            <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-1 text-sm font-semibold text-red-700">
-              <XCircleIcon size={14} className="stroke-[1.75] text-red-600" />
+            <span className="inline-flex items-center gap-1 rounded-full bg-danger-tint px-2 py-1 text-sm font-semibold text-danger-strong">
+              <XCircleIcon size={14} className="stroke-[1.75] text-danger-strong" />
               Unpaid
             </span>
           )}
@@ -673,17 +673,17 @@ export default function ClientProfilePage() {
           </p>
         </div>
         <div className="mt-2 h-3 overflow-hidden rounded-full bg-line">
-          <div className="h-full rounded-full bg-emerald-700" style={{ width: `${progress}%` }} />
+          <div className="h-full rounded-full bg-brand-strong" style={{ width: `${progress}%` }} />
         </div>
-        <p className="mt-2 text-lg font-semibold text-emerald-700 sm:text-xl">{sessionsLeft} sessions remaining</p>
+        <p className="mt-2 text-lg font-semibold text-accent sm:text-xl">{sessionsLeft} sessions remaining</p>
 
         <div
           className={`mt-3 rounded-xl border-l-4 p-3 text-sm ${
             paymentStatus === "paid"
-              ? "border-emerald-500 bg-emerald-50 text-emerald-700"
+              ? "border-accent bg-success-soft text-accent"
               : paymentStatus === "partially_paid"
-                ? "border-amber-500 bg-amber-50 text-amber-800"
-                : "border-red-500 bg-red-50 text-red-700"
+                ? "border-warn-border bg-warn-soft text-warn-text"
+                : "border-danger-border bg-danger-soft text-danger-strong"
           }`}
         >
           {paymentStatus === "paid"
@@ -704,7 +704,7 @@ export default function ClientProfilePage() {
           </div>
         </div>
 
-        <div className="mt-3 rounded-xl border-l-4 border-amber-500 bg-amber-50 p-3 text-sm text-amber-700">
+        <div className="mt-3 rounded-xl border-l-4 border-warn-border bg-warn-soft p-3 text-sm text-warn-text">
           Package expires in {daysUntil(client.expiryDate)} days
         </div>
       </article>
@@ -718,15 +718,15 @@ export default function ClientProfilePage() {
               <button
                 type="button"
                 onClick={() => setShowPackageForm((current) => !current)}
-                className="inline-flex items-center gap-1 text-sm font-bold text-emerald-700"
+                className="inline-flex items-center gap-1 text-sm font-bold text-accent"
               >
                 <Plus size={16} /> New Package
               </button>
             )}
         </div>
         {showPackageForm && (
-          <form onSubmit={savePackage} className="mb-4 space-y-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-            <p className="font-bold text-emerald-900">Create replacement package</p>
+          <form onSubmit={savePackage} className="mb-4 space-y-3 rounded-2xl border border-success-border bg-success-soft p-4">
+            <p className="font-bold text-accent">Create replacement package</p>
             <select
               required
               value={packageForm.program}
@@ -898,7 +898,7 @@ export default function ClientProfilePage() {
                       return (
                         <div key={payment.id} className="flex items-center justify-between gap-3 text-sm">
                           <div>
-                            <p className={`font-semibold ${payment.entryType === "reversal" ? "text-red-700" : "text-body"}`}>
+                            <p className={`font-semibold ${payment.entryType === "reversal" ? "text-danger-strong" : "text-body"}`}>
                               {payment.entryType === "reversal" ? "-" : ""}R{Math.abs(payment.amount).toFixed(2)}
                               <span className="ml-2 font-normal uppercase text-subtle">{payment.method}</span>
                             </p>
@@ -912,7 +912,7 @@ export default function ClientProfilePage() {
                               type="button"
                               disabled={Boolean(packageAction)}
                               onClick={() => setPaymentToReverse(payment)}
-                              className="inline-flex items-center gap-1 text-xs font-bold text-red-700"
+                              className="inline-flex items-center gap-1 text-xs font-bold text-danger-strong"
                             >
                               <ReverseIcon size={14} /> Reverse
                             </button>
@@ -1027,7 +1027,7 @@ export default function ClientProfilePage() {
             aria-modal="true"
             aria-labelledby="archive-client-title"
           >
-            <div className="grid h-12 w-12 place-items-center rounded-2xl bg-red-100 text-red-700">
+            <div className="grid h-12 w-12 place-items-center rounded-2xl bg-danger-tint text-danger-strong">
               <Archive size={22} />
             </div>
             <h2 id="archive-client-title" className="mt-4 text-xl font-bold text-strong">
@@ -1088,7 +1088,7 @@ export default function ClientProfilePage() {
             >
               <X size={19} />
             </button>
-            <div className="grid h-12 w-12 place-items-center rounded-2xl bg-red-100 text-red-700">
+            <div className="grid h-12 w-12 place-items-center rounded-2xl bg-danger-tint text-danger-strong">
               <ReverseIcon size={22} />
             </div>
             <h2 id="reverse-payment-title" className="mt-4 text-xl font-bold text-strong">

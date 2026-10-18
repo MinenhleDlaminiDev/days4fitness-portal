@@ -28,10 +28,13 @@ export default {
         line: token("c-border"),
         "line-strong": token("c-border-strong"),
 
+        accent: token("c-accent"),
+
         brand: {
           DEFAULT: token("c-brand"),
           strong: token("c-brand-strong"),
-          soft: token("c-brand-soft")
+          soft: token("c-brand-soft"),
+          tint: token("c-brand-tint")
         },
 
         success: {
@@ -43,7 +46,9 @@ export default {
           soft: token("c-danger-soft"),
           border: token("c-danger-border"),
           text: token("c-danger-text"),
-          strong: token("c-danger-strong")
+          strong: token("c-danger-strong"),
+          tint: token("c-danger-tint"),
+          solid: token("c-danger-solid")
         },
         info: {
           soft: token("c-info-soft"),
@@ -53,7 +58,9 @@ export default {
         warn: {
           soft: token("c-warn-soft"),
           border: token("c-warn-border"),
-          text: token("c-warn-text")
+          text: token("c-warn-text"),
+          tint: token("c-warn-tint"),
+          solid: token("c-warn-solid")
         }
       }
     }

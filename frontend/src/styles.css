@@ -35,6 +35,9 @@
   --c-brand: 29 122 70;
   --c-brand-strong: 20 84 50;
   --c-brand-soft: 222 243 228;
+  /* brand used as foreground: links, active nav, selected states */
+  --c-accent: 4 120 87;
+  --c-brand-tint: 209 250 229;
 
   /* status tints */
   --c-success-soft: 236 253 245;
@@ -45,6 +48,7 @@
   --c-danger-border: 254 202 202;
   --c-danger-text: 69 10 10;
   --c-danger-strong: 185 28 28;
+  --c-danger-tint: 254 226 226;
   /* Solid destructive fill. Same in both themes: white on this is 4.6:1. */
   --c-danger-solid: 220 38 38;
 
@@ -55,6 +59,8 @@
   --c-warn-soft: 255 251 235;
   --c-warn-border: 252 211 77;
   --c-warn-text: 120 53 15;
+  --c-warn-tint: 254 243 199;
+  --c-warn-solid: 217 119 6;
 
   /* page backdrop wash */
   --c-wash-one: 214 234 215;
@@ -80,6 +86,9 @@
   --c-brand: 46 163 102;
   --c-brand-strong: 28 122 73;
   --c-brand-soft: 22 56 39;
+  /* emerald-700 is only ~2.6:1 on the dark surface, so the accent lightens */
+  --c-accent: 110 231 183;
+  --c-brand-tint: 22 56 39;
 
   --c-success-soft: 27 52 39;
   --c-success-border: 105 169 130;
@@ -89,6 +98,7 @@
   --c-danger-border: 213 139 145;
   --c-danger-text: 255 214 214;
   --c-danger-strong: 245 179 179;
+  --c-danger-tint: 72 40 43;
 
   --c-info-soft: 27 45 66;
   --c-info-border: 110 154 199;
@@ -97,6 +107,7 @@
   --c-warn-soft: 59 47 26;
   --c-warn-border: 201 154 79;
   --c-warn-text: 255 227 173;
+  --c-warn-tint: 71 57 32;
 
   /*
     The page wash is two soft radial tints in the top corners. In dark mode it

@@ -31,7 +31,7 @@ export default function App() {
       <main className="grid min-h-screen place-items-center bg-sunken p-4">
         <div className="surface-card w-full max-w-md text-center">
           <h1 className="text-xl font-semibold text-strong">Unable to start the application</h1>
-          <p className="mt-2 text-sm text-red-700">{error}</p>
+          <p className="mt-2 text-sm text-danger-strong">{error}</p>
           <button type="button" onClick={reload} className="action-btn action-btn-primary mt-4 w-full">
             Try Again
           </button>

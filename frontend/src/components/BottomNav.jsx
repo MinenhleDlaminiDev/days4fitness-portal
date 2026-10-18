@@ -25,7 +25,7 @@ export default function BottomNav() {
               to={item.to}
               className={({ isActive }) =>
                 `app-nav-link flex flex-1 flex-col items-center gap-1 py-3 text-xs font-medium transition ${
-                  isActive ? "text-emerald-700" : "text-subtle hover:text-copy"
+                  isActive ? "text-accent" : "text-subtle hover:text-copy"
                 }`
               }
             >

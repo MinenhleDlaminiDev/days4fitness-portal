@@ -133,7 +133,7 @@ function BookingForm({ clients, initial, title, submitLabel, onCancel, onSubmit,
         {!initial?.hideClient && (
           <label className="block rounded-2xl border border-line bg-raised p-4">
             <span className="flex items-center gap-2 text-sm font-bold text-body">
-              <span className="grid h-9 w-9 place-items-center rounded-xl bg-emerald-100 text-emerald-700">
+              <span className="grid h-9 w-9 place-items-center rounded-xl bg-brand-tint text-accent">
                 <UserRound size={18} />
               </span>
               Select client
@@ -142,7 +142,7 @@ function BookingForm({ clients, initial, title, submitLabel, onCancel, onSubmit,
               required
               value={clientId}
               onChange={(event) => setClientId(event.target.value)}
-              className="mt-3 h-12 w-full rounded-xl border border-line-strong bg-surface px-4 text-sm outline-none transition focus:border-emerald-700 sm:text-base"
+              className="mt-3 h-12 w-full rounded-xl border border-line-strong bg-surface px-4 text-sm outline-none transition focus:border-accent sm:text-base"
             >
               <option value="">Choose a client</option>
               {clients.map((client) => (
@@ -156,7 +156,7 @@ function BookingForm({ clients, initial, title, submitLabel, onCancel, onSubmit,
 
         <div className="rounded-2xl border border-line bg-raised p-4">
           <div className="mb-3 flex items-center gap-2">
-            <span className="grid h-9 w-9 place-items-center rounded-xl bg-emerald-100 text-emerald-700">
+            <span className="grid h-9 w-9 place-items-center rounded-xl bg-brand-tint text-accent">
               <Calendar size={18} />
             </span>
             <div>
@@ -174,7 +174,7 @@ function BookingForm({ clients, initial, title, submitLabel, onCancel, onSubmit,
                 min={localDateInputValue()}
                 value={sessionDate}
                 onChange={(event) => setSessionDate(event.target.value)}
-                className="mt-2 h-12 w-full rounded-xl border border-line-strong bg-surface px-4 text-sm outline-none transition focus:border-emerald-700 sm:text-base"
+                className="mt-2 h-12 w-full rounded-xl border border-line-strong bg-surface px-4 text-sm outline-none transition focus:border-accent sm:text-base"
               />
             </label>
             <label className="block">
@@ -185,7 +185,7 @@ function BookingForm({ clients, initial, title, submitLabel, onCancel, onSubmit,
                 required
                 value={startTime}
                 onChange={(event) => setStartTime(event.target.value)}
-                className="mt-2 h-12 w-full rounded-xl border border-line-strong bg-surface px-4 text-sm outline-none transition focus:border-emerald-700 sm:text-base"
+                className="mt-2 h-12 w-full rounded-xl border border-line-strong bg-surface px-4 text-sm outline-none transition focus:border-accent sm:text-base"
               >
                 {timeSlots.length === 0 && <option value="">No training hours</option>}
                 {timeSlots.map((time) => (
@@ -306,7 +306,7 @@ function SessionModal({
                         <div>
                           <Link
                             to={`/clients/${attendee.clientId}`}
-                            className="font-bold text-strong hover:text-emerald-700"
+                            className="font-bold text-strong hover:text-accent"
                           >
                             {attendee.clientName}
                           </Link>
@@ -379,7 +379,7 @@ function SessionModal({
             </>
           )}
 
-          {error && <p className="rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-700">{error}</p>}
+          {error && <p className="rounded-xl bg-danger-soft p-3 text-sm font-semibold text-danger-strong">{error}</p>}
         </div>
       </div>
     </div>
@@ -554,7 +554,7 @@ export default function SchedulePage() {
               <button
                 type="button"
                 onClick={() => setWeekStart(mondayFor())}
-                className="text-xs font-semibold text-emerald-700"
+                className="text-xs font-semibold text-accent"
               >
                 Return to current week
               </button>
@@ -575,7 +575,7 @@ export default function SchedulePage() {
           </div>
         )}
         {!isLoading && error && !activeSession && (
-          <div className="p-6 text-center text-sm font-semibold text-red-700">{error}</div>
+          <div className="p-6 text-center text-sm font-semibold text-danger-strong">{error}</div>
         )}
 
         {!isLoading && !error && (
@@ -592,7 +592,7 @@ export default function SchedulePage() {
                     onClick={() => setSelectedDay(day.key)}
                     className={`rounded-lg border px-1 py-2 text-center ${
                       selectedDay === day.key
-                        ? "border-emerald-700 bg-emerald-100 text-emerald-800"
+                        ? "border-accent bg-brand-tint text-accent"
                         : "border-line bg-surface text-copy"
                     }`}
                   >
@@ -722,7 +722,7 @@ export default function SchedulePage() {
               isSaving={isSaving}
             />
             {error && (
-              <p className="mx-4 mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700 sm:mx-6 sm:mb-6">
+              <p className="mx-4 mb-4 rounded-xl border border-danger-border bg-danger-soft p-3 text-sm font-semibold text-danger-strong sm:mx-6 sm:mb-6">
                 {error}
               </p>
             )}

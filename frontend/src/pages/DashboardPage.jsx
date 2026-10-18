@@ -110,7 +110,7 @@ export default function DashboardPage() {
       </header>
 
       {loadError && (
-        <article className="surface-card border border-red-200 bg-red-50 text-sm font-semibold text-red-700">
+        <article className="surface-card border border-danger-border bg-danger-soft text-sm font-semibold text-danger-strong">
           {loadError}
         </article>
       )}
@@ -118,7 +118,7 @@ export default function DashboardPage() {
       <article className="surface-card">
         <div className="mb-4 flex items-center justify-between gap-3">
           <h2 className="section-title mb-0 text-base sm:text-lg">
-            <CalendarIcon size={18} className="stroke-[1.75] text-emerald-700" />
+            <CalendarIcon size={18} className="stroke-[1.75] text-accent" />
             Today&apos;s Sessions
           </h2>
           <span className="rounded-full bg-sunken px-3 py-1 text-xs font-semibold text-muted">
@@ -159,7 +159,7 @@ export default function DashboardPage() {
                       {session.sessionType}
                     </p>
                   </div>
-                  <span className="rounded-full bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-700">
+                  <span className="rounded-full bg-brand-tint px-2 py-1 text-xs font-semibold text-accent">
                     {sessionStatusLabel(session)}
                   </span>
                 </div>
@@ -172,7 +172,7 @@ export default function DashboardPage() {
       <div className="grid gap-4 md:grid-cols-2">
         <article className="surface-card">
           <h2 className="section-title text-base sm:text-lg">
-            <WalletCards size={18} className="stroke-[1.75] text-emerald-700" />
+            <WalletCards size={18} className="stroke-[1.75] text-accent" />
             Package Credits
           </h2>
           <div className="grid grid-cols-2 gap-3">
@@ -182,14 +182,14 @@ export default function DashboardPage() {
             </div>
             <div className="rounded-2xl border border-line bg-surface p-4">
               <p className="text-sm text-muted">Unused active credits</p>
-              <p className="mt-1 text-2xl font-bold text-emerald-700">{summary.remainingSessions}</p>
+              <p className="mt-1 text-2xl font-bold text-accent">{summary.remainingSessions}</p>
             </div>
           </div>
         </article>
 
         <article className="surface-card">
           <h2 className="section-title text-base sm:text-lg">
-            <Coins size={18} className="stroke-[1.75] text-amber-600" />
+            <Coins size={18} className="stroke-[1.75] text-warn-text" />
             Revenue
           </h2>
           <div className="grid grid-cols-2 gap-3">
@@ -199,7 +199,7 @@ export default function DashboardPage() {
             </div>
             <div className="rounded-2xl border border-line bg-surface p-4">
               <p className="text-sm text-muted">Still unpaid</p>
-              <p className="mt-1 text-2xl font-bold text-red-700">{currency(summary.outstandingBalance)}</p>
+              <p className="mt-1 text-2xl font-bold text-danger-strong">{currency(summary.outstandingBalance)}</p>
             </div>
           </div>
         </article>
@@ -208,7 +208,7 @@ export default function DashboardPage() {
       <div className="grid gap-4 md:grid-cols-2">
         <article className="surface-card">
           <h2 className="section-title text-base sm:text-lg">
-            <AlertCircleIcon size={18} className="stroke-[1.75] text-red-500" />
+            <AlertCircleIcon size={18} className="stroke-[1.75] text-danger-strong" />
             Unpaid Packages
           </h2>
           <div className="stagger-list space-y-2">
@@ -221,17 +221,17 @@ export default function DashboardPage() {
               <Link
                 key={item.id}
                 to={`/clients/${item.clientId}`}
-                className="interactive-card stagger-item block rounded-xl border border-line bg-surface p-3 hover:border-red-200 hover:bg-red-50/50"
+                className="interactive-card stagger-item block rounded-xl border border-line bg-surface p-3 hover:border-danger-border hover:bg-danger-soft/50"
                 style={{ "--stagger": index }}
               >
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-base font-semibold sm:text-lg">{item.clientName}</p>
-                  <span className="rounded-full bg-red-100 px-2 py-1 text-xs font-semibold text-red-700">
+                  <span className="rounded-full bg-danger-tint px-2 py-1 text-xs font-semibold text-danger-strong">
                     {currency(item.outstandingBalance)}
                   </span>
                 </div>
                 <p className="text-sm text-muted">{item.program}</p>
-                <p className="text-sm font-semibold text-red-700 sm:text-base">
+                <p className="text-sm font-semibold text-danger-strong sm:text-base">
                   {currency(item.paidAmount)} paid of {currency(item.price)}
                 </p>
               </Link>
@@ -241,7 +241,7 @@ export default function DashboardPage() {
 
         <article className="surface-card">
           <h2 className="section-title text-base sm:text-lg">
-            <AlertCircleIcon size={18} className="stroke-[1.75] text-amber-500" />
+            <AlertCircleIcon size={18} className="stroke-[1.75] text-warn-text" />
             Expiring Soon
           </h2>
           <div className="stagger-list space-y-2">
@@ -254,17 +254,17 @@ export default function DashboardPage() {
               <Link
                 key={item.id}
                 to={`/clients/${item.clientId}`}
-                className="interactive-card stagger-item block rounded-xl border border-line bg-surface p-3 hover:border-amber-200 hover:bg-amber-50/50"
+                className="interactive-card stagger-item block rounded-xl border border-line bg-surface p-3 hover:border-warn-border hover:bg-warn-soft/50"
                 style={{ "--stagger": index }}
               >
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-base font-semibold sm:text-lg">{item.clientName}</p>
-                  <span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-700">
+                  <span className="rounded-full bg-warn-tint px-2 py-1 text-xs font-semibold text-warn-text">
                     {item.daysUntilExpiry ?? daysUntil(item.expiryDate)}d
                   </span>
                 </div>
                 <p className="text-sm text-muted">{item.program}</p>
-                <p className="text-sm text-amber-700">
+                <p className="text-sm text-warn-text">
                   {item.sessionsRemaining} sessions left
                 </p>
               </Link>

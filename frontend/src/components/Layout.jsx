@@ -8,7 +8,7 @@ export default function Layout() {
   return (
     <div className="app-shell">
       <div className="mx-auto flex max-w-6xl items-center justify-end gap-3 px-4 pt-4 sm:px-6">
-        <span className="hidden rounded-full border border-emerald-200 bg-white/80 px-3 py-1 text-xs font-semibold text-emerald-800 sm:inline-flex">
+        <span className="hidden rounded-full border border-success-border bg-white/80 px-3 py-1 text-xs font-semibold text-accent sm:inline-flex">
           {trainer?.name}
         </span>
         <button

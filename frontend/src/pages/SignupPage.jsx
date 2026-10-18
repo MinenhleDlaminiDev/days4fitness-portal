@@ -29,13 +29,13 @@ export default function SignupPage() {
           {googleClientId ? (
             <GoogleAuthButton label="signup_with" onCredential={signupWithGoogle} />
           ) : (
-            <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-800">
+            <p className="rounded-xl border border-warn-border bg-warn-soft p-3 text-sm font-semibold text-warn-text">
               Google sign-up is not configured yet. Add VITE_GOOGLE_CLIENT_ID to enable it.
             </p>
           )}
 
           {error && (
-            <p className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">
+            <p className="rounded-xl border border-danger-border bg-danger-soft p-3 text-sm font-semibold text-danger-strong">
               {error}
             </p>
           )}
@@ -47,7 +47,7 @@ export default function SignupPage() {
 
           <p className="text-center text-sm text-muted">
             Already have an account?{" "}
-            <Link to="/login" className="font-bold text-emerald-700 hover:text-emerald-800">
+            <Link to="/login" className="font-bold text-accent hover:text-accent">
               Sign in
             </Link>
           </p>
