@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   AlertTriangle,
@@ -171,14 +171,14 @@ export default function BookingRequestsPage() {
 
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-bold text-slate-900">Pending preferences</h2>
-          <p className="text-sm text-slate-600">Approve or reject each weekly slot separately.</p>
+          <h2 className="text-xl font-bold text-strong">Pending preferences</h2>
+          <p className="text-sm text-muted">Approve or reject each weekly slot separately.</p>
         </div>
         <button
           type="button"
           onClick={loadRequests}
           disabled={isLoading}
-          className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex h-10 items-center gap-2 rounded-xl border border-line-strong bg-surface px-3 text-sm font-semibold text-copy transition hover:bg-raised disabled:cursor-not-allowed disabled:opacity-60"
         >
           <RefreshCw size={16} className={`stroke-[1.75] ${isLoading ? "animate-spin" : ""}`} />
           <span className="hidden sm:inline">Refresh</span>
@@ -186,11 +186,11 @@ export default function BookingRequestsPage() {
       </div>
 
       {isLoading && (
-        <div className="surface-card text-sm text-slate-600">Loading booking requests...</div>
+        <div className="surface-card text-sm text-muted">Loading booking requests...</div>
       )}
 
       {!isLoading && loadError && (
-        <div className="surface-card border-red-200 bg-red-50 text-red-700">
+        <div className="surface-card border-danger-border bg-danger-soft text-danger-strong">
           <p className="text-sm font-medium">{loadError}</p>
           <button
             type="button"
@@ -207,8 +207,8 @@ export default function BookingRequestsPage() {
           <span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-emerald-100 text-emerald-700">
             <CalendarCheck size={27} className="stroke-[1.6]" />
           </span>
-          <h2 className="mt-4 text-xl font-bold text-slate-900">All caught up</h2>
-          <p className="mx-auto mt-1 max-w-md text-sm text-slate-600">
+          <h2 className="mt-4 text-xl font-bold text-strong">All caught up</h2>
+          <p className="mx-auto mt-1 max-w-md text-sm text-muted">
             New session preferences will appear here after they are selected on a client profile.
           </p>
           <Link
@@ -229,30 +229,30 @@ export default function BookingRequestsPage() {
               className="surface-card stagger-item overflow-hidden p-0 sm:p-0"
               style={{ "--stagger": groupIndex }}
             >
-              <div className="border-b border-slate-200 bg-slate-50 px-4 py-4 sm:px-5">
+              <div className="border-b border-line bg-raised px-4 py-4 sm:px-5">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <Link
                       to={`/clients/${group.clientId}`}
-                      className="inline-flex items-center gap-1 text-lg font-bold text-slate-900 hover:text-emerald-700"
+                      className="inline-flex items-center gap-1 text-lg font-bold text-strong hover:text-emerald-700"
                     >
                       {group.clientName}
                       <ChevronRight size={17} />
                     </Link>
-                    <p className="text-sm text-slate-600">{group.program}</p>
+                    <p className="text-sm text-muted">{group.program}</p>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-bold text-emerald-700">
                       {group.sessionType}
                     </span>
-                    <span className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200">
+                    <span className="rounded-full bg-surface px-2.5 py-1 text-xs font-semibold text-muted ring-1 ring-line">
                       Expires {formatShortDate(group.expiryDate)}
                     </span>
                   </div>
                 </div>
               </div>
 
-              <div className="divide-y divide-slate-200">
+              <div className="divide-y divide-line">
                 {group.requests.map((request) => {
                   const isReviewing = activeReview?.requestId === request.id;
                   const anotherRequestIsActive =
@@ -266,8 +266,8 @@ export default function BookingRequestsPage() {
                             <Clock size={20} className="stroke-[1.75]" />
                           </span>
                           <div>
-                            <p className="font-bold text-slate-900">{request.day}</p>
-                            <p className="text-sm text-slate-600">
+                            <p className="font-bold text-strong">{request.day}</p>
+                            <p className="text-sm text-muted">
                               {request.startTime} - one hour
                             </p>
                           </div>
@@ -278,7 +278,7 @@ export default function BookingRequestsPage() {
                             type="button"
                             onClick={() => reviewRequest(request, "reject")}
                             disabled={isReviewing || anotherRequestIsActive}
-                            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-red-200 bg-white px-4 text-sm font-bold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-danger-border bg-surface px-4 text-sm font-bold text-danger-strong transition hover:bg-danger-soft disabled:cursor-not-allowed disabled:opacity-50"
                             aria-label={`Reject ${request.day} at ${request.startTime} for ${request.clientName}`}
                           >
                             {isReviewing && activeReview.action === "reject" ? (
@@ -308,7 +308,7 @@ export default function BookingRequestsPage() {
                       {requestErrors[request.id] && (
                         <div
                           role="alert"
-                          className="mt-3 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700"
+                          className="mt-3 flex items-start gap-2 rounded-xl border border-danger-border bg-danger-soft p-3 text-sm text-danger-strong"
                         >
                           <AlertTriangle size={17} className="mt-0.5 shrink-0 stroke-[1.75]" />
                           <span>{requestErrors[request.id]}</span>

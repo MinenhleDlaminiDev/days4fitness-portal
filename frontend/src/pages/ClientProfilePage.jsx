@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   Archive,
@@ -134,7 +134,7 @@ export default function ClientProfilePage() {
   if (isLoading) {
     return (
       <section className="page-wrap">
-        <div className="surface-card text-sm text-slate-600">Loading client...</div>
+        <div className="surface-card text-sm text-muted">Loading client...</div>
       </section>
     );
   }
@@ -425,13 +425,13 @@ export default function ClientProfilePage() {
       <article className="surface-card">
         <h2 className="section-title text-base sm:text-lg">Contact Information</h2>
         <div className="space-y-2">
-          <p className="flex items-center gap-2 text-sm text-slate-700 sm:text-base">
+          <p className="flex items-center gap-2 text-sm text-copy sm:text-base">
             <PhoneIcon size={18} className="stroke-[1.75] text-emerald-700" />
             <a href={`tel:${client.phone}`} className="underline underline-offset-4">
               {client.phone}
             </a>
           </p>
-          <p className="flex items-center gap-2 text-sm text-slate-700 sm:text-base">
+          <p className="flex items-center gap-2 text-sm text-copy sm:text-base">
             <MailIcon size={18} className="stroke-[1.75] text-emerald-700" />
             {client.email ? (
               <a href={`mailto:${client.email}`} className="underline underline-offset-4">
@@ -443,14 +443,14 @@ export default function ClientProfilePage() {
           </p>
         </div>
         <div className="mt-4">
-          <p className="text-sm text-slate-600">Preferred Training Days</p>
+          <p className="text-sm text-muted">Preferred Training Days</p>
           <p className="text-base font-semibold sm:text-lg">
             {hasAnyPreference ? client.preferredDays.join(", ") : "Not set"}
           </p>
         </div>
         <div className="mt-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-sm text-slate-600">Session Times</p>
+            <p className="text-sm text-muted">Session Times</p>
             {hasAnyPreference && (
               <div className="flex gap-2 text-[11px] font-semibold">
                 <span className="rounded-full bg-emerald-100 px-2 py-1 text-emerald-700">
@@ -468,7 +468,7 @@ export default function ClientProfilePage() {
                 const slots = Array.isArray(client.preferredSchedule?.[day]) ? client.preferredSchedule[day] : [];
                 return (
                   <div key={day}>
-                    <p className="text-sm font-semibold text-slate-700 sm:text-base">{day}</p>
+                    <p className="text-sm font-semibold text-copy sm:text-base">{day}</p>
                     <div className="mt-1 flex flex-wrap gap-2">
                       {slots.map((slot) => {
                         const preference = sessionPreferences.find(
@@ -512,7 +512,7 @@ export default function ClientProfilePage() {
               {hasAnyPreference ? "Change Session Preferences" : "Set Session Preferences"}
             </button>
           ) : (
-            <div className="mt-3 space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <div className="mt-3 space-y-3 rounded-xl border border-line bg-raised p-3">
               {preferencesError && (
                 <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
                   {preferencesError}
@@ -521,7 +521,7 @@ export default function ClientProfilePage() {
               <div>
                 <div className="mb-2 flex items-center justify-between gap-2">
                   <p className="text-sm font-medium sm:text-base">Training Days</p>
-                  <span className="text-xs text-slate-500">
+                  <span className="text-xs text-subtle">
                     {preferenceForm.preferredDays.length} selected
                   </span>
                 </div>
@@ -548,7 +548,7 @@ export default function ClientProfilePage() {
                             ? hasPendingSlot
                               ? "border-amber-300 bg-amber-50 text-amber-800"
                               : "border-emerald-700 bg-emerald-50 text-emerald-700"
-                            : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                            : "border-line-strong bg-surface text-copy hover:bg-raised"
                         }`}
                       >
                         {day.slice(0, 3)}
@@ -556,7 +556,7 @@ export default function ClientProfilePage() {
                     );
                   })}
                 </div>
-                <p className="mt-2 text-xs text-slate-500">
+                <p className="mt-2 text-xs text-subtle">
                   Training is available on the days shown.
                   {lastSaturdaySlot ? ` Saturday's last start time is ${lastSaturdaySlot}.` : ""}
                 </p>
@@ -568,10 +568,10 @@ export default function ClientProfilePage() {
                   {preferenceForm.preferredDays.map((day) => {
                     const selectedSlots = preferenceForm.preferredSchedule[day] || [];
                     return (
-                      <div key={day} className="rounded-xl border border-slate-200 bg-white p-3">
+                      <div key={day} className="rounded-xl border border-line bg-surface p-3">
                         <div className="mb-2 flex items-center justify-between gap-2">
-                          <p className="text-sm font-semibold text-slate-800">{day}</p>
-                          <span className="text-xs text-slate-500">
+                          <p className="text-sm font-semibold text-body">{day}</p>
+                          <span className="text-xs text-subtle">
                             {selectedSlots.length} selected
                           </span>
                         </div>
@@ -594,7 +594,7 @@ export default function ClientProfilePage() {
                                     ? isApproved
                                       ? "border-emerald-700 bg-emerald-50 text-emerald-700"
                                       : "border-amber-300 bg-amber-50 text-amber-800"
-                                    : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                                    : "border-line-strong bg-surface text-copy hover:bg-raised"
                                 }`}
                               >
                                 {slot}
@@ -654,25 +654,25 @@ export default function ClientProfilePage() {
             </span>
           )}
         </div>
-        <p className="text-sm text-slate-600">Program</p>
+        <p className="text-sm text-muted">Program</p>
         <p className="text-lg font-semibold sm:text-xl">{client.program}</p>
-        <p className="mt-3 text-sm text-slate-600">Package</p>
+        <p className="mt-3 text-sm text-muted">Package</p>
         <p className="text-lg font-semibold sm:text-xl">
           {client.sessionsTotal} Sessions - {client.sessionType}
         </p>
-        <p className="text-base text-slate-700 sm:text-lg">
+        <p className="text-base text-copy sm:text-lg">
           R{Number(client.price || packagePrice(client.sessionType, client.sessionsTotal)).toFixed(2)}
         </p>
 
-        <hr className="my-3 border-slate-200" />
+        <hr className="my-3 border-line" />
 
         <div className="flex items-center justify-between text-sm sm:text-base">
-          <p className="text-slate-600">Sessions Progress</p>
+          <p className="text-muted">Sessions Progress</p>
           <p className="font-semibold">
             {client.sessionsUsed} / {client.sessionsTotal}
           </p>
         </div>
-        <div className="mt-2 h-3 overflow-hidden rounded-full bg-slate-200">
+        <div className="mt-2 h-3 overflow-hidden rounded-full bg-line">
           <div className="h-full rounded-full bg-emerald-700" style={{ width: `${progress}%` }} />
         </div>
         <p className="mt-2 text-lg font-semibold text-emerald-700 sm:text-xl">{sessionsLeft} sessions remaining</p>
@@ -691,15 +691,15 @@ export default function ClientProfilePage() {
             : `R${Number(client.outstandingBalance || 0).toFixed(2)} outstanding`}
         </div>
 
-        <hr className="my-3 border-slate-200" />
+        <hr className="my-3 border-line" />
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <p className="text-sm text-slate-600">Purchase Date</p>
+            <p className="text-sm text-muted">Purchase Date</p>
             <p className="text-base font-semibold sm:text-lg">{formatShortDate(client.purchaseDate)}</p>
           </div>
           <div>
-            <p className="text-sm text-slate-600">Expiry Date</p>
+            <p className="text-sm text-muted">Expiry Date</p>
             <p className="text-base font-semibold sm:text-lg">{formatShortDate(client.expiryDate)}</p>
           </div>
         </div>
@@ -733,7 +733,7 @@ export default function ClientProfilePage() {
               onChange={(event) =>
                 setPackageForm((current) => ({ ...current, program: event.target.value }))
               }
-              className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3"
+              className="h-11 w-full rounded-xl border border-line-strong bg-surface px-3"
             >
               <option value="">Select program</option>
               {availablePrograms.map((program) => (
@@ -752,7 +752,7 @@ export default function ClientProfilePage() {
                     program: ""
                   }))
                 }
-                className="h-11 rounded-xl border border-slate-300 bg-white px-3"
+                className="h-11 rounded-xl border border-line-strong bg-surface px-3"
               >
                 <option>One-on-One</option>
                 <option>Group</option>
@@ -765,7 +765,7 @@ export default function ClientProfilePage() {
                     sessionsTotal: Number(event.target.value)
                   }))
                 }
-                className="h-11 rounded-xl border border-slate-300 bg-white px-3"
+                className="h-11 rounded-xl border border-line-strong bg-surface px-3"
               >
                 {(configuration?.packageSizes || []).map((size) => (
                   <option key={size} value={size}>{size} sessions</option>
@@ -782,7 +782,7 @@ export default function ClientProfilePage() {
                   purchaseDate: event.target.value
                 }))
               }
-              className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3"
+              className="h-11 w-full rounded-xl border border-line-strong bg-surface px-3"
             />
             <div className="grid grid-cols-2 gap-2">
               <button type="button" onClick={() => setShowPackageForm(false)} className="action-btn action-btn-secondary">
@@ -804,8 +804,8 @@ export default function ClientProfilePage() {
           </button>
         )}
         {showPaymentForm && currentPackage && (
-          <form onSubmit={savePayment} className="mb-4 space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-            <p className="font-bold text-slate-900">Record package payment</p>
+          <form onSubmit={savePayment} className="mb-4 space-y-3 rounded-2xl border border-line bg-raised p-4">
+            <p className="font-bold text-strong">Record package payment</p>
             <div className="grid grid-cols-2 gap-3">
               <input
                 required
@@ -817,7 +817,7 @@ export default function ClientProfilePage() {
                 onChange={(event) =>
                   setPaymentForm((current) => ({ ...current, amount: event.target.value }))
                 }
-                className="h-11 rounded-xl border border-slate-300 bg-white px-3"
+                className="h-11 rounded-xl border border-line-strong bg-surface px-3"
                 placeholder="Amount"
               />
               <input
@@ -830,7 +830,7 @@ export default function ClientProfilePage() {
                     paymentDate: event.target.value
                   }))
                 }
-                className="h-11 rounded-xl border border-slate-300 bg-white px-3"
+                className="h-11 rounded-xl border border-line-strong bg-surface px-3"
               />
             </div>
             <select
@@ -838,7 +838,7 @@ export default function ClientProfilePage() {
               onChange={(event) =>
                 setPaymentForm((current) => ({ ...current, method: event.target.value }))
               }
-              className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3"
+              className="h-11 w-full rounded-xl border border-line-strong bg-surface px-3"
             >
               <option value="cash">Cash</option>
               <option value="eft">EFT</option>
@@ -849,7 +849,7 @@ export default function ClientProfilePage() {
               onChange={(event) =>
                 setPaymentForm((current) => ({ ...current, reference: event.target.value }))
               }
-              className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3"
+              className="h-11 w-full rounded-xl border border-line-strong bg-surface px-3"
               placeholder="Reference (optional)"
             />
             <div className="grid grid-cols-2 gap-2">
@@ -864,30 +864,30 @@ export default function ClientProfilePage() {
         )}
         <div className="space-y-3">
           {packages.length === 0 && (
-            <p className="text-sm text-slate-600">No package history recorded yet.</p>
+            <p className="text-sm text-muted">No package history recorded yet.</p>
           )}
           {packages.map((item) => (
-            <div key={item.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <div key={item.id} className="rounded-xl border border-line bg-raised p-3">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="font-bold text-slate-900">{item.program}</p>
-                  <p className="text-sm text-slate-600">
+                  <p className="font-bold text-strong">{item.program}</p>
+                  <p className="text-sm text-muted">
                     {item.sessionsUsed} of {item.sessionsTotal} sessions used
                   </p>
-                  <p className="mt-1 text-sm font-semibold text-slate-700">
-                    R{item.paidAmount.toFixed(2)} paid · R{item.outstandingBalance.toFixed(2)} outstanding
+                  <p className="mt-1 text-sm font-semibold text-copy">
+                    R{item.paidAmount.toFixed(2)} paid Â· R{item.outstandingBalance.toFixed(2)} outstanding
                   </p>
                 </div>
                 <div className="text-right">
-                  <span className="rounded-full bg-white px-2 py-1 text-xs font-semibold capitalize text-slate-600 ring-1 ring-slate-200">
+                  <span className="rounded-full bg-surface px-2 py-1 text-xs font-semibold capitalize text-muted ring-1 ring-line">
                     {item.packageStatus}
                   </span>
-                  <p className="mt-2 text-xs text-slate-500">{formatShortDate(item.purchaseDate)}</p>
+                  <p className="mt-2 text-xs text-subtle">{formatShortDate(item.purchaseDate)}</p>
                 </div>
               </div>
               {item.payments.length > 0 && (
-                <div className="mt-3 border-t border-slate-200 pt-3">
-                  <p className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-slate-500">
+                <div className="mt-3 border-t border-line pt-3">
+                  <p className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-subtle">
                     <ReceiptText size={14} /> Payment ledger
                   </p>
                   <div className="space-y-2">
@@ -898,13 +898,13 @@ export default function ClientProfilePage() {
                       return (
                         <div key={payment.id} className="flex items-center justify-between gap-3 text-sm">
                           <div>
-                            <p className={`font-semibold ${payment.entryType === "reversal" ? "text-red-700" : "text-slate-800"}`}>
+                            <p className={`font-semibold ${payment.entryType === "reversal" ? "text-red-700" : "text-body"}`}>
                               {payment.entryType === "reversal" ? "-" : ""}R{Math.abs(payment.amount).toFixed(2)}
-                              <span className="ml-2 font-normal uppercase text-slate-500">{payment.method}</span>
+                              <span className="ml-2 font-normal uppercase text-subtle">{payment.method}</span>
                             </p>
-                            <p className="text-xs text-slate-500">
+                            <p className="text-xs text-subtle">
                               {formatShortDate(payment.paymentDate)}
-                              {payment.reference ? ` · ${payment.reference}` : ""}
+                              {payment.reference ? ` Â· ${payment.reference}` : ""}
                             </p>
                           </div>
                           {payment.entryType === "payment" && !reversed && (
@@ -941,20 +941,20 @@ export default function ClientProfilePage() {
         <h2 className="section-title text-base sm:text-lg">Session History</h2>
         <div className="space-y-2">
           {sessions.length === 0 && (
-            <p className="text-sm text-slate-600">No sessions recorded yet.</p>
+            <p className="text-sm text-muted">No sessions recorded yet.</p>
           )}
           {sessions.map((entry) => (
-            <div key={entry.id} className="border-b border-slate-200 py-3 last:border-0">
+            <div key={entry.id} className="border-b border-line py-3 last:border-0">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-base font-semibold sm:text-lg">
                     {formatShortDate(entry.sessionDate)}
                   </p>
-                  <p className="text-sm text-slate-600">
+                  <p className="text-sm text-muted">
                     {entry.startTime} - {entry.program}
                   </p>
                 </div>
-                <p className="text-sm font-semibold capitalize text-slate-600">
+                <p className="text-sm font-semibold capitalize text-muted">
                   {entry.attendanceStatus.replace("_", " ")}
                 </p>
               </div>
@@ -999,7 +999,7 @@ export default function ClientProfilePage() {
         disabled={isUpdatingStatus}
         className={`action-btn w-full ${
           client.isActive
-            ? "border border-red-300 bg-white text-red-700"
+            ? "border border-red-300 bg-surface text-red-700"
             : "action-btn-secondary"
         }`}
       >
@@ -1024,7 +1024,7 @@ export default function ClientProfilePage() {
           }}
         >
           <div
-            className="modal-panel relative mx-auto mt-20 w-full max-w-md rounded-3xl bg-white p-5 shadow-2xl sm:p-6"
+            className="modal-panel relative mx-auto mt-20 w-full max-w-md rounded-3xl bg-surface p-5 shadow-2xl sm:p-6"
             role="dialog"
             aria-modal="true"
             aria-labelledby="archive-client-title"
@@ -1032,10 +1032,10 @@ export default function ClientProfilePage() {
             <div className="grid h-12 w-12 place-items-center rounded-2xl bg-red-100 text-red-700">
               <Archive size={22} />
             </div>
-            <h2 id="archive-client-title" className="mt-4 text-xl font-bold text-slate-900">
+            <h2 id="archive-client-title" className="mt-4 text-xl font-bold text-strong">
               Archive {client.name}?
             </h2>
-            <p className="mt-2 text-sm leading-6 text-slate-600">
+            <p className="mt-2 text-sm leading-6 text-muted">
               This rejects pending preferences and cancels recurring bookings and future
               sessions. Restoring the client later will not recreate those bookings.
             </p>
@@ -1076,7 +1076,7 @@ export default function ClientProfilePage() {
           }}
         >
           <div
-            className="modal-panel relative mx-auto mt-20 w-full max-w-md rounded-3xl bg-white p-5 shadow-2xl sm:p-6"
+            className="modal-panel relative mx-auto mt-20 w-full max-w-md rounded-3xl bg-surface p-5 shadow-2xl sm:p-6"
             role="dialog"
             aria-modal="true"
             aria-labelledby="reverse-payment-title"
@@ -1085,7 +1085,7 @@ export default function ClientProfilePage() {
               type="button"
               disabled={packageAction === `reverse-${paymentToReverse.id}`}
               onClick={() => setPaymentToReverse(null)}
-              className="absolute right-4 top-4 grid h-9 w-9 place-items-center rounded-xl text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 disabled:opacity-50"
+              className="absolute right-4 top-4 grid h-9 w-9 place-items-center rounded-xl text-subtle transition hover:bg-sunken hover:text-strong disabled:opacity-50"
               aria-label="Close payment reversal modal"
             >
               <X size={19} />
@@ -1093,29 +1093,29 @@ export default function ClientProfilePage() {
             <div className="grid h-12 w-12 place-items-center rounded-2xl bg-red-100 text-red-700">
               <ReverseIcon size={22} />
             </div>
-            <h2 id="reverse-payment-title" className="mt-4 text-xl font-bold text-slate-900">
+            <h2 id="reverse-payment-title" className="mt-4 text-xl font-bold text-strong">
               Reverse this payment?
             </h2>
-            <p className="mt-2 text-sm leading-6 text-slate-600">
+            <p className="mt-2 text-sm leading-6 text-muted">
               The original payment remains in the ledger. A reversal entry will be added and
               the package balance will be recalculated.
             </p>
-            <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <div className="mt-4 rounded-2xl border border-line bg-raised p-4">
               <div className="flex items-center justify-between gap-3">
-                <span className="text-sm text-slate-600">Amount</span>
-                <span className="font-bold text-slate-900">
+                <span className="text-sm text-muted">Amount</span>
+                <span className="font-bold text-strong">
                   R{Math.abs(paymentToReverse.amount).toFixed(2)}
                 </span>
               </div>
               <div className="mt-2 flex items-center justify-between gap-3">
-                <span className="text-sm text-slate-600">Payment date</span>
-                <span className="font-semibold text-slate-800">
+                <span className="text-sm text-muted">Payment date</span>
+                <span className="font-semibold text-body">
                   {formatShortDate(paymentToReverse.paymentDate)}
                 </span>
               </div>
               <div className="mt-2 flex items-center justify-between gap-3">
-                <span className="text-sm text-slate-600">Method</span>
-                <span className="font-semibold uppercase text-slate-800">
+                <span className="text-sm text-muted">Method</span>
+                <span className="font-semibold uppercase text-body">
                   {paymentToReverse.method}
                 </span>
               </div>

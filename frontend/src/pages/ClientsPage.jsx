@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   CircleCheck as CheckCircleIcon,
@@ -84,8 +84,8 @@ export default function ClientsPage() {
       </header>
 
       <div className="surface-card space-y-4">
-        <label className="flex h-12 items-center rounded-xl border border-slate-300 bg-white px-3">
-          <SearchIcon className="stroke-[1.75] text-slate-400" size={18} />
+        <label className="flex h-12 items-center rounded-xl border border-line-strong bg-surface px-3">
+          <SearchIcon className="stroke-[1.75] text-faint" size={18} />
           <input
             value={search}
             onChange={(event) => {
@@ -93,11 +93,11 @@ export default function ClientsPage() {
               setPage(1);
             }}
             placeholder="Search clients..."
-            className="h-full w-full bg-transparent px-3 text-sm text-slate-700 outline-none sm:text-base"
+            className="h-full w-full bg-transparent px-3 text-sm text-copy outline-none sm:text-base"
           />
         </label>
 
-        <div className="flex rounded-xl bg-slate-100 p-1 text-sm font-medium text-slate-600 sm:text-base">
+        <div className="flex rounded-xl bg-sunken p-1 text-sm font-medium text-muted sm:text-base">
           {tabs.map((item) => (
             <button
               type="button"
@@ -107,7 +107,7 @@ export default function ClientsPage() {
                 setPage(1);
               }}
               className={`flex-1 rounded-lg px-2 py-2 transition ${
-                tab === item ? "bg-white text-emerald-700 shadow-sm" : "hover:text-slate-900"
+                tab === item ? "bg-surface text-emerald-700 shadow-sm" : "hover:text-strong"
               }`}
             >
               {item}
@@ -117,7 +117,7 @@ export default function ClientsPage() {
 
         <div className="stagger-list space-y-3">
           {isLoading && (
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+            <div className="rounded-xl border border-line bg-raised p-4 text-sm text-muted">
               Loading clients...
             </div>
           )}
@@ -127,7 +127,7 @@ export default function ClientsPage() {
             </div>
           )}
           {!isLoading && !loadError && clients.length === 0 && (
-            <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-600">
+            <div className="rounded-xl border border-dashed border-line-strong bg-raised p-4 text-sm text-muted">
               No clients found for this filter.
             </div>
           )}
@@ -151,7 +151,7 @@ export default function ClientsPage() {
               <Link
                 key={client.id}
                 to={`/clients/${client.id}`}
-                className="interactive-card stagger-item block rounded-2xl border border-slate-200 bg-white px-4 py-4 hover:bg-slate-50"
+                className="interactive-card stagger-item block rounded-2xl border border-line bg-surface px-4 py-4 hover:bg-raised"
                 style={{ "--stagger": index }}
               >
                 <div className="flex items-start justify-between gap-3">
@@ -166,8 +166,8 @@ export default function ClientsPage() {
                         <XCircleIcon size={14} className="stroke-[1.75] text-red-500" />
                       )}
                     </div>
-                    <p className="text-sm text-slate-600">{client.program}</p>
-                    <p className="text-sm text-slate-500">{client.sessionsTotal} sessions</p>
+                    <p className="text-sm text-muted">{client.program}</p>
+                    <p className="text-sm text-subtle">{client.sessionsTotal} sessions</p>
                   </div>
                   <span
                     className={`rounded-full px-2 py-1 text-xs font-semibold ${
@@ -182,18 +182,18 @@ export default function ClientsPage() {
                   </span>
                 </div>
 
-                <hr className="my-3 border-slate-200" />
+                <hr className="my-3 border-line" />
 
                 <div className="flex items-end justify-between gap-3">
                   <div>
-                    <p className="text-base font-semibold text-slate-900">
+                    <p className="text-base font-semibold text-strong">
                       Sessions: {sessionsLeft} left
                     </p>
-                    <p className="text-sm text-slate-600">
+                    <p className="text-sm text-muted">
                       {client.sessionsUsed} / {client.sessionsTotal} used
                     </p>
                   </div>
-                  <p className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700">
+                  <p className="rounded-full bg-sunken px-2 py-1 text-xs font-semibold text-copy">
                     {client.isActive ? `${remainingDays} days` : "Archived"}
                   </p>
                 </div>
@@ -203,7 +203,7 @@ export default function ClientsPage() {
         </div>
 
         {!isLoading && pagination.totalPages > 1 && (
-          <div className="flex items-center justify-between border-t border-slate-200 pt-4">
+          <div className="flex items-center justify-between border-t border-line pt-4">
             <button
               type="button"
               disabled={page <= 1}
@@ -212,7 +212,7 @@ export default function ClientsPage() {
             >
               Previous
             </button>
-            <p className="text-sm font-semibold text-slate-600">
+            <p className="text-sm font-semibold text-muted">
               Page {pagination.page} of {pagination.totalPages}
             </p>
             <button

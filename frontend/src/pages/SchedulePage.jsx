@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import {
   ArrowLeft,
@@ -57,18 +57,18 @@ function displayDate(dateText, options = {}) {
 
 function statusClasses(session) {
   if (session.status === "cancelled") {
-    return "border-slate-300 bg-slate-100 text-slate-600";
+    return "border-line-strong bg-sunken text-muted";
   }
   if (session.status === "completed") {
-    return "border-blue-200 bg-blue-50 text-blue-900";
+    return "border-info-border bg-info-soft text-info-text";
   }
   if (session.status === "no_show") {
-    return "border-amber-300 bg-amber-50 text-amber-900";
+    return "border-warn-border bg-warn-soft text-warn-text";
   }
   const isPaid = session.attendees.every((attendee) => attendee.paid);
   return isPaid
-    ? "border-emerald-200 bg-emerald-50 text-emerald-950"
-    : "border-red-200 bg-red-50 text-red-950";
+    ? "border-success-border bg-success-soft text-success-text"
+    : "border-danger-border bg-danger-soft text-danger-text";
 }
 
 async function fetchAllActiveClients() {
@@ -124,15 +124,15 @@ function BookingForm({ clients, initial, title, submitLabel, onCancel, onSubmit,
       <div className="space-y-4 p-4 sm:p-6">
         {initial?.hideClient && (
           <div>
-            <h3 className="text-xl font-bold text-slate-900">{title}</h3>
-            <p className="mt-1 text-sm text-slate-600">
+            <h3 className="text-xl font-bold text-strong">{title}</h3>
+            <p className="mt-1 text-sm text-muted">
               Choose a new date and available start time.
             </p>
           </div>
         )}
         {!initial?.hideClient && (
-          <label className="block rounded-2xl border border-slate-200 bg-slate-50 p-4">
-            <span className="flex items-center gap-2 text-sm font-bold text-slate-800">
+          <label className="block rounded-2xl border border-line bg-raised p-4">
+            <span className="flex items-center gap-2 text-sm font-bold text-body">
               <span className="grid h-9 w-9 place-items-center rounded-xl bg-emerald-100 text-emerald-700">
                 <UserRound size={18} />
               </span>
@@ -142,7 +142,7 @@ function BookingForm({ clients, initial, title, submitLabel, onCancel, onSubmit,
               required
               value={clientId}
               onChange={(event) => setClientId(event.target.value)}
-              className="mt-3 h-12 w-full rounded-xl border border-slate-300 bg-white px-4 text-sm outline-none transition focus:border-emerald-700 sm:text-base"
+              className="mt-3 h-12 w-full rounded-xl border border-line-strong bg-surface px-4 text-sm outline-none transition focus:border-emerald-700 sm:text-base"
             >
               <option value="">Choose a client</option>
               {clients.map((client) => (
@@ -154,38 +154,38 @@ function BookingForm({ clients, initial, title, submitLabel, onCancel, onSubmit,
           </label>
         )}
 
-        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+        <div className="rounded-2xl border border-line bg-raised p-4">
           <div className="mb-3 flex items-center gap-2">
             <span className="grid h-9 w-9 place-items-center rounded-xl bg-emerald-100 text-emerald-700">
               <Calendar size={18} />
             </span>
             <div>
-              <p className="text-sm font-bold text-slate-800">Session slot</p>
-              <p className="text-xs text-slate-500">All sessions are one hour long.</p>
+              <p className="text-sm font-bold text-body">Session slot</p>
+              <p className="text-xs text-subtle">All sessions are one hour long.</p>
             </div>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="block">
-              <span className="text-sm font-semibold text-slate-700">Training date</span>
+              <span className="text-sm font-semibold text-copy">Training date</span>
               <input
                 required
                 type="date"
                 min={localDateInputValue()}
                 value={sessionDate}
                 onChange={(event) => setSessionDate(event.target.value)}
-                className="mt-2 h-12 w-full rounded-xl border border-slate-300 bg-white px-4 text-sm outline-none transition focus:border-emerald-700 sm:text-base"
+                className="mt-2 h-12 w-full rounded-xl border border-line-strong bg-surface px-4 text-sm outline-none transition focus:border-emerald-700 sm:text-base"
               />
             </label>
             <label className="block">
-              <span className="flex items-center gap-1.5 text-sm font-semibold text-slate-700">
+              <span className="flex items-center gap-1.5 text-sm font-semibold text-copy">
                 <Clock size={15} /> Start time
               </span>
               <select
                 required
                 value={startTime}
                 onChange={(event) => setStartTime(event.target.value)}
-                className="mt-2 h-12 w-full rounded-xl border border-slate-300 bg-white px-4 text-sm outline-none transition focus:border-emerald-700 sm:text-base"
+                className="mt-2 h-12 w-full rounded-xl border border-line-strong bg-surface px-4 text-sm outline-none transition focus:border-emerald-700 sm:text-base"
               >
                 {timeSlots.length === 0 && <option value="">No training hours</option>}
                 {timeSlots.map((time) => (
@@ -196,7 +196,7 @@ function BookingForm({ clients, initial, title, submitLabel, onCancel, onSubmit,
               </select>
             </label>
           </div>
-          <p className="mt-3 text-xs text-slate-500">
+          <p className="mt-3 text-xs text-subtle">
             {dayName ? `${dayName} training hours are shown above.` : "Select a training date."}
           </p>
         </div>
@@ -240,7 +240,7 @@ function SessionModal({
 
   return (
     <div className="modal-backdrop fixed inset-0 z-50 overflow-auto bg-slate-950/50 p-3 backdrop-blur-sm">
-      <div className="modal-panel mx-auto mt-5 w-full max-w-2xl overflow-hidden rounded-3xl bg-white shadow-2xl">
+      <div className="modal-panel mx-auto mt-5 w-full max-w-2xl overflow-hidden rounded-3xl bg-surface shadow-2xl">
         <header className="flex items-center justify-between bg-gradient-to-br from-emerald-900 to-emerald-700 px-5 py-5 text-white">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.16em] text-emerald-100">
@@ -273,8 +273,8 @@ function SessionModal({
           {!mode && (
             <>
               <div className="grid grid-cols-2 gap-3">
-                <article className="rounded-2xl bg-slate-100 p-4">
-                  <p className="flex items-center gap-2 text-sm text-slate-500">
+                <article className="rounded-2xl bg-sunken p-4">
+                  <p className="flex items-center gap-2 text-sm text-subtle">
                     <Calendar size={16} /> Date
                   </p>
                   <p className="mt-2 font-bold">
@@ -286,35 +286,35 @@ function SessionModal({
                     })}
                   </p>
                 </article>
-                <article className="rounded-2xl bg-slate-100 p-4">
-                  <p className="flex items-center gap-2 text-sm text-slate-500">
+                <article className="rounded-2xl bg-sunken p-4">
+                  <p className="flex items-center gap-2 text-sm text-subtle">
                     <Clock size={16} /> Time
                   </p>
                   <p className="mt-2 font-bold">{session.startTime}</p>
                 </article>
               </div>
 
-              <article className="rounded-2xl bg-slate-100 p-4">
-                <p className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-600">
+              <article className="rounded-2xl bg-sunken p-4">
+                <p className="mb-3 flex items-center gap-2 text-sm font-semibold text-muted">
                   <Users size={16} /> {session.attendees.length} attendee
                   {session.attendees.length === 1 ? "" : "s"}
                 </p>
                 <div className="space-y-3">
                   {session.attendees.map((attendee) => (
-                    <div key={attendee.attendanceId} className="rounded-xl border border-slate-200 bg-white p-3">
+                    <div key={attendee.attendanceId} className="rounded-xl border border-line bg-surface p-3">
                       <div className="flex flex-wrap items-start justify-between gap-2">
                         <div>
                           <Link
                             to={`/clients/${attendee.clientId}`}
-                            className="font-bold text-slate-900 hover:text-emerald-700"
+                            className="font-bold text-strong hover:text-emerald-700"
                           >
                             {attendee.clientName}
                           </Link>
-                          <p className="text-xs text-slate-500">
+                          <p className="text-xs text-subtle">
                             {attendee.sessionsTotal - attendee.sessionsUsed} of {attendee.sessionsTotal} credits remaining
                           </p>
                         </div>
-                        <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-bold capitalize text-slate-600">
+                        <span className="rounded-full bg-sunken px-2 py-1 text-xs font-bold capitalize text-muted">
                           {attendee.status.replace("_", " ")}
                         </span>
                       </div>
@@ -361,7 +361,7 @@ function SessionModal({
                     type="button"
                     disabled={isSaving}
                     onClick={onCancelSession}
-                    className="action-btn border border-red-500 bg-white text-red-700"
+                    className="action-btn border border-red-500 bg-surface text-red-700"
                   >
                     Cancel session
                   </button>
@@ -537,7 +537,7 @@ export default function SchedulePage() {
       </header>
 
       <div className="surface-card overflow-hidden p-0">
-        <div className="border-b border-slate-200 bg-white px-4 py-4 sm:px-5">
+        <div className="border-b border-line bg-surface px-4 py-4 sm:px-5">
           <div className="flex items-center justify-between text-lg font-bold sm:text-xl">
             <button
               type="button"
@@ -570,7 +570,7 @@ export default function SchedulePage() {
         </div>
 
         {isLoading && (
-          <div className="flex items-center justify-center gap-2 p-10 text-sm text-slate-600">
+          <div className="flex items-center justify-center gap-2 p-10 text-sm text-muted">
             <RefreshCw size={17} className="animate-spin" /> Loading schedule...
           </div>
         )}
@@ -593,18 +593,18 @@ export default function SchedulePage() {
                     className={`rounded-lg border px-1 py-2 text-center ${
                       selectedDay === day.key
                         ? "border-emerald-700 bg-emerald-100 text-emerald-800"
-                        : "border-slate-200 bg-white text-slate-700"
+                        : "border-line bg-surface text-copy"
                     }`}
                   >
                     <p className="text-[10px] font-bold">{day.label}</p>
                     <p className="text-sm font-bold">{Number(day.date.slice(-2))}</p>
-                    <p className="text-[10px] text-slate-500">{day.sessions.length}</p>
+                    <p className="text-[10px] text-subtle">{day.sessions.length}</p>
                   </button>
                 ))}
               </div>
               <div className="space-y-2">
                 {selectedDayData.sessions.length === 0 && (
-                  <div className="rounded-xl border border-dashed border-slate-300 p-4 text-sm text-slate-600">
+                  <div className="rounded-xl border border-dashed border-line-strong p-4 text-sm text-muted">
                     No sessions booked for this day.
                   </div>
                 )}
@@ -633,13 +633,13 @@ export default function SchedulePage() {
               <table className="min-w-[880px] table-fixed border-collapse">
                 <thead>
                   <tr>
-                    <th className="w-20 border border-slate-200 bg-white p-2 text-slate-500">
+                    <th className="w-20 border border-line bg-surface p-2 text-subtle">
                       <Clock size={16} />
                     </th>
                     {weekDays.map((day) => (
-                      <th key={day.date} className="w-44 border border-slate-200 bg-white p-2 text-center">
-                        <p className="text-sm font-medium text-slate-600">{day.label}</p>
-                        <p className="text-lg font-bold text-slate-900">{Number(day.date.slice(-2))}</p>
+                      <th key={day.date} className="w-44 border border-line bg-surface p-2 text-center">
+                        <p className="text-sm font-medium text-muted">{day.label}</p>
+                        <p className="text-lg font-bold text-strong">{Number(day.date.slice(-2))}</p>
                       </th>
                     ))}
                   </tr>
@@ -647,7 +647,7 @@ export default function SchedulePage() {
                 <tbody>
                   {timeSlots.map((time) => (
                     <tr key={time}>
-                      <td className="border border-slate-200 p-2 align-top text-sm font-bold text-slate-600">
+                      <td className="border border-line p-2 align-top text-sm font-bold text-muted">
                         {time}
                       </td>
                       {weekDays.map((day) => {
@@ -662,8 +662,8 @@ export default function SchedulePage() {
                         return (
                           <td
                             key={`${day.date}-${time}`}
-                            className={`h-20 border border-slate-200 p-1 align-top ${
-                              day.timeSlots.includes(time) ? "" : "bg-slate-100"
+                            className={`h-20 border border-line p-1 align-top ${
+                              day.timeSlots.includes(time) ? "" : "bg-sunken"
                             }`}
                           >
                             <div className="space-y-1">
@@ -707,7 +707,7 @@ export default function SchedulePage() {
 
       {showManualBooking && (
         <div className="modal-backdrop fixed inset-0 z-50 overflow-auto bg-slate-950/50 p-3 backdrop-blur-sm">
-          <div className="modal-panel mx-auto mt-5 max-w-xl overflow-hidden rounded-3xl bg-white shadow-2xl">
+          <div className="modal-panel mx-auto mt-5 max-w-xl overflow-hidden rounded-3xl bg-surface shadow-2xl">
             <BookingForm
               clients={clients}
               initial={{ clientId: searchParams.get("clientId") || "" }}

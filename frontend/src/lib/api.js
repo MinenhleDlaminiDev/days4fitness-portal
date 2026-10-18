@@ -4,6 +4,9 @@ const AUTH_TOKEN_KEY = "days4fitness_auth_token";
 
 export const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || "http://localhost:5000/api",
+  headers: {
+    "ngrok-skip-browser-warning": "true"
+  },
   timeout: 10000
 });
 

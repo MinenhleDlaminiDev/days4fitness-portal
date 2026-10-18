@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from "react-router-dom";
+﻿import { Navigate, Route, Routes } from "react-router-dom";
 import Layout from "./components/Layout.jsx";
 import DashboardPage from "./pages/DashboardPage.jsx";
 import SchedulePage from "./pages/SchedulePage.jsx";
@@ -18,8 +18,8 @@ export default function App() {
 
   if (isLoading || isAuthLoading) {
     return (
-      <main className="grid min-h-screen place-items-center bg-slate-100 p-4">
-        <div className="surface-card w-full max-w-md text-center text-sm text-slate-600">
+      <main className="grid min-h-screen place-items-center bg-sunken p-4">
+        <div className="surface-card w-full max-w-md text-center text-sm text-muted">
           Loading application configuration...
         </div>
       </main>
@@ -28,9 +28,9 @@ export default function App() {
 
   if (error) {
     return (
-      <main className="grid min-h-screen place-items-center bg-slate-100 p-4">
+      <main className="grid min-h-screen place-items-center bg-sunken p-4">
         <div className="surface-card w-full max-w-md text-center">
-          <h1 className="text-xl font-semibold text-slate-900">Unable to start the application</h1>
+          <h1 className="text-xl font-semibold text-strong">Unable to start the application</h1>
           <p className="mt-2 text-sm text-red-700">{error}</p>
           <button type="button" onClick={reload} className="action-btn action-btn-primary mt-4 w-full">
             Try Again

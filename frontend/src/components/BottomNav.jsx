@@ -1,4 +1,4 @@
-import { NavLink } from "react-router-dom";
+﻿import { NavLink } from "react-router-dom";
 import {
   Calendar as CalendarIcon,
   ClipboardCheck as ClipboardCheckIcon,
@@ -25,7 +25,7 @@ export default function BottomNav() {
               to={item.to}
               className={({ isActive }) =>
                 `app-nav-link flex flex-1 flex-col items-center gap-1 py-3 text-xs font-medium transition ${
-                  isActive ? "text-emerald-700" : "text-slate-500 hover:text-slate-700"
+                  isActive ? "text-emerald-700" : "text-subtle hover:text-copy"
                 }`
               }
             >

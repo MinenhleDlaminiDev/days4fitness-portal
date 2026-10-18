@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft as ArrowLeftIcon } from "lucide-react";
 import { addMonths, localDateInputValue } from "../lib/date.js";
@@ -12,7 +12,7 @@ import { useAppConfiguration } from "../context/AppConfigurationContext.jsx";
 import ThemeToggle from "../components/ThemeToggle.jsx";
 
 const fieldClass =
-  "mt-2 h-12 w-full rounded-xl border border-slate-300 bg-white px-4 text-sm outline-none transition focus:border-emerald-700 sm:text-base";
+  "mt-2 h-12 w-full rounded-xl border border-line-strong bg-surface px-4 text-sm outline-none transition focus:border-emerald-700 sm:text-base";
 
 export default function ClientFormPage() {
   const navigate = useNavigate();
@@ -151,7 +151,7 @@ export default function ClientFormPage() {
   if (isLoading) {
     return (
       <section className="page-wrap">
-        <div className="surface-card text-sm text-slate-600">Loading client...</div>
+        <div className="surface-card text-sm text-muted">Loading client...</div>
       </section>
     );
   }
@@ -273,7 +273,7 @@ export default function ClientFormPage() {
                     className={`h-12 rounded-xl border text-sm font-semibold transition sm:text-base ${
                       form.sessionType === type
                         ? "border-emerald-700 bg-emerald-50 text-emerald-700"
-                        : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                        : "border-line-strong bg-surface text-copy hover:bg-raised"
                     }`}
                   >
                     {type}
@@ -313,7 +313,7 @@ export default function ClientFormPage() {
             <div>
               <div className="mb-2 flex items-center justify-between gap-2">
                 <p className="text-sm font-medium sm:text-base">Preferred Training Days (Optional)</p>
-                <span className="text-xs text-slate-500">{form.preferredDays.length} selected</span>
+                <span className="text-xs text-subtle">{form.preferredDays.length} selected</span>
               </div>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                 {(configuration?.businessHours || []).map(({ day }) => {
@@ -326,7 +326,7 @@ export default function ClientFormPage() {
                       className={`h-10 rounded-xl border px-3 text-sm font-semibold transition ${
                         isSelected
                           ? "border-emerald-700 bg-emerald-50 text-emerald-700"
-                          : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                          : "border-line-strong bg-surface text-copy hover:bg-raised"
                       }`}
                     >
                       {day.slice(0, 3)}
@@ -334,7 +334,7 @@ export default function ClientFormPage() {
                   );
                 })}
               </div>
-              <p className="mt-2 text-xs text-slate-500">
+              <p className="mt-2 text-xs text-subtle">
                 Training is available on the days shown.
                 {lastSaturdaySlot ? ` Saturday's last start time is ${lastSaturdaySlot}.` : ""}
               </p>
@@ -346,10 +346,10 @@ export default function ClientFormPage() {
                 {form.preferredDays.map((day) => {
                   const selectedSlots = form.preferredSchedule[day] || [];
                   return (
-                    <div key={day} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                    <div key={day} className="rounded-xl border border-line bg-raised p-3">
                       <div className="mb-2 flex items-center justify-between gap-2">
-                        <p className="text-sm font-semibold text-slate-800">{day}</p>
-                        <span className="text-xs text-slate-500">{selectedSlots.length} selected</span>
+                        <p className="text-sm font-semibold text-body">{day}</p>
+                        <span className="text-xs text-subtle">{selectedSlots.length} selected</span>
                       </div>
                       <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
                         {timeSlotsForDay(day).map((slot) => {
@@ -362,7 +362,7 @@ export default function ClientFormPage() {
                               className={`h-9 rounded-lg border px-2 text-xs font-semibold transition sm:text-sm ${
                                 isSelected
                                   ? "border-emerald-700 bg-emerald-50 text-emerald-700"
-                                  : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                                  : "border-line-strong bg-surface text-copy hover:bg-raised"
                               }`}
                             >
                               {slot}
@@ -377,9 +377,9 @@ export default function ClientFormPage() {
             )}
 
             {!isEdit && <div className="rounded-xl border-l-4 border-amber-500 bg-amber-50 p-3">
-              <p className="text-sm text-slate-600">Package Expires</p>
+              <p className="text-sm text-muted">Package Expires</p>
               <p className="text-lg font-semibold text-amber-700 sm:text-xl">{expiryDate}</p>
-              <p className="text-sm text-slate-500">
+              <p className="text-sm text-subtle">
                 {expiryMonths} months from purchase date
               </p>
             </div>}
@@ -393,12 +393,12 @@ export default function ClientFormPage() {
               type="checkbox"
               checked={form.paid}
               onChange={(event) => updateField("paid", event.target.checked)}
-              className="h-5 w-5 rounded border-slate-300"
+              className="h-5 w-5 rounded border-line-strong"
             />
             Client has paid for this package
           </label>
           {form.paid && (
-            <label className="mt-4 block text-sm font-medium text-slate-700 sm:text-base">
+            <label className="mt-4 block text-sm font-medium text-copy sm:text-base">
               Payment method
               <select
                 value={form.paymentMethod}

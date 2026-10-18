@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   Calendar as CalendarIcon,
@@ -121,18 +121,18 @@ export default function DashboardPage() {
             <CalendarIcon size={18} className="stroke-[1.75] text-emerald-700" />
             Today&apos;s Sessions
           </h2>
-          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+          <span className="rounded-full bg-sunken px-3 py-1 text-xs font-semibold text-muted">
             {dashboard.todaySessions.length} sessions
           </span>
         </div>
         <div className="stagger-list space-y-3">
           {isLoading && (
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+            <div className="rounded-xl border border-line bg-raised p-4 text-sm text-muted">
               Loading today&apos;s sessions...
             </div>
           )}
           {!isLoading && dashboard.todaySessions.length === 0 && (
-            <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-600">
+            <div className="rounded-xl border border-dashed border-line-strong bg-raised p-4 text-sm text-muted">
               No sessions scheduled for today.
             </div>
           )}
@@ -142,7 +142,7 @@ export default function DashboardPage() {
               <Link
                 key={session.id}
                 to={`/schedule?weekStart=${mondayForDate(session.sessionDate)}`}
-                className="interactive-card stagger-item block rounded-2xl border border-slate-200 bg-white p-3 hover:bg-slate-50"
+                className="interactive-card stagger-item block rounded-2xl border border-line bg-surface p-3 hover:bg-raised"
                 style={{ "--stagger": index }}
               >
                 <div className="flex items-start justify-between gap-3">
@@ -150,12 +150,12 @@ export default function DashboardPage() {
                     <p className="text-base font-semibold sm:text-lg">
                       {session.startTime} - {session.program}
                     </p>
-                    <p className="text-sm text-slate-600">
+                    <p className="text-sm text-muted">
                       {firstAttendee
                         ? session.attendees.map((attendee) => attendee.clientName).join(", ")
                         : "No attendees"}
                     </p>
-                    <p className="mt-1 text-xs font-medium uppercase tracking-wide text-slate-500">
+                    <p className="mt-1 text-xs font-medium uppercase tracking-wide text-subtle">
                       {session.sessionType}
                     </p>
                   </div>
@@ -176,12 +176,12 @@ export default function DashboardPage() {
             Package Credits
           </h2>
           <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-2xl border border-slate-200 bg-white p-4">
-              <p className="text-sm text-slate-600">Sessions completed</p>
-              <p className="mt-1 text-2xl font-bold text-slate-900">{summary.completedSessions}</p>
+            <div className="rounded-2xl border border-line bg-surface p-4">
+              <p className="text-sm text-muted">Sessions completed</p>
+              <p className="mt-1 text-2xl font-bold text-strong">{summary.completedSessions}</p>
             </div>
-            <div className="rounded-2xl border border-slate-200 bg-white p-4">
-              <p className="text-sm text-slate-600">Unused active credits</p>
+            <div className="rounded-2xl border border-line bg-surface p-4">
+              <p className="text-sm text-muted">Unused active credits</p>
               <p className="mt-1 text-2xl font-bold text-emerald-700">{summary.remainingSessions}</p>
             </div>
           </div>
@@ -193,12 +193,12 @@ export default function DashboardPage() {
             Revenue
           </h2>
           <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-2xl border border-slate-200 bg-white p-4">
-              <p className="text-sm text-slate-600">Payments this month</p>
-              <p className="mt-1 text-2xl font-bold text-slate-900">{currency(summary.monthRevenue)}</p>
+            <div className="rounded-2xl border border-line bg-surface p-4">
+              <p className="text-sm text-muted">Payments this month</p>
+              <p className="mt-1 text-2xl font-bold text-strong">{currency(summary.monthRevenue)}</p>
             </div>
-            <div className="rounded-2xl border border-slate-200 bg-white p-4">
-              <p className="text-sm text-slate-600">Still unpaid</p>
+            <div className="rounded-2xl border border-line bg-surface p-4">
+              <p className="text-sm text-muted">Still unpaid</p>
               <p className="mt-1 text-2xl font-bold text-red-700">{currency(summary.outstandingBalance)}</p>
             </div>
           </div>
@@ -213,7 +213,7 @@ export default function DashboardPage() {
           </h2>
           <div className="stagger-list space-y-2">
             {!isLoading && dashboard.unpaidPackages.length === 0 && (
-              <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-600">
+              <p className="rounded-xl border border-dashed border-line-strong bg-raised p-4 text-sm text-muted">
                 No unpaid packages right now.
               </p>
             )}
@@ -221,7 +221,7 @@ export default function DashboardPage() {
               <Link
                 key={item.id}
                 to={`/clients/${item.clientId}`}
-                className="interactive-card stagger-item block rounded-xl border border-slate-200 bg-white p-3 hover:border-red-200 hover:bg-red-50/50"
+                className="interactive-card stagger-item block rounded-xl border border-line bg-surface p-3 hover:border-red-200 hover:bg-red-50/50"
                 style={{ "--stagger": index }}
               >
                 <div className="flex items-center justify-between gap-3">
@@ -230,7 +230,7 @@ export default function DashboardPage() {
                     {currency(item.outstandingBalance)}
                   </span>
                 </div>
-                <p className="text-sm text-slate-600">{item.program}</p>
+                <p className="text-sm text-muted">{item.program}</p>
                 <p className="text-sm font-semibold text-red-700 sm:text-base">
                   {currency(item.paidAmount)} paid of {currency(item.price)}
                 </p>
@@ -246,7 +246,7 @@ export default function DashboardPage() {
           </h2>
           <div className="stagger-list space-y-2">
             {!isLoading && dashboard.expiringPackages.length === 0 && (
-              <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-600">
+              <p className="rounded-xl border border-dashed border-line-strong bg-raised p-4 text-sm text-muted">
                 No packages expiring in the next 7 days.
               </p>
             )}
@@ -254,7 +254,7 @@ export default function DashboardPage() {
               <Link
                 key={item.id}
                 to={`/clients/${item.clientId}`}
-                className="interactive-card stagger-item block rounded-xl border border-slate-200 bg-white p-3 hover:border-amber-200 hover:bg-amber-50/50"
+                className="interactive-card stagger-item block rounded-xl border border-line bg-surface p-3 hover:border-amber-200 hover:bg-amber-50/50"
                 style={{ "--stagger": index }}
               >
                 <div className="flex items-center justify-between gap-3">
@@ -263,7 +263,7 @@ export default function DashboardPage() {
                     {item.daysUntilExpiry ?? daysUntil(item.expiryDate)}d
                   </span>
                 </div>
-                <p className="text-sm text-slate-600">{item.program}</p>
+                <p className="text-sm text-muted">{item.program}</p>
                 <p className="text-sm text-amber-700">
                   {item.sessionsRemaining} sessions left
                 </p>

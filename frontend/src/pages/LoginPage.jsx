@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+﻿import { Link } from "react-router-dom";
 import { useState } from "react";
 import { LockKeyhole, Mail } from "lucide-react";
 import GoogleAuthButton from "../components/GoogleAuthButton.jsx";
@@ -20,8 +20,8 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="grid min-h-screen place-items-center bg-slate-100 p-4">
-      <section className="w-full max-w-md overflow-hidden rounded-[2rem] border border-emerald-900/10 bg-white shadow-2xl">
+    <main className="grid min-h-screen place-items-center bg-sunken p-4">
+      <section className="w-full max-w-md overflow-hidden rounded-[2rem] border border-emerald-900/10 bg-surface shadow-2xl">
         <header className="bg-gradient-to-br from-emerald-950 via-emerald-800 to-emerald-600 px-6 py-7 text-white">
           <div className="flex items-start justify-between gap-3">
             <div>
@@ -45,20 +45,20 @@ export default function LoginPage() {
               <button
                 type="button"
                 disabled
-                className="flex h-11 w-full items-center justify-center rounded-xl border border-slate-300 bg-slate-50 text-sm font-bold text-slate-400"
+                className="flex h-11 w-full items-center justify-center rounded-xl border border-line-strong bg-raised text-sm font-bold text-faint"
               >
                 Sign in with Google
               </button>
             )}
             {!googleClientId && (
-              <p className="text-center text-xs text-slate-500">
+              <p className="text-center text-xs text-subtle">
                 Add VITE_GOOGLE_CLIENT_ID to enable Google sign-in.
               </p>
             )}
-            <div className="flex items-center gap-3 text-xs font-semibold uppercase tracking-wide text-slate-400">
-              <span className="h-px flex-1 bg-slate-200" />
+            <div className="flex items-center gap-3 text-xs font-semibold uppercase tracking-wide text-faint">
+              <span className="h-px flex-1 bg-line" />
               Or
-              <span className="h-px flex-1 bg-slate-200" />
+              <span className="h-px flex-1 bg-line" />
             </div>
           </div>
 
@@ -69,7 +69,7 @@ export default function LoginPage() {
           )}
 
           <label className="block">
-            <span className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+            <span className="flex items-center gap-2 text-sm font-semibold text-copy">
               <Mail size={16} /> Email
             </span>
             <input
@@ -78,12 +78,12 @@ export default function LoginPage() {
               placeholder="trainer@example.com"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
-              className="mt-2 h-12 w-full rounded-xl border border-slate-300 bg-white px-4 text-sm outline-none transition focus:border-emerald-700"
+              className="mt-2 h-12 w-full rounded-xl border border-line-strong bg-surface px-4 text-sm outline-none transition focus:border-emerald-700"
             />
           </label>
 
           <label className="block">
-            <span className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+            <span className="flex items-center gap-2 text-sm font-semibold text-copy">
               <LockKeyhole size={16} /> Password
             </span>
             <input
@@ -92,7 +92,7 @@ export default function LoginPage() {
               placeholder="Enter your password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              className="mt-2 h-12 w-full rounded-xl border border-slate-300 bg-white px-4 text-sm outline-none transition focus:border-emerald-700"
+              className="mt-2 h-12 w-full rounded-xl border border-line-strong bg-surface px-4 text-sm outline-none transition focus:border-emerald-700"
             />
           </label>
 
@@ -111,12 +111,12 @@ export default function LoginPage() {
           </button>
 
           {import.meta.env.DEV && (
-            <p className="text-center text-xs text-slate-500">
+            <p className="text-center text-xs text-subtle">
               Local default: trainer@days4fitness.local / ChangeMe123!
             </p>
           )}
 
-          <p className="text-center text-sm text-slate-600">
+          <p className="text-center text-sm text-muted">
             New trainer?{" "}
             <Link to="/signup" className="font-bold text-emerald-700 hover:text-emerald-800">
               Create an account

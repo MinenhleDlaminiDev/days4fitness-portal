@@ -4,43 +4,106 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+  Theme tokens.
+
+  Every value is an "R G B" triple so Tailwind's slash-opacity modifiers keep
+  working (bg-surface/80). Colours are unchanged from the previous build: the
+  dark values are the ones that were being applied by the old
+  html[data-theme="dark"] override layer, which is what actually shipped.
+*/
 :root {
-  --bg-base: #f4f6f0;
-  --bg-surface: #ffffff;
-  --text-primary: #16221b;
-  --text-muted: #5f6e65;
-  --brand: #1d7a46;
-  --brand-strong: #145432;
-  --brand-soft: #def3e4;
-  --warn-soft: #fff2db;
-  --warn-text: #91580a;
-  --danger-soft: #ffe7e4;
-  --danger-text: #9e2921;
-  --border: #dce3dc;
+  /* surfaces */
+  --c-base: 244 246 240;
+  --c-surface: 255 255 255;
+  --c-raised: 248 250 252;
+  --c-sunken: 241 245 249;
+
+  /* text */
+  --c-text-strong: 15 23 42;
+  --c-text-body: 30 41 59;
+  --c-text: 51 65 85;
+  --c-text-muted: 71 85 105;
+  --c-text-subtle: 100 116 139;
+  --c-text-faint: 148 163 184;
+
+  /* borders */
+  --c-border: 226 232 240;
+  --c-border-strong: 203 213 225;
+
+  /* brand */
+  --c-brand: 29 122 70;
+  --c-brand-strong: 20 84 50;
+  --c-brand-soft: 222 243 228;
+
+  /* status tints */
+  --c-success-soft: 236 253 245;
+  --c-success-border: 167 243 208;
+  --c-success-text: 2 44 34;
+
+  --c-danger-soft: 254 242 242;
+  --c-danger-border: 254 202 202;
+  --c-danger-text: 69 10 10;
+  --c-danger-strong: 185 28 28;
+
+  --c-info-soft: 239 246 255;
+  --c-info-border: 191 219 254;
+  --c-info-text: 30 58 138;
+
+  --c-warn-soft: 255 251 235;
+  --c-warn-border: 252 211 77;
+  --c-warn-text: 120 53 15;
+
+  /* page backdrop wash */
+  --c-wash-one: 214 234 215;
+  --c-wash-two: 251 238 212;
 }
 
-html[data-theme="dark"] {
-  --bg-base: #0f1412;
-  --bg-surface: #121a17;
-  --text-primary: #e5efe9;
-  --text-muted: #9eb0a6;
-  --brand: #2ea366;
-  --brand-strong: #1c7a49;
-  --brand-soft: #163827;
-  --warn-soft: #3b2f1a;
-  --warn-text: #f4d29a;
-  --danger-soft: #3f2020;
-  --danger-text: #f5b3b3;
-  --border: #2b3731;
+:root[data-theme="dark"] {
+  --c-base: 15 20 18;
+  --c-surface: 17 26 22;
+  --c-raised: 23 35 30;
+  --c-sunken: 28 42 35;
+
+  --c-text-strong: 232 241 236;
+  --c-text-body: 219 232 226;
+  --c-text: 202 218 210;
+  --c-text-muted: 157 176 166;
+  --c-text-subtle: 157 176 166;
+  --c-text-faint: 157 176 166;
+
+  --c-border: 44 57 51;
+  --c-border-strong: 44 57 51;
+
+  --c-brand: 46 163 102;
+  --c-brand-strong: 28 122 73;
+  --c-brand-soft: 22 56 39;
+
+  --c-success-soft: 27 52 39;
+  --c-success-border: 105 169 130;
+  --c-success-text: 216 246 227;
+
+  --c-danger-soft: 58 32 35;
+  --c-danger-border: 213 139 145;
+  --c-danger-text: 255 214 214;
+  --c-danger-strong: 245 179 179;
+
+  --c-info-soft: 27 45 66;
+  --c-info-border: 110 154 199;
+  --c-info-text: 215 234 255;
+
+  --c-warn-soft: 59 47 26;
+  --c-warn-border: 201 154 79;
+  --c-warn-text: 255 227 173;
 }
 
 body {
   font-family: "Satoshi", "Segoe UI", sans-serif;
-  color: var(--text-primary);
+  color: rgb(var(--c-text-strong));
   background:
-    radial-gradient(circle at 0% 0%, #d6ead7 0%, transparent 35%),
-    radial-gradient(circle at 100% 0%, #fbeed4 0%, transparent 30%),
-    var(--bg-base);
+    radial-gradient(circle at 0% 0%, rgb(var(--c-wash-one)) 0%, transparent 35%),
+    radial-gradient(circle at 100% 0%, rgb(var(--c-wash-two)) 0%, transparent 30%),
+    rgb(var(--c-base));
 }
 
 #root {
@@ -54,7 +117,7 @@ body {
 
 @layer components {
   .app-shell {
-    @apply min-h-screen text-slate-900;
+    @apply min-h-screen text-strong;
   }
 
   .page-wrap {
@@ -63,7 +126,7 @@ body {
   }
 
   .page-header {
-    background: linear-gradient(135deg, var(--brand-strong), var(--brand));
+    background: linear-gradient(135deg, rgb(var(--c-brand-strong)), rgb(var(--c-brand)));
     @apply rounded-3xl px-5 py-5 text-white shadow-lg sm:px-6 sm:py-6;
   }
 
@@ -77,8 +140,8 @@ body {
 
   .surface-card {
     @apply rounded-3xl border p-4 shadow-sm backdrop-blur-sm transition sm:p-5;
-    border-color: color-mix(in srgb, var(--border) 80%, white);
-    background: color-mix(in srgb, var(--bg-surface) 92%, transparent);
+    border-color: color-mix(in srgb, rgb(var(--c-border)) 80%, white);
+    background: rgb(var(--c-surface) / 0.92);
   }
 
   .surface-card:hover {
@@ -92,33 +155,33 @@ body {
 
   .theme-toggle {
     @apply relative h-10 w-[76px] min-w-[76px] shrink-0 rounded-full border border-white/30 p-1 transition;
-    background: color-mix(in srgb, var(--brand-soft) 35%, transparent);
+    background: rgb(var(--c-brand-soft) / 0.35);
     backdrop-filter: blur(8px);
   }
 
   .theme-toggle-knob {
     @apply grid h-8 w-8 place-items-center rounded-full transition-transform duration-300;
-    background: linear-gradient(135deg, #47b377, var(--brand));
+    background: linear-gradient(135deg, #47b377, rgb(var(--c-brand)));
     color: #eafff2;
     box-shadow: 0 6px 14px rgba(15, 23, 42, 0.2);
     transform: translateX(0);
   }
 
   .theme-toggle.dark .theme-toggle-knob {
-    background: linear-gradient(135deg, var(--brand), var(--brand-strong));
+    background: linear-gradient(135deg, rgb(var(--c-brand)), rgb(var(--c-brand-strong)));
     color: #d8f6e3;
     transform: translateX(36px);
   }
 
   .app-nav {
-    border-color: rgba(226, 232, 240, 0.8);
-    background: rgba(255, 255, 255, 0.95);
+    border-color: rgb(var(--c-border));
+    background: rgb(var(--c-surface) / 0.95);
   }
 
   .sign-out-btn {
-    border-color: #d1d5db;
-    background: rgba(255, 255, 255, 0.92);
-    color: #334155;
+    border-color: rgb(var(--c-border-strong));
+    background: rgb(var(--c-surface) / 0.92);
+    color: rgb(var(--c-text));
   }
 
   .sign-out-btn:hover {
@@ -140,23 +203,23 @@ body {
   }
 
   .action-btn-primary {
-    background: linear-gradient(135deg, var(--brand), var(--brand-strong));
+    background: linear-gradient(135deg, rgb(var(--c-brand)), rgb(var(--c-brand-strong)));
     @apply text-white hover:brightness-95;
   }
 
   .action-btn-primary:disabled {
     background: linear-gradient(135deg, #cbd5e1, #94a3b8);
-    @apply text-slate-100 cursor-not-allowed;
+    @apply cursor-not-allowed text-slate-100;
     transition: none;
   }
 
   .action-btn-secondary {
-    background: linear-gradient(135deg, var(--brand), var(--brand-strong));
+    background: linear-gradient(135deg, rgb(var(--c-brand)), rgb(var(--c-brand-strong)));
     @apply border border-transparent text-white hover:brightness-95;
   }
 
   .fab-btn {
-    background: linear-gradient(135deg, var(--brand), var(--brand-strong));
+    background: linear-gradient(135deg, rgb(var(--c-brand)), rgb(var(--c-brand-strong)));
     @apply fixed bottom-24 right-5 grid h-14 w-14 place-items-center rounded-full text-white shadow-lg transition hover:brightness-95;
   }
 
@@ -194,148 +257,6 @@ body {
   }
 }
 
-html[data-theme="dark"] .bg-white {
-  background-color: #111a16 !important;
-}
-
-html[data-theme="dark"] .bg-slate-50 {
-  background-color: #17231e !important;
-}
-
-html[data-theme="dark"] .bg-slate-100 {
-  background-color: #1c2a23 !important;
-}
-
-html[data-theme="dark"] .text-slate-900 {
-  color: #e8f1ec !important;
-}
-
-html[data-theme="dark"] .text-slate-800 {
-  color: #dbe8e2 !important;
-}
-
-html[data-theme="dark"] .text-slate-700 {
-  color: #cadad2 !important;
-}
-
-html[data-theme="dark"] .text-slate-600,
-html[data-theme="dark"] .text-slate-500,
-html[data-theme="dark"] .text-slate-400 {
-  color: #9db0a6 !important;
-}
-
-html[data-theme="dark"] .border-slate-200,
-html[data-theme="dark"] .border-slate-300 {
-  border-color: #2c3933 !important;
-}
-
-html[data-theme="dark"] .app-nav {
-  border-color: #2c3933;
-  background: rgba(15, 21, 18, 0.92);
-}
-
-html[data-theme="dark"] .app-nav-link {
-  color: #9eb0a6;
-}
-
-html[data-theme="dark"] .app-nav-link:hover {
-  color: #d7e4dd;
-}
-
-html[data-theme="dark"] .theme-toggle {
-  border-color: #385046;
-  background: color-mix(in srgb, var(--bg-surface) 75%, transparent);
-}
-
-html[data-theme="dark"] .sign-out-btn {
-  border-color: #5d7469;
-  background: #e8f4ed;
-  color: #123824;
-}
-
-html[data-theme="dark"] .sign-out-btn:hover {
-  border-color: #8fd9ad;
-  background: #d8f6e3;
-  color: #0f2f1f;
-}
-
-html[data-theme="dark"] .schedule-page .text-slate-900,
-html[data-theme="dark"] .schedule-page .text-slate-800,
-html[data-theme="dark"] .schedule-page .text-slate-700 {
-  color: #e2efe8 !important;
-}
-
-html[data-theme="dark"] .schedule-page .text-slate-600,
-html[data-theme="dark"] .schedule-page .text-slate-500,
-html[data-theme="dark"] .schedule-page .text-slate-400 {
-  color: #bfd0c7 !important;
-}
-
-html[data-theme="dark"] .schedule-page .border-slate-200,
-html[data-theme="dark"] .schedule-page .border-slate-300 {
-  border-color: #3a4a42 !important;
-}
-
-html[data-theme="dark"] .schedule-page .bg-emerald-50 {
-  background-color: #1b3427 !important;
-}
-
-html[data-theme="dark"] .schedule-page .text-emerald-950 {
-  color: #d8f6e3 !important;
-}
-
-html[data-theme="dark"] .schedule-page .border-emerald-200 {
-  border-color: #69a982 !important;
-}
-
-html[data-theme="dark"] .schedule-page .bg-red-50 {
-  background-color: #3a2023 !important;
-}
-
-html[data-theme="dark"] .schedule-page .text-red-950 {
-  color: #ffd6d6 !important;
-}
-
-html[data-theme="dark"] .schedule-page .border-red-200 {
-  border-color: #d58b91 !important;
-}
-
-html[data-theme="dark"] .schedule-page .bg-blue-50 {
-  background-color: #1b2d42 !important;
-}
-
-html[data-theme="dark"] .schedule-page .text-blue-900 {
-  color: #d7eaff !important;
-}
-
-html[data-theme="dark"] .schedule-page .border-blue-200 {
-  border-color: #6e9ac7 !important;
-}
-
-html[data-theme="dark"] .schedule-page .bg-amber-50 {
-  background-color: #3b2f1a !important;
-}
-
-html[data-theme="dark"] .schedule-page .text-amber-900 {
-  color: #ffe3ad !important;
-}
-
-html[data-theme="dark"] .schedule-page .border-amber-300 {
-  border-color: #c99a4f !important;
-}
-
-html[data-theme="dark"] .booking-requests-page .text-red-700 {
-  color: var(--danger-text) !important;
-}
-
-html[data-theme="dark"] .booking-requests-page .border-red-200 {
-  border-color: #6b3538 !important;
-}
-
-html[data-theme="dark"] .booking-requests-page .bg-red-50 {
-  background-color: #3a2023 !important;
-}
-
 @media (prefers-reduced-motion: reduce) {
   .page-wrap,
   .stagger-list > .stagger-item,
@@ -349,17 +270,14 @@ html[data-theme="dark"] .booking-requests-page .bg-red-50 {
   .action-btn {
     transition: none !important;
   }
-
 }
 
 @keyframes page-enter {
   from {
     opacity: 0;
-    transform: translateY(8px);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
   }
 }
 

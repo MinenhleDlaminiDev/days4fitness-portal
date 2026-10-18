@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+﻿import { Link } from "react-router-dom";
 import GoogleAuthButton from "../components/GoogleAuthButton.jsx";
 import ThemeToggle from "../components/ThemeToggle.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
@@ -8,8 +8,8 @@ export default function SignupPage() {
   const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
   return (
-    <main className="grid min-h-screen place-items-center bg-slate-100 p-4">
-      <section className="w-full max-w-md overflow-hidden rounded-[2rem] border border-emerald-900/10 bg-white shadow-2xl">
+    <main className="grid min-h-screen place-items-center bg-sunken p-4">
+      <section className="w-full max-w-md overflow-hidden rounded-[2rem] border border-emerald-900/10 bg-surface shadow-2xl">
         <header className="bg-gradient-to-br from-emerald-950 via-emerald-800 to-emerald-600 px-6 py-7 text-white">
           <div className="flex items-start justify-between gap-3">
             <div>
@@ -40,12 +40,12 @@ export default function SignupPage() {
             </p>
           )}
 
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+          <div className="rounded-2xl border border-line bg-raised p-4 text-sm text-muted">
             For testing and pre-live access, any verified Gmail account can create a trainer profile.
             We will replace this with an approval process later.
           </div>
 
-          <p className="text-center text-sm text-slate-600">
+          <p className="text-center text-sm text-muted">
             Already have an account?{" "}
             <Link to="/login" className="font-bold text-emerald-700 hover:text-emerald-800">
               Sign in
