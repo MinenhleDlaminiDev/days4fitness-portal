@@ -115,19 +115,19 @@ export default function ClientsPage() {
           ))}
         </div>
 
-        <div className="stagger-list space-y-3">
+        <div className="stagger-list grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
           {isLoading && (
-            <div className="rounded-xl border border-line bg-raised p-4 text-sm text-muted">
+            <div className="col-span-full rounded-xl border border-line bg-raised p-4 text-sm text-muted">
               Loading clients...
             </div>
           )}
           {!isLoading && loadError && (
-            <div className="rounded-xl border border-danger-border bg-danger-soft p-4 text-sm text-danger-strong">
+            <div className="col-span-full rounded-xl border border-danger-border bg-danger-soft p-4 text-sm text-danger-strong">
               {loadError}
             </div>
           )}
           {!isLoading && !loadError && clients.length === 0 && (
-            <div className="rounded-xl border border-dashed border-line-strong bg-raised p-4 text-sm text-muted">
+            <div className="col-span-full rounded-xl border border-dashed border-line-strong bg-raised p-4 text-sm text-muted">
               No clients found for this filter.
             </div>
           )}

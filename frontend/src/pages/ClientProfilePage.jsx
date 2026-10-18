@@ -436,6 +436,10 @@ export default function ClientProfilePage() {
         </div>
       )}
 
+      {/* Two columns from lg up; a single stacked column on phones. */}
+      <div className="grid gap-4 sm:gap-5 lg:grid-cols-2 lg:items-start">
+      <div className="space-y-4 sm:space-y-5">
+
       <article className="surface-card">
         <h2 className="section-title text-base sm:text-lg">Contact Information</h2>
         <div className="space-y-2">
@@ -723,6 +727,9 @@ export default function ClientProfilePage() {
         </div>
       </article>
 
+      </div>
+      <div className="space-y-4 sm:space-y-5">
+
       <article className="surface-card">
         <div className="mb-3 flex items-center justify-between gap-3">
           <h2 className="section-title mb-0 text-base sm:text-lg">Package History</h2>
@@ -1000,6 +1007,9 @@ export default function ClientProfilePage() {
           ))}
         </div>
       </article>
+
+      </div>
+      </div>
 
       <button
         type="button"
