@@ -283,6 +283,27 @@ export function createClientsRepository(
       };
     },
 
+    async findActiveOptions() {
+      const result = await dbPool.query(
+        `SELECT
+           c.id,
+           c.name,
+           COALESCE(latest_package.sessions_total, 0) AS sessions_total,
+           COALESCE(latest_package.sessions_used, 0) AS sessions_used
+         FROM clients c
+         LEFT JOIN LATERAL (
+           SELECT pk.sessions_total, pk.sessions_used
+           FROM packages pk
+           WHERE pk.client_id = c.id
+           ORDER BY pk.created_at DESC, pk.id DESC
+           LIMIT 1
+         ) latest_package ON true
+         WHERE c.is_active = true
+         ORDER BY c.created_at DESC, c.id DESC`
+      );
+      return result.rows;
+    },
+
     async findById(id, db = dbPool) {
       const result = await db.query(`${CLIENT_SELECT_SQL} WHERE c.id = $1`, [id]);
       return result.rows[0] || null;

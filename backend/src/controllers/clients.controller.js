@@ -11,6 +11,14 @@ export function createClientsController(service = clientsService) {
       }
     },
 
+    async options(req, res, next) {
+      try {
+        sendData(res, await service.listClientOptions());
+      } catch (error) {
+        next(error);
+      }
+    },
+
     async get(req, res, next) {
       try {
         sendData(res, await service.getClient(req.params.id));

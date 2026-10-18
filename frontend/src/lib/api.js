@@ -58,6 +58,11 @@ export async function fetchClients(params = {}) {
   return responseData(response);
 }
 
+export async function fetchClientOptions() {
+  const response = await api.get("/clients/options");
+  return responseData(response);
+}
+
 export async function fetchClientById(clientId) {
   const response = await api.get(`/clients/${clientId}`);
   return responseData(response);

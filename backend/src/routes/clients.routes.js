@@ -5,6 +5,8 @@ import { packagesController } from "../controllers/packages.controller.js";
 const router = Router();
 
 router.get("/", clientsController.list);
+// Must stay ahead of "/:id" so the literal path is not read as a client id.
+router.get("/options", clientsController.options);
 router.get("/:clientId/packages", packagesController.listForClient);
 router.post("/:clientId/packages", packagesController.createForClient);
 router.get("/:id/sessions", clientsController.sessions);

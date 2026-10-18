@@ -21,7 +21,7 @@ import {
   completeSession,
   createManualSession,
   createReplacementSession,
-  fetchClients,
+  fetchClientOptions,
   fetchScheduleWeek,
   fetchSession,
   getApiErrorMessage,
@@ -71,19 +71,6 @@ function statusClasses(session) {
   return isPaid
     ? "border-success-border bg-success-soft text-success-text"
     : "border-danger-border bg-danger-soft text-danger-text";
-}
-
-async function fetchAllActiveClients() {
-  const firstPage = await fetchClients({ status: "active", page: 1, pageSize: 50 });
-  const clients = [...(firstPage?.items || [])];
-  const totalPages = firstPage?.pagination?.totalPages || 1;
-
-  for (let page = 2; page <= totalPages; page += 1) {
-    const result = await fetchClients({ status: "active", page, pageSize: 50 });
-    clients.push(...(result?.items || []));
-  }
-
-  return clients;
 }
 
 function BookingForm({ clients, initial, title, submitLabel, onCancel, onSubmit, isSaving }) {
@@ -465,16 +452,21 @@ export default function SchedulePage() {
     [sessions, weekDays]
   );
 
-  async function loadSchedule() {
+  // The client list does not change when the week does, so it is loaded once on
+  // mount and refreshed only after an action that can move a client's credits.
+  const loadClients = useCallback(async () => {
+    try {
+      setClients((await fetchClientOptions()) || []);
+    } catch (requestError) {
+      setError(getApiErrorMessage(requestError, "Unable to load the client list."));
+    }
+  }, []);
+
+  async function loadWeek() {
     try {
       setIsLoading(true);
       setError("");
-       const [scheduleRows, clientRows] = await Promise.all([
-         fetchScheduleWeek(weekStart),
-         fetchAllActiveClients()
-       ]);
-      setSessions(scheduleRows || []);
-      setClients(clientRows);
+      setSessions((await fetchScheduleWeek(weekStart)) || []);
     } catch (requestError) {
       setError(getApiErrorMessage(requestError, "Unable to load the weekly schedule."));
     } finally {
@@ -483,8 +475,12 @@ export default function SchedulePage() {
   }
 
   useEffect(() => {
-    loadSchedule();
+    loadWeek();
   }, [weekStart]);
+
+  useEffect(() => {
+    loadClients();
+  }, [loadClients]);
 
   useEffect(() => {
     if (clients.length === 0 || !searchParams.get("clientId")) return;
@@ -515,7 +511,7 @@ export default function SchedulePage() {
       setError("");
       const updated = await action();
       setActiveSession(updated);
-      await loadSchedule();
+      await Promise.all([loadWeek(), loadClients()]);
       setNotice("");
       window.setTimeout(() => setNotice(successMessage), 0);
       return updated;

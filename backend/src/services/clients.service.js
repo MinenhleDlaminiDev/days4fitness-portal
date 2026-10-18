@@ -213,6 +213,16 @@ export function createClientsService(repository = clientsRepository) {
       };
     },
 
+    async listClientOptions() {
+      const rows = await repository.findActiveOptions();
+      return rows.map((row) => ({
+        id: row.id,
+        name: row.name,
+        sessionsTotal: row.sessions_total ?? 0,
+        sessionsUsed: row.sessions_used ?? 0
+      }));
+    },
+
     async getClient(clientId) {
       const id = requirePositiveInteger(clientId, "clientId");
       const row = await repository.findById(id);
