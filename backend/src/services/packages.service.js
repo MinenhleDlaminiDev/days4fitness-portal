@@ -5,11 +5,8 @@ import {
   requireOneOf,
   requirePositiveInteger
 } from "../lib/validation.js";
-import {
-  PACKAGE_SIZES,
-  sessionTypeFromDatabase,
-  sessionTypeToDatabase
-} from "../config/businessRules.js";
+import { sessionTypeFromDatabase, sessionTypeToDatabase } from "../config/businessRules.js";
+import { getSettings } from "../config/settingsCache.js";
 import { packagesRepository } from "../repositories/packages.repository.js";
 
 const PAYMENT_METHODS = ["cash", "eft", "card"];
@@ -95,9 +92,10 @@ export function createPackagesService(repository = packagesRepository) {
       const sessionType = requireOneOf(input.sessionType, ["One-on-One", "Group"], "sessionType");
       const program = cleanString(input.program);
       if (!program) throw validationError("program is required", { field: "program" });
+      const { packageSizes } = getSettings();
       const sessionsTotal = Number(input.sessionsTotal);
-      if (!PACKAGE_SIZES.includes(sessionsTotal)) {
-        throw validationError(`sessionsTotal must be one of: ${PACKAGE_SIZES.join(", ")}`);
+      if (!packageSizes.includes(sessionsTotal)) {
+        throw validationError(`sessionsTotal must be one of: ${packageSizes.join(", ")}`);
       }
       const purchaseDate = requireIsoDate(input.purchaseDate, "purchaseDate");
       try {

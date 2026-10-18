@@ -10,7 +10,7 @@ const { Pool } = pg;
 
 // Bought a week ago so every payment date below is in the past, while the
 // two-month expiry still lands in the future. The expiry must be computed
-// with addMonths because packages_exact_two_month_expiry_check is exact.
+// with addMonths because the packages_configured_expiry trigger is exact.
 const PURCHASE_DATE = daysFromToday(-7);
 const EXPIRY_DATE = addMonths(PURCHASE_DATE, 2);
 const RENEWAL_PURCHASE_DATE = daysFromToday(-1);
@@ -240,7 +240,7 @@ test("rejects packages that do not expire exactly two months after purchase", as
           addDays(EXPIRY_DATE, 1)
         ]
       ),
-      /packages_exact_two_month_expiry_check/
+      /packages_configured_expiry_check/
     );
   } finally {
     await testPool.query("DELETE FROM clients WHERE id = $1", [clientResult.rows[0].id]);

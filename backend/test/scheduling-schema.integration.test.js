@@ -32,27 +32,15 @@ test("records migrations and does not reapply completed files", async () => {
 
   await applyMigrations(testPool, (message) => appliedAgain.push(message));
 
-  assert.deepEqual(
-    before.rows.map((row) => row.filename),
-    [
-      "001_init.sql",
-      "002_pricing_seed.sql",
-      "003_clients_preferred_days.sql",
-      "004_clients_preferred_schedule.sql",
-      "005_scheduling_data_model.sql",
-      "006_scheduling_integrity.sql",
-      "007_scheduling_relationship_integrity.sql",
-      "008_session_update_integrity.sql",
-      "009_scheduling_state_integrity.sql",
-      "010_attendance_replacement_tracking.sql",
-      "011_client_management.sql",
-      "012_packages_and_payments.sql",
-      "013_phase6_payment_integrity.sql",
-      "014_legacy_payment_method.sql",
-      "015_validate_package_expiry.sql",
-      "016_trainer_auth.sql"
-    ]
-  );
+  // Compared against the directory rather than a hardcoded list, so adding a
+  // migration does not require editing this assertion.
+  const onDisk = fs
+    .readdirSync(migrationsDirectory)
+    .filter((file) => file.endsWith(".sql"))
+    .sort();
+
+  assert.ok(onDisk.length > 0, "expected migration files on disk");
+  assert.deepEqual(before.rows.map((row) => row.filename), onDisk);
   assert.deepEqual(appliedAgain, []);
 });
 
@@ -282,24 +270,10 @@ test("preserves legacy preferences and session attendance during migration", asy
     });
     assert.deepEqual(
       appliedMigrations.rows.map((row) => row.filename),
-      [
-        "001_init.sql",
-        "002_pricing_seed.sql",
-        "003_clients_preferred_days.sql",
-        "004_clients_preferred_schedule.sql",
-        "005_scheduling_data_model.sql",
-        "006_scheduling_integrity.sql",
-         "007_scheduling_relationship_integrity.sql",
-         "008_session_update_integrity.sql",
-         "009_scheduling_state_integrity.sql",
-         "010_attendance_replacement_tracking.sql",
-         "011_client_management.sql",
-         "012_packages_and_payments.sql",
-         "013_phase6_payment_integrity.sql",
-         "014_legacy_payment_method.sql",
-         "015_validate_package_expiry.sql",
-         "016_trainer_auth.sql"
-      ]
+      fs
+        .readdirSync(migrationsDirectory)
+        .filter((file) => file.endsWith(".sql"))
+        .sort()
     );
   } finally {
     await db.query("SET search_path TO public");

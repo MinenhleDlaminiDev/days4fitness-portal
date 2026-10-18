@@ -1,12 +1,10 @@
 import {
-  PACKAGE_SIZES,
-  PACKAGE_EXPIRY_MONTHS,
   PROGRAM_ALIASES,
   SESSION_TYPES,
   sessionTypeFromDatabase,
-  sessionTypeToDatabase,
-  timeSlotsForDay
+  sessionTypeToDatabase
 } from "../config/businessRules.js";
+import { getSettings, timeSlotsForDay } from "../config/settingsCache.js";
 import { conflictError, notFoundError, validationError } from "../errors/AppError.js";
 import {
   cleanString,
@@ -240,11 +238,12 @@ export function createClientsService(repository = clientsRepository) {
         "sessionType"
       );
 
+      const { packageSizes, packageExpiryMonths } = getSettings();
       const packageSize = Number(input.packageSize);
-      if (!PACKAGE_SIZES.includes(packageSize)) {
-        throw validationError(`packageSize must be one of: ${PACKAGE_SIZES.join(", ")}`, {
+      if (!packageSizes.includes(packageSize)) {
+        throw validationError(`packageSize must be one of: ${packageSizes.join(", ")}`, {
           field: "packageSize",
-          allowedValues: PACKAGE_SIZES
+          allowedValues: packageSizes
         });
       }
 
@@ -274,7 +273,7 @@ export function createClientsService(repository = clientsRepository) {
             programType: sessionTypeToDatabase(sessionType),
             packageSize,
             purchaseDate,
-            expiryMonths: PACKAGE_EXPIRY_MONTHS,
+            expiryMonths: packageExpiryMonths,
             paid,
             paymentMethod
           }

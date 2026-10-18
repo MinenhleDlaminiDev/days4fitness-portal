@@ -1,9 +1,7 @@
-import { BUSINESS_HOURS } from "../config/businessRules.js";
+import { DAY_NAMES, getSettings } from "../config/settingsCache.js";
 import { conflictError, notFoundError, validationError } from "../errors/AppError.js";
 import { requireIsoDate, requirePositiveInteger } from "../lib/validation.js";
 import { sessionsRepository } from "../repositories/sessions.repository.js";
-
-const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 function requireTime(value) {
   if (typeof value !== "string" || !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value)) {
@@ -14,7 +12,7 @@ function requireTime(value) {
 
 function validateBookableSlot(sessionDate, startTime) {
   const day = DAY_NAMES[new Date(`${sessionDate}T00:00:00Z`).getUTCDay()];
-  const hours = BUSINESS_HOURS.find((item) => item.day === day);
+  const hours = getSettings().businessHours.find((item) => item.day === day);
   if (!hours) throw validationError("Sessions cannot be booked on Sunday");
   if (!hours.timeSlots.includes(startTime)) {
     throw validationError(`${startTime} is outside ${day} training hours`, {
