@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import {
   ArrowLeft,
@@ -336,7 +336,7 @@ function SessionModal({
                             type="button"
                             disabled={isSaving}
                             onClick={() => onOutcome("no-show", attendee.clientId)}
-                            className="action-btn h-9 border border-amber-400 bg-amber-50 text-amber-800 sm:h-9"
+                            className="action-btn action-btn-warn h-9 sm:h-9"
                           >
                             No-show
                           </button>
@@ -361,7 +361,7 @@ function SessionModal({
                     type="button"
                     disabled={isSaving}
                     onClick={onCancelSession}
-                    className="action-btn border border-red-500 bg-surface text-red-700"
+                    className="action-btn action-btn-danger"
                   >
                     Cancel session
                   </button>

@@ -1,4 +1,4 @@
-﻿import { Link } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { useState } from "react";
 import { LockKeyhole, Mail } from "lucide-react";
 import GoogleAuthButton from "../components/GoogleAuthButton.jsx";

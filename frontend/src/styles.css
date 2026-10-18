@@ -45,6 +45,8 @@
   --c-danger-border: 254 202 202;
   --c-danger-text: 69 10 10;
   --c-danger-strong: 185 28 28;
+  /* Solid destructive fill. Same in both themes: white on this is 4.6:1. */
+  --c-danger-solid: 220 38 38;
 
   --c-info-soft: 239 246 255;
   --c-info-border: 191 219 254;
@@ -198,8 +200,8 @@ body {
   }
 
   .sign-out-btn:hover {
-    border-color: #86efac;
-    color: #047857;
+    border-color: rgb(var(--c-brand));
+    color: rgb(var(--c-brand));
   }
 
   .action-btn {
@@ -221,14 +223,50 @@ body {
   }
 
   .action-btn-primary:disabled {
-    background: linear-gradient(135deg, #cbd5e1, #94a3b8);
-    @apply cursor-not-allowed text-slate-100;
+    background: rgb(var(--c-sunken));
+    color: rgb(var(--c-text-faint));
+    @apply cursor-not-allowed;
     transition: none;
   }
 
+  /*
+    Secondary is a neutral outlined surface, not a second brand gradient. It used
+    to be byte-identical to the primary, which made every Back/Confirm pair read
+    as two equally weighted choices.
+  */
   .action-btn-secondary {
-    background: linear-gradient(135deg, rgb(var(--c-brand)), rgb(var(--c-brand-strong)));
-    @apply border border-transparent text-white hover:brightness-95;
+    background: rgb(var(--c-surface));
+    border: 1px solid rgb(var(--c-border-strong));
+    color: rgb(var(--c-text));
+  }
+
+  .action-btn-secondary:hover {
+    background: rgb(var(--c-raised));
+  }
+
+  /* Destructive, outlined: cancel a session, archive a client, reverse a payment. */
+  .action-btn-danger {
+    background: rgb(var(--c-surface));
+    border: 1px solid rgb(var(--c-danger-border));
+    color: rgb(var(--c-danger-strong));
+  }
+
+  .action-btn-danger:hover {
+    background: rgb(var(--c-danger-soft));
+  }
+
+  /* Destructive, solid: only the final confirm inside a destructive dialog. */
+  .action-btn-danger-solid {
+    background: rgb(var(--c-danger-solid));
+    border: 1px solid rgb(var(--c-danger-solid));
+    @apply text-white hover:brightness-95;
+  }
+
+  /* Caution, for recording a no-show. */
+  .action-btn-warn {
+    background: rgb(var(--c-warn-soft));
+    border: 1px solid rgb(var(--c-warn-border));
+    color: rgb(var(--c-warn-text));
   }
 
   .fab-btn {

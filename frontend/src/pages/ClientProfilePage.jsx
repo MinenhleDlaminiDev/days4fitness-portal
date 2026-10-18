@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   Archive,
@@ -875,7 +875,7 @@ export default function ClientProfilePage() {
                     {item.sessionsUsed} of {item.sessionsTotal} sessions used
                   </p>
                   <p className="mt-1 text-sm font-semibold text-copy">
-                    R{item.paidAmount.toFixed(2)} paid Â· R{item.outstandingBalance.toFixed(2)} outstanding
+                    R{item.paidAmount.toFixed(2)} paid · R{item.outstandingBalance.toFixed(2)} outstanding
                   </p>
                 </div>
                 <div className="text-right">
@@ -904,7 +904,7 @@ export default function ClientProfilePage() {
                             </p>
                             <p className="text-xs text-subtle">
                               {formatShortDate(payment.paymentDate)}
-                              {payment.reference ? ` Â· ${payment.reference}` : ""}
+                              {payment.reference ? ` · ${payment.reference}` : ""}
                             </p>
                           </div>
                           {payment.entryType === "payment" && !reversed && (
@@ -974,7 +974,7 @@ export default function ClientProfilePage() {
                     type="button"
                     disabled={Boolean(activeSessionAction)}
                     onClick={() => recordSessionOutcome(entry, "no_show")}
-                    className={`action-btn h-10 border border-amber-300 bg-amber-50 text-amber-800 ${
+                    className={`action-btn action-btn-warn h-10 ${
                       entry.hasEnded ? "" : "col-span-2"
                     }`}
                   >
@@ -998,9 +998,7 @@ export default function ClientProfilePage() {
         }}
         disabled={isUpdatingStatus}
         className={`action-btn w-full ${
-          client.isActive
-            ? "border border-red-300 bg-surface text-red-700"
-            : "action-btn-secondary"
+          client.isActive ? "action-btn-danger" : "action-btn-secondary"
         }`}
       >
         {client.isActive ? (
@@ -1053,7 +1051,7 @@ export default function ClientProfilePage() {
                   setShowArchiveConfirmation(false);
                   toggleArchive();
                 }}
-                className="action-btn border border-red-600 bg-red-600 text-white"
+                className="action-btn action-btn-danger-solid"
               >
                 Archive Client
               </button>
@@ -1133,7 +1131,7 @@ export default function ClientProfilePage() {
                 type="button"
                 disabled={packageAction === `reverse-${paymentToReverse.id}`}
                 onClick={() => reversePayment(paymentToReverse)}
-                className="action-btn border border-red-600 bg-red-600 text-white disabled:opacity-70"
+                className="action-btn action-btn-danger-solid disabled:opacity-70"
               >
                 {packageAction === `reverse-${paymentToReverse.id}`
                   ? "Reversing..."
