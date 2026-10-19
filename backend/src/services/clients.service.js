@@ -14,7 +14,8 @@ import {
   requireOneOf,
   requirePositiveInteger
 } from "../lib/validation.js";
-import { clientsRepository } from "../repositories/clients.repository.js";
+import { MAX_ACTIVE_GOALS, clientsRepository } from "../repositories/clients.repository.js";
+import { env } from "../config/env.js";
 
 function formatDate(value) {
   if (!value) return null;
@@ -24,6 +25,44 @@ function formatDate(value) {
 
 const DAY_NAMES = ["", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const PAYMENT_METHODS = ["cash", "eft", "card"];
+
+const MAX_GOAL_LENGTH = 200;
+
+function businessToday() {
+  return new Date().toLocaleDateString("en-CA", { timeZone: env.businessTimezone });
+}
+
+function requireGoalText(value) {
+  const goal = cleanString(value);
+  if (!goal) {
+    throw validationError("A goal needs some words", { field: "goal" });
+  }
+  if (goal.length > MAX_GOAL_LENGTH) {
+    throw validationError(`A goal must be ${MAX_GOAL_LENGTH} characters or fewer`, {
+      field: "goal"
+    });
+  }
+  return goal;
+}
+
+// A goal cannot have been achieved on a day that has not happened yet.
+function requireAchievedDate(value) {
+  const achievedAt = requireIsoDate(value, "achievedAt");
+  if (achievedAt > businessToday()) {
+    throw validationError("A goal cannot be achieved in the future", { field: "achievedAt" });
+  }
+  return achievedAt;
+}
+
+function toGoalDto(row) {
+  return {
+    id: Number(row.id),
+    goal: row.goal,
+    targetDate: row.target_date ?? null,
+    achievedAt: row.achieved_at ?? null,
+    createdAt: row.created_at
+  };
+}
 
 function toClientDto(row) {
   const price = Number(row.price ?? 0);
@@ -180,6 +219,15 @@ export function normalizePreferredSchedule(inputDays, inputSchedule, options = {
 }
 
 export function createClientsService(repository = clientsRepository) {
+  // Every goal operation needs the client to exist first, and a missing one
+  // must read as a 404 rather than an empty list. A shared helper beats
+  // `this` here, because a controller may hand a method around on its own.
+  async function requireClient(clientId) {
+    const id = requirePositiveInteger(clientId, "clientId");
+    if (!(await repository.findById(id))) throw notFoundError("Client not found");
+    return id;
+  }
+
   return {
     async listClients(query = {}) {
       const page = Math.max(1, Number(query.page) || 1);
@@ -223,9 +271,12 @@ export function createClientsService(repository = clientsRepository) {
 
     async getClient(clientId) {
       const id = requirePositiveInteger(clientId, "clientId");
-      const row = await repository.findById(id);
+      const [row, goals] = await Promise.all([
+        repository.findById(id),
+        repository.listGoals(id)
+      ]);
       if (!row) throw notFoundError("Client not found");
-      return toClientDto(row);
+      return { ...toClientDto(row), goals: goals.map(toGoalDto) };
     },
 
     async createClient(input = {}) {
@@ -348,6 +399,79 @@ export function createClientsService(repository = clientsRepository) {
       const row = await repository.setActive(id, isActive);
       if (!row) throw notFoundError("Client not found");
       return toClientDto(row);
+    },
+
+    async addClientGoal(clientId, input = {}) {
+      const ownerId = await requireClient(clientId);
+      const created = await repository.createGoal(ownerId, {
+        goal: requireGoalText(input.goal),
+        targetDate: input.targetDate ? requireIsoDate(input.targetDate, "targetDate") : null
+      });
+      if (!created) {
+        throw conflictError(
+          `A client can work on ${MAX_ACTIVE_GOALS} goals at a time. ` +
+            "Mark one achieved or remove it first."
+        );
+      }
+      return (await repository.listGoals(ownerId)).map(toGoalDto);
+    },
+
+    /**
+     * Only the fields present are touched, so marking a goal achieved does not
+     * require sending its text back.
+     */
+    async updateClientGoal(clientId, goalId, input = {}) {
+      const ownerId = await requireClient(clientId);
+      const id = requirePositiveInteger(goalId, "goalId");
+      const existing = (await repository.listGoals(ownerId)).find(
+        (row) => Number(row.id) === id
+      );
+      if (!existing) {
+        throw notFoundError("Goal not found");
+      }
+
+      const changes = {};
+      if (input.goal !== undefined) {
+        changes.goal = requireGoalText(input.goal);
+      }
+      if (input.targetDate !== undefined) {
+        changes.targetDate = input.targetDate
+          ? requireIsoDate(input.targetDate, "targetDate")
+          : null;
+      }
+      if (input.achievedAt !== undefined) {
+        changes.achievedAt = input.achievedAt
+          ? requireAchievedDate(input.achievedAt)
+          : null;
+      } else if (input.achieved !== undefined) {
+        changes.achievedAt = optionalBoolean(input.achieved, "achieved") ? businessToday() : null;
+      }
+      if (Object.keys(changes).length === 0) {
+        throw validationError("Provide goal, targetDate, achieved or achievedAt");
+      }
+
+      const updated = await repository.updateGoal(ownerId, id, changes);
+      if (!updated) {
+        // The goal exists, so the only thing the update could not do is reopen
+        // it past the cap.
+        throw conflictError(
+          `A client can work on ${MAX_ACTIVE_GOALS} goals at a time. ` +
+            "Mark one achieved or remove it first."
+        );
+      }
+      return (await repository.listGoals(ownerId)).map(toGoalDto);
+    },
+
+    async removeClientGoal(clientId, goalId) {
+      const ownerId = await requireClient(clientId);
+      const removed = await repository.deleteGoal(
+        ownerId,
+        requirePositiveInteger(goalId, "goalId")
+      );
+      if (!removed) {
+        throw notFoundError("Goal not found");
+      }
+      return (await repository.listGoals(ownerId)).map(toGoalDto);
     },
 
     async getPackageHistory(clientId) {

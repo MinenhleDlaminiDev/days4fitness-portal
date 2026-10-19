@@ -51,6 +51,33 @@ export function createClientsController(service = clientsService) {
       }
     },
 
+    async addGoal(req, res, next) {
+      try {
+        sendData(res, await service.addClientGoal(req.params.id, req.body), { status: 201 });
+      } catch (error) {
+        next(error);
+      }
+    },
+
+    async updateGoal(req, res, next) {
+      try {
+        sendData(
+          res,
+          await service.updateClientGoal(req.params.id, req.params.goalId, req.body)
+        );
+      } catch (error) {
+        next(error);
+      }
+    },
+
+    async removeGoal(req, res, next) {
+      try {
+        sendData(res, await service.removeClientGoal(req.params.id, req.params.goalId));
+      } catch (error) {
+        next(error);
+      }
+    },
+
     async archive(req, res, next) {
       try {
         sendData(res, await service.setClientActive(req.params.id, false));

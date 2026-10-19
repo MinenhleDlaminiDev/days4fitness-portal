@@ -216,3 +216,86 @@ test("rolls back contact changes when an atomic preference update fails", async 
     await testPool.query("DELETE FROM clients WHERE email = $1", [email]);
   }
 });
+
+test("goals live with their client: ordering, the cap, and the cascade", async () => {
+  const email = `goals-${Date.now()}@example.com`;
+  const created = await service.createClient({
+    name: "Goal Client",
+    phone: "+27 82 777 0000",
+    email,
+    program: "Weight Loss",
+    sessionType: "One-on-One",
+    packageSize: 4,
+    purchaseDate: PURCHASE_DATE
+  });
+
+  try {
+    await service.addClientGoal(created.id, {
+      goal: "Train three times a week",
+      targetDate: daysFromToday(30)
+    });
+    const twoGoals = await service.addClientGoal(created.id, { goal: "Lose 8kg" });
+
+    // Newest first while both are being worked on.
+    assert.deepEqual(
+      twoGoals.map((item) => item.goal),
+      ["Lose 8kg", "Train three times a week"]
+    );
+
+    // An achieved goal drops below the ones still being worked on.
+    const first = twoGoals.at(-1);
+    const afterAchieving = await service.updateClientGoal(created.id, first.id, {
+      achieved: true
+    });
+    assert.deepEqual(
+      afterAchieving.map((item) => item.goal),
+      ["Lose 8kg", "Train three times a week"]
+    );
+    assert.equal(afterAchieving.at(-1).achievedAt, daysFromToday(0));
+
+    // Five at a time, and an achieved one does not count against the cap.
+    for (const goal of ["Goal B", "Goal C", "Goal D", "Goal E"]) {
+      await service.addClientGoal(created.id, { goal });
+    }
+    await assert.rejects(
+      service.addClientGoal(created.id, { goal: "One too many" }),
+      (error) => error.status === 409
+    );
+    // Reopening the achieved one would make six, so it is refused too.
+    await assert.rejects(
+      service.updateClientGoal(created.id, first.id, { achieved: false }),
+      (error) => error.status === 409
+    );
+
+    // The profile reads goals with the client, in the same order.
+    const reloaded = await service.getClient(created.id);
+    assert.equal(reloaded.goals.length, 6);
+    assert.equal(reloaded.goals.at(-1).goal, "Train three times a week");
+
+    // Removing one frees a slot.
+    const afterRemoval = await service.removeClientGoal(created.id, reloaded.goals[0].id);
+    assert.equal(afterRemoval.length, 5);
+
+    // The database rejects a goal of only whitespace whatever the caller does.
+    await assert.rejects(
+      testPool.query("INSERT INTO client_goals (client_id, goal) VALUES ($1, '   ')", [
+        created.id
+      ]),
+      (error) => error.code === "23514"
+    );
+
+    // Archiving is not a delete: the goals survive it.
+    await service.setClientActive(created.id, false);
+    const archived = await service.getClient(created.id);
+    assert.equal(archived.goals.length, 5);
+    await service.setClientActive(created.id, true);
+  } finally {
+    await testPool.query("DELETE FROM clients WHERE id = $1", [created.id]);
+  }
+
+  // Deleting the client took the goals with it.
+  const left = await testPool.query("SELECT COUNT(*)::int AS total FROM client_goals WHERE client_id = $1", [
+    created.id
+  ]);
+  assert.equal(left.rows[0].total, 0);
+});

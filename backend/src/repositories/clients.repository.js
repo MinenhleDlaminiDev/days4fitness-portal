@@ -57,6 +57,18 @@ const CLIENT_SELECT_SQL = `
   ) preference_statuses ON true
 `;
 
+// Enough for a client to be working on more than one thing without the
+// session card turning into a wall of text.
+export const MAX_ACTIVE_GOALS = 5;
+
+const GOAL_SELECT_SQL = `
+  SELECT id, goal, target_date::text, achieved_at::text, created_at
+  FROM client_goals
+`;
+
+// Still being worked on first, then newest first within each group.
+const GOAL_ORDER_SQL = "(achieved_at IS NOT NULL), created_at DESC, id DESC";
+
 const DAY_NUMBERS = {
   Monday: 1,
   Tuesday: 2,
@@ -307,6 +319,84 @@ export function createClientsRepository(
     async findById(id, db = dbPool) {
       const result = await db.query(`${CLIENT_SELECT_SQL} WHERE c.id = $1`, [id]);
       return result.rows[0] || null;
+    },
+
+    async listGoals(clientId, db = dbPool) {
+      const result = await db.query(
+        `${GOAL_SELECT_SQL}
+         WHERE client_id = $1
+         ORDER BY ${GOAL_ORDER_SQL}`,
+        [clientId]
+      );
+      return result.rows;
+    },
+
+    /**
+     * Adds a goal unless the client already has MAX_ACTIVE_GOALS on the go.
+     * The cap is applied inside the insert rather than read first, so two
+     * requests arriving together cannot both see room for the last one.
+     * Returns null when the cap blocked it.
+     */
+    async createGoal(clientId, { goal, targetDate }) {
+      const result = await dbPool.query(
+        `INSERT INTO client_goals (client_id, goal, target_date)
+         SELECT $1, $2, $3::date
+         WHERE (
+           SELECT COUNT(*) FROM client_goals
+           WHERE client_id = $1 AND achieved_at IS NULL
+         ) < $4
+         RETURNING id, goal, target_date::text, achieved_at::text, created_at`,
+        [clientId, goal, targetDate, MAX_ACTIVE_GOALS]
+      );
+      return result.rows[0] || null;
+    },
+
+    /**
+     * Applies only the fields given. Reopening a goal is capped the same way
+     * as creating one, so finishing five and reopening them all is refused.
+     * Returns null when the goal is not this client's, undefined-ish handling
+     * of the cap is the caller's to interpret via `capped`.
+     */
+    async updateGoal(clientId, goalId, { goal, targetDate, achievedAt }) {
+      const reopening = achievedAt === null;
+      const result = await dbPool.query(
+        `UPDATE client_goals
+         SET goal = COALESCE($3, goal),
+             target_date = CASE WHEN $4::boolean THEN $5::date ELSE target_date END,
+             achieved_at = CASE WHEN $6::boolean THEN $7::date ELSE achieved_at END
+         WHERE id = $2
+           AND client_id = $1
+           AND (
+             NOT $8::boolean
+             OR (
+               SELECT COUNT(*) FROM client_goals sibling
+               WHERE sibling.client_id = $1
+                 AND sibling.achieved_at IS NULL
+                 AND sibling.id <> $2
+             ) < $9
+           )
+         RETURNING id, goal, target_date::text, achieved_at::text, created_at`,
+        [
+          clientId,
+          goalId,
+          goal ?? null,
+          targetDate !== undefined,
+          targetDate ?? null,
+          achievedAt !== undefined,
+          achievedAt ?? null,
+          reopening,
+          MAX_ACTIVE_GOALS
+        ]
+      );
+      return result.rows[0] || null;
+    },
+
+    async deleteGoal(clientId, goalId) {
+      const result = await dbPool.query(
+        "DELETE FROM client_goals WHERE id = $2 AND client_id = $1",
+        [clientId, goalId]
+      );
+      return result.rowCount > 0;
     },
 
     async createWithPackage(clientData, packageData) {

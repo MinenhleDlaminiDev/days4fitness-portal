@@ -83,6 +83,23 @@ export async function updateClient(clientId, payload) {
   return responseData(response);
 }
 
+// Every goal write answers with the client's whole goal list, already ordered,
+// so the profile replaces what it has instead of re-sorting or re-fetching.
+export async function addClientGoal(clientId, payload) {
+  const response = await api.post(`/clients/${clientId}/goals`, payload);
+  return responseData(response);
+}
+
+export async function updateClientGoal(clientId, goalId, payload) {
+  const response = await api.patch(`/clients/${clientId}/goals/${goalId}`, payload);
+  return responseData(response);
+}
+
+export async function removeClientGoal(clientId, goalId) {
+  const response = await api.delete(`/clients/${clientId}/goals/${goalId}`);
+  return responseData(response);
+}
+
 export async function archiveClient(clientId) {
   const response = await api.post(`/clients/${clientId}/archive`);
   return responseData(response);

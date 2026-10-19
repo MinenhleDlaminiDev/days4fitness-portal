@@ -42,6 +42,7 @@ import {
 } from "../lib/contact.js";
 import { useAppConfiguration } from "../context/AppConfigurationContext.jsx";
 import ContactActions from "../components/ContactActions.jsx";
+import ClientGoals from "../components/ClientGoals.jsx";
 import SuccessToast from "../components/SuccessToast.jsx";
 import useDismissable from "../lib/useDismissable.js";
 
@@ -53,6 +54,7 @@ export default function ClientProfilePage() {
     .find((item) => item.day === "Saturday")
     ?.timeSlots.at(-1);
   const [client, setClient] = useState(null);
+  const [goals, setGoals] = useState([]);
   const [packages, setPackages] = useState([]);
   const [sessions, setSessions] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -97,6 +99,7 @@ export default function ClientProfilePage() {
         setLoadError("");
         setHistoryError("");
         setClient(null);
+        setGoals([]);
         setPackages([]);
         setSessions([]);
         const row = await fetchClientById(id);
@@ -106,6 +109,7 @@ export default function ClientProfilePage() {
         ]);
         if (!mounted) return;
         setClient(row);
+        setGoals(Array.isArray(row.goals) ? row.goals : []);
         setPackages(packageResult.status === "fulfilled" ? packageResult.value || [] : []);
         setSessions(sessionResult.status === "fulfilled" ? sessionResult.value || [] : []);
         if (packageResult.status === "rejected" || sessionResult.status === "rejected") {
@@ -483,6 +487,13 @@ export default function ClientProfilePage() {
       {/* Two columns from lg up; a single stacked column on phones. */}
       <div className="grid gap-4 sm:gap-5 lg:grid-cols-2 lg:items-start">
       <div className="space-y-4 sm:space-y-5">
+
+      <ClientGoals
+        clientId={client.id}
+        goals={goals}
+        onGoalsChange={setGoals}
+        canEdit={client.isActive}
+      />
 
       <article className="surface-card">
         <h2 className="section-title text-base sm:text-lg">Contact Information</h2>

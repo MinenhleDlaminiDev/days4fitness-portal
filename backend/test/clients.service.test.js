@@ -404,3 +404,134 @@ test("rejects non-boolean payment values", async () => {
       error.details.field === "paid"
   );
 });
+
+function goalRow(overrides = {}) {
+  return {
+    id: 1,
+    goal: "Lose 8kg",
+    target_date: null,
+    achieved_at: null,
+    created_at: "2026-10-01T08:00:00.000Z",
+    ...overrides
+  };
+}
+
+function goalService(overrides = {}) {
+  return createClientsService({
+    async findById() {
+      return clientRow();
+    },
+    async listGoals() {
+      return [goalRow()];
+    },
+    async createGoal() {
+      return goalRow({ id: 2 });
+    },
+    async updateGoal() {
+      return goalRow();
+    },
+    async deleteGoal() {
+      return true;
+    },
+    ...overrides
+  });
+}
+
+test("a client is returned with its goals already ordered", async () => {
+  const service = goalService({
+    async listGoals() {
+      return [
+        goalRow({ id: 3, goal: "Run a 10k", target_date: "2026-12-01" }),
+        goalRow({ id: 1, goal: "Train 3x a week", achieved_at: "2026-09-30" })
+      ];
+    }
+  });
+
+  const client = await service.getClient(1);
+
+  assert.deepEqual(
+    client.goals.map((item) => [item.goal, item.targetDate, item.achievedAt]),
+    [
+      ["Run a 10k", "2026-12-01", null],
+      ["Train 3x a week", null, "2026-09-30"]
+    ]
+  );
+});
+
+test("a goal needs words and cannot run past the length limit", async () => {
+  const service = goalService();
+
+  for (const goal of ["", "   ", "x".repeat(201)]) {
+    await assert.rejects(
+      service.addClientGoal(1, { goal }),
+      (error) => error.status === 400,
+      `expected ${JSON.stringify(goal)} to be rejected`
+    );
+  }
+});
+
+test("the active goal cap is reported rather than failing silently", async () => {
+  const service = goalService({
+    async createGoal() {
+      return null;
+    }
+  });
+
+  await assert.rejects(
+    service.addClientGoal(1, { goal: "One too many" }),
+    (error) => error.status === 409 && /at a time/.test(error.message)
+  );
+});
+
+test("marking a goal achieved and putting it back are both one field", async () => {
+  const seen = [];
+  const service = goalService({
+    async updateGoal(clientId, goalId, changes) {
+      seen.push(changes);
+      return goalRow();
+    }
+  });
+
+  await service.updateClientGoal(1, 1, { achieved: true });
+  await service.updateClientGoal(1, 1, { achieved: false });
+
+  assert.equal(typeof seen[0].achievedAt, "string", "achieving stamps today's date");
+  assert.equal(seen[1].achievedAt, null, "reopening clears it");
+});
+
+test("a goal cannot be achieved in the future, and an empty update is refused", async () => {
+  const service = goalService();
+  const nextYear = `${new Date().getFullYear() + 1}-01-01`;
+
+  await assert.rejects(
+    service.updateClientGoal(1, 1, { achievedAt: nextYear }),
+    (error) => error.status === 400 && /future/.test(error.message)
+  );
+  await assert.rejects(
+    service.updateClientGoal(1, 1, {}),
+    (error) => error.status === 400
+  );
+});
+
+test("goal writes are refused for a missing client or a goal of someone else's", async () => {
+  const noClient = goalService({
+    async findById() {
+      return null;
+    }
+  });
+  await assert.rejects(noClient.addClientGoal(9, { goal: "Ghost" }), (error) => error.status === 404);
+
+  const notTheirs = goalService({
+    async listGoals() {
+      return [];
+    },
+    async deleteGoal() {
+      return false;
+    }
+  });
+  await assert.rejects(
+    notTheirs.updateClientGoal(1, 77, { achieved: true }),
+    (error) => error.status === 404
+  );
+  await assert.rejects(notTheirs.removeClientGoal(1, 77), (error) => error.status === 404);
+});
