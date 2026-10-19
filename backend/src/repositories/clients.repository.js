@@ -492,6 +492,13 @@ export function createClientsRepository(
           );
         }
 
+        if (clientData.goal) {
+          await db.query(
+            "INSERT INTO client_goals (client_id, goal) VALUES ($1, $2)",
+            [clientId, clientData.goal]
+          );
+        }
+
         await syncPreferenceRequests(
           db,
           clientId,

@@ -31,6 +31,7 @@ export default function ClientFormPage() {
     sessionType: "One-on-One",
     packageSize: "",
     purchaseDate: localDateInputValue(),
+    goal: "",
     paid: false,
     paymentMethod: "eft",
     preferredDays: [],
@@ -316,6 +317,21 @@ export default function ClientFormPage() {
                 className={fieldClass}
               />
             </label>}
+
+            {!isEdit && <label className="block">
+              <span className="text-sm font-medium sm:text-base">Goal (Optional)</span>
+              <input
+                value={form.goal}
+                maxLength={200}
+                onChange={(event) => updateField("goal", event.target.value)}
+                className={fieldClass}
+                placeholder="What are they working towards?"
+              />
+              <span className="mt-1 block text-xs text-subtle">
+                In their own words. You can add more and mark them achieved on their profile.
+              </span>
+            </label>}
+
 
             <div>
               <div className="mb-2 flex items-center justify-between gap-2">

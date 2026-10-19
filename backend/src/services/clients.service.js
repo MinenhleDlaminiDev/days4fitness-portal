@@ -316,6 +316,8 @@ export function createClientsService(repository = clientsRepository) {
             name: cleanString(input.name),
             phone: cleanString(input.phone),
             email: cleanString(input.email) || null,
+            // Optional at signup; validated the same way as one added later.
+            goal: cleanString(input.goal) ? requireGoalText(input.goal) : null,
             preferredDays,
             preferredSchedule
           },

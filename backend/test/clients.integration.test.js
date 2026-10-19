@@ -299,3 +299,62 @@ test("goals live with their client: ordering, the cap, and the cascade", async (
   ]);
   assert.equal(left.rows[0].total, 0);
 });
+
+test("a goal given at signup is saved with the client, and a bad one saves nothing", async () => {
+  const email = `signup-goal-${Date.now()}@example.com`;
+  const base = {
+    phone: "+27 82 666 0000",
+    program: "Weight Loss",
+    sessionType: "One-on-One",
+    packageSize: 4,
+    purchaseDate: PURCHASE_DATE
+  };
+  let created = null;
+
+  try {
+    created = await service.createClient({
+      ...base,
+      name: "Signup Goal Client",
+      email,
+      goal: "  Get back to running  "
+    });
+
+    const withGoal = await service.getClient(created.id);
+    assert.equal(withGoal.goals.length, 1);
+    assert.equal(withGoal.goals[0].goal, "Get back to running", "the goal is trimmed");
+    assert.equal(withGoal.goals[0].achievedAt, null);
+
+    // No goal is not an error.
+    const plainEmail = `signup-nogoal-${Date.now()}@example.com`;
+    const plain = await service.createClient({
+      ...base,
+      name: "No Goal Client",
+      email: plainEmail
+    });
+    try {
+      assert.deepEqual((await service.getClient(plain.id)).goals, []);
+    } finally {
+      await testPool.query("DELETE FROM clients WHERE id = $1", [plain.id]);
+    }
+
+    // A goal of only spaces takes the whole creation down with it.
+    const rejectedEmail = `signup-bad-${Date.now()}@example.com`;
+    await assert.rejects(
+      service.createClient({
+        ...base,
+        name: "Rejected Client",
+        email: rejectedEmail,
+        goal: "x".repeat(201)
+      }),
+      (error) => error.status === 400
+    );
+    const leftover = await testPool.query("SELECT id FROM clients WHERE email = $1", [
+      rejectedEmail
+    ]);
+    assert.equal(leftover.rowCount, 0, "nothing was written");
+  } finally {
+    if (created) {
+      await testPool.query("DELETE FROM clients WHERE id = $1", [created.id]);
+    }
+  }
+});
