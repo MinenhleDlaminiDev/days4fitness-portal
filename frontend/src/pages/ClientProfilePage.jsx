@@ -33,7 +33,15 @@ import {
   restoreClient,
   updateClientPreferences
 } from "../lib/api.js";
+import {
+  CONTACT_SUBJECTS,
+  contactActions,
+  expiringPackageMessage,
+  generalMessage,
+  outstandingPaymentMessage
+} from "../lib/contact.js";
 import { useAppConfiguration } from "../context/AppConfigurationContext.jsx";
+import ContactActions from "../components/ContactActions.jsx";
 import SuccessToast from "../components/SuccessToast.jsx";
 import useDismissable from "../lib/useDismissable.js";
 
@@ -181,6 +189,33 @@ export default function ClientProfilePage() {
     (client.paid ? "paid" : Number(client.paidAmount || 0) > 0 ? "partially_paid" : "unpaid");
   const availablePrograms = (configuration?.programs || []).filter(
     (program) => program.sessionType === packageForm.sessionType
+  );
+  // The draft message follows whatever most needs saying: money owed first,
+  // then a package about to lapse, otherwise an opening line to type into.
+  const expiresInDays = client.expiryDate ? daysUntil(client.expiryDate) : null;
+  const contactDraft =
+    Number(client.outstandingBalance || 0) > 0
+      ? {
+          subject: CONTACT_SUBJECTS.outstanding,
+          message: outstandingPaymentMessage(
+            client.name,
+            client.outstandingBalance,
+            client.program
+          )
+        }
+      : sessionsLeft > 0 && expiresInDays !== null && expiresInDays >= 0 && expiresInDays <= 7
+        ? {
+            subject: CONTACT_SUBJECTS.expiring,
+            message: expiringPackageMessage(
+              client.name,
+              sessionsLeft,
+              formatShortDate(client.expiryDate)
+            )
+          }
+        : { subject: CONTACT_SUBJECTS.general, message: generalMessage(client.name) };
+  const clientContactActions = contactActions(
+    { phone: client.phone, email: client.email },
+    contactDraft
   );
 
   function togglePreferredDay(day) {
@@ -410,6 +445,11 @@ export default function ClientProfilePage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <ContactActions
+            clientName={client.name}
+            variant="header"
+            actions={clientContactActions}
+          />
           {client.isActive && (
             <Link
               to={`/clients/${client.id}/edit`}

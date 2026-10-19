@@ -244,8 +244,16 @@ test("returns dashboard reporting summaries from real PostgreSQL data", async ()
     if (canCreateTodaySession) {
       assert.ok(overview.todaySessions.some((session) => session.id === activeSession.rows[0].id));
     }
-    assert.ok(overview.unpaidPackages.some((item) => item.clientId === partial.clientId));
-    assert.ok(overview.expiringPackages.some((item) => item.clientId === expiring.clientId));
+    const unpaidRow = overview.unpaidPackages.find((item) => item.clientId === partial.clientId);
+    const expiringRow = overview.expiringPackages.find((item) => item.clientId === expiring.clientId);
+    assert.ok(unpaidRow);
+    assert.ok(expiringRow);
+    // The dashboard offers a contact action per row, so both carry the
+    // client's own number and address rather than a second lookup.
+    assert.equal(unpaidRow.clientPhone, "+27 82 555 0700");
+    assert.ok(unpaidRow.clientEmail.includes("@example.com"));
+    assert.equal(expiringRow.clientPhone, "+27 82 555 0700");
+    assert.ok(expiringRow.clientEmail.includes("@example.com"));
 
     const todaySessions = await service.getTodaySessions();
     if (canCreateTodaySession) {

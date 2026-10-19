@@ -28,6 +28,10 @@ function toPackageDto(row) {
     id: row.id,
     clientId: row.client_id,
     clientName: row.client_name,
+    // Carried so the dashboard can offer a contact action without a second
+    // request per row. Empty rather than null when the client has none.
+    clientPhone: row.client_phone ?? "",
+    clientEmail: row.client_email ?? "",
     program: row.program_name,
     sessionType: sessionTypeFromDatabase(row.program_type),
     sessionsTotal: row.sessions_total,

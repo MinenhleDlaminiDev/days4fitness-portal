@@ -8,7 +8,14 @@ import {
   WalletCards
 } from "lucide-react";
 import { fetchDashboard, getApiErrorMessage } from "../lib/api.js";
-import { daysUntil } from "../lib/date.js";
+import { daysUntil, formatShortDate } from "../lib/date.js";
+import {
+  CONTACT_SUBJECTS,
+  contactActions,
+  expiringPackageMessage,
+  outstandingPaymentMessage
+} from "../lib/contact.js";
+import ContactActions from "../components/ContactActions.jsx";
 
 const emptyDashboard = {
   summary: {
@@ -216,12 +223,17 @@ export default function DashboardPage() {
               </p>
             )}
             {dashboard.unpaidPackages.map((item, index) => (
-              <Link
+              <div
                 key={item.id}
-                to={`/clients/${item.clientId}`}
-                className="interactive-card stagger-item block rounded-xl border border-line bg-surface p-3 hover:border-danger-border hover:bg-danger-soft/50"
+                className="interactive-card stagger-item relative rounded-xl border border-line bg-surface p-3 hover:border-danger-border hover:bg-danger-soft/50"
                 style={{ "--stagger": index }}
               >
+                {/* An overlay keeps the whole row tappable while leaving the
+                    contact links above it their own hit area. Nesting them
+                    inside the link would be invalid markup. */}
+                <Link to={`/clients/${item.clientId}`} className="absolute inset-0 rounded-xl">
+                  <span className="sr-only">Open {item.clientName}</span>
+                </Link>
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-base font-semibold sm:text-lg">{item.clientName}</p>
                   <span className="rounded-full bg-danger-tint px-2 py-1 text-xs font-semibold text-danger-strong">
@@ -229,10 +241,26 @@ export default function DashboardPage() {
                   </span>
                 </div>
                 <p className="text-sm text-muted">{item.program}</p>
-                <p className="text-sm font-semibold text-danger-strong sm:text-base">
-                  {currency(item.paidAmount)} paid of {currency(item.price)}
-                </p>
-              </Link>
+                <div className="mt-1 flex items-end justify-between gap-3">
+                  <p className="text-sm font-semibold text-danger-strong sm:text-base">
+                    {currency(item.paidAmount)} paid of {currency(item.price)}
+                  </p>
+                  <ContactActions
+                    clientName={item.clientName}
+                    actions={contactActions(
+                      { phone: item.clientPhone, email: item.clientEmail },
+                      {
+                        subject: CONTACT_SUBJECTS.outstanding,
+                        message: outstandingPaymentMessage(
+                          item.clientName,
+                          item.outstandingBalance,
+                          item.program
+                        )
+                      }
+                    )}
+                  />
+                </div>
+              </div>
             ))}
           </div>
         </article>
@@ -249,12 +277,14 @@ export default function DashboardPage() {
               </p>
             )}
             {dashboard.expiringPackages.map((item, index) => (
-              <Link
+              <div
                 key={item.id}
-                to={`/clients/${item.clientId}`}
-                className="interactive-card stagger-item block rounded-xl border border-line bg-surface p-3 hover:border-warn-border hover:bg-warn-soft/50"
+                className="interactive-card stagger-item relative rounded-xl border border-line bg-surface p-3 hover:border-warn-border hover:bg-warn-soft/50"
                 style={{ "--stagger": index }}
               >
+                <Link to={`/clients/${item.clientId}`} className="absolute inset-0 rounded-xl">
+                  <span className="sr-only">Open {item.clientName}</span>
+                </Link>
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-base font-semibold sm:text-lg">{item.clientName}</p>
                   <span className="rounded-full bg-warn-tint px-2 py-1 text-xs font-semibold text-warn-text">
@@ -262,10 +292,26 @@ export default function DashboardPage() {
                   </span>
                 </div>
                 <p className="text-sm text-muted">{item.program}</p>
-                <p className="text-sm text-warn-text">
-                  {item.sessionsRemaining} sessions left
-                </p>
-              </Link>
+                <div className="mt-1 flex items-end justify-between gap-3">
+                  <p className="text-sm text-warn-text">
+                    {item.sessionsRemaining} sessions left
+                  </p>
+                  <ContactActions
+                    clientName={item.clientName}
+                    actions={contactActions(
+                      { phone: item.clientPhone, email: item.clientEmail },
+                      {
+                        subject: CONTACT_SUBJECTS.expiring,
+                        message: expiringPackageMessage(
+                          item.clientName,
+                          item.sessionsRemaining,
+                          formatShortDate(item.expiryDate)
+                        )
+                      }
+                    )}
+                  />
+                </div>
+              </div>
             ))}
           </div>
         </article>
