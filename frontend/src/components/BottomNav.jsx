@@ -2,6 +2,7 @@ import { NavLink } from "react-router-dom";
 import {
   Calendar as CalendarIcon,
   ClipboardCheck as ClipboardCheckIcon,
+  BarChart3 as ReportsIcon,
   Clock as ClockIcon,
   Settings as SettingsIcon,
   Users as UsersIcon
@@ -12,6 +13,7 @@ const items = [
   { to: "/schedule", label: "Schedule", icon: ClockIcon },
   { to: "/clients", label: "Clients", icon: UsersIcon },
   { to: "/requests", label: "Approvals", icon: ClipboardCheckIcon },
+  { to: "/reports", label: "Reports", icon: ReportsIcon },
   { to: "/settings", label: "Settings", icon: SettingsIcon }
 ];
 

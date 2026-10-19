@@ -153,6 +153,11 @@ export async function updateSchedulingSettings(payload) {
   return responseData(response);
 }
 
+export async function fetchReport({ from, to }) {
+  const response = await api.get("/reports", { params: { from, to } });
+  return responseData(response);
+}
+
 export async function fetchConfiguration() {
   const response = await api.get("/configuration");
   return responseData(response);

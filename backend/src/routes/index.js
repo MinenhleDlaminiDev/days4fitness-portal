@@ -7,6 +7,7 @@ import sessionsRoutes from "./sessions.routes.js";
 import packagesRoutes from "./packages.routes.js";
 import dashboardRoutes from "./dashboard.routes.js";
 import authRoutes from "./auth.routes.js";
+import reportsRoutes from "./reports.routes.js";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 
 const router = Router();
@@ -21,5 +22,6 @@ router.use("/booking-requests", bookingRequestsRoutes);
 router.use("/sessions", sessionsRoutes);
 router.use("/packages", packagesRoutes);
 router.use("/dashboard", dashboardRoutes);
+router.use("/reports", reportsRoutes);
 
 export default router;
