@@ -5,6 +5,8 @@ export function createSessionsRouter(controller = sessionsController) {
   const router = Router();
   router.get("/", controller.listWeek);
   router.post("/", controller.create);
+  // Ahead of the ":id" routes so the literal path is not read as an id.
+  router.post("/cancel-day", controller.cancelDay);
   router.get("/:id", controller.get);
   router.post("/:id/reschedule", controller.reschedule);
   router.post("/:id/cancel", controller.cancel);

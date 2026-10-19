@@ -99,8 +99,45 @@ test("passes manual booking and attendance outcome inputs to the repository", as
 
   assert.deepEqual(calls, [
     ["create", 4, "2026-06-15", "08:00"],
-    ["outcome", 12, 4, "completed"]
+    ["outcome", 12, 4, "completed", { applyToAll: false }]
   ]);
+});
+
+test("applyToAll drops the clientId so every attendee is marked at once", async () => {
+  const calls = [];
+  const service = createSessionsService({
+    async recordOutcome(...args) {
+      calls.push(args);
+      return { ...sessionRow, status: "no_show" };
+    }
+  });
+
+  await service.recordOutcome("12", { applyToAll: true }, "no_show");
+  // A clientId sent alongside applyToAll is ignored rather than narrowing it.
+  await service.recordOutcome("12", { applyToAll: true, clientId: 4 }, "no_show");
+
+  assert.deepEqual(calls, [
+    [12, null, "no_show", { applyToAll: true }],
+    [12, null, "no_show", { applyToAll: true }]
+  ]);
+});
+
+test("cancelDay validates the date and reports how many were cancelled", async () => {
+  const service = createSessionsService({
+    async cancelDay(sessionDate) {
+      return sessionDate === "2026-06-15" ? [11, 12, 13] : [];
+    }
+  });
+
+  assert.deepEqual(await service.cancelDay({ sessionDate: "2026-06-15" }), {
+    sessionDate: "2026-06-15",
+    cancelled: 3,
+    sessionIds: [11, 12, 13]
+  });
+
+  for (const input of [{}, { sessionDate: "15-06-2026" }, { sessionDate: "2026-06-31" }]) {
+    await assert.rejects(service.cancelDay(input), (error) => error.status === 400);
+  }
 });
 
 test("translates duplicate credit consumption into a conflict", async () => {

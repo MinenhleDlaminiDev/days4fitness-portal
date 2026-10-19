@@ -457,3 +457,129 @@ test("books at the configured session length and blocks the slot it now covers",
     );
   }
 });
+
+test("marks a whole group in one request and leaves one credit used each", async () => {
+  const first = await createClientPackage("bulk-group-first", { sessionType: "group" });
+  const second = await createClientPackage("bulk-group-second", { sessionType: "group" });
+
+  const session = await service.createManual({
+    clientId: first.clientId,
+    sessionDate: day(30),
+    startTime: "07:00"
+  });
+  await service.createManual({
+    clientId: second.clientId,
+    sessionDate: day(30),
+    startTime: "07:00"
+  });
+
+  // Without applyToAll a group still needs a clientId; that guard stands.
+  await assert.rejects(
+    service.recordOutcome(session.id, {}, "completed"),
+    (error) => error.status === 409
+  );
+
+  await testPool.query(
+    "UPDATE sessions SET session_date = $2 WHERE id = $1",
+    [session.id, day(-28)]
+  );
+
+  const finished = await service.recordOutcome(session.id, { applyToAll: true }, "completed");
+
+  assert.equal(finished.status, "completed");
+  assert.equal(finished.attendees.length, 2);
+  assert.ok(finished.attendees.every((attendee) => attendee.status === "completed"));
+
+  for (const client of [first, second]) {
+    const used = await testPool.query("SELECT sessions_used FROM packages WHERE id = $1", [
+      client.packageId
+    ]);
+    assert.equal(used.rows[0].sessions_used, 1, "exactly one credit each");
+  }
+});
+
+test("cancels a whole day at once and skips sessions already finished", async () => {
+  const client = await createClientPackage("bulk-cancel");
+  const target = day(31);
+
+  const morning = await service.createManual({
+    clientId: client.clientId,
+    sessionDate: target,
+    startTime: "06:00"
+  });
+  const midday = await service.createManual({
+    clientId: client.clientId,
+    sessionDate: target,
+    startTime: "12:00"
+  });
+  const alreadyCancelled = await service.createManual({
+    clientId: client.clientId,
+    sessionDate: target,
+    startTime: "15:00"
+  });
+  await service.cancel(alreadyCancelled.id);
+
+  const result = await service.cancelDay({ sessionDate: target });
+
+  assert.equal(result.cancelled, 2, "only the two still-scheduled sessions");
+  assert.deepEqual(
+    [...result.sessionIds].sort((a, b) => a - b),
+    [morning.id, midday.id].sort((a, b) => a - b)
+  );
+  assert.equal((await service.getSession(morning.id)).status, "cancelled");
+  assert.equal((await service.getSession(midday.id)).status, "cancelled");
+
+  // Cancelling consumes no credits.
+  const used = await testPool.query("SELECT sessions_used FROM packages WHERE id = $1", [
+    client.packageId
+  ]);
+  assert.equal(used.rows[0].sessions_used, 0);
+
+  // Running it again is a no-op rather than an error.
+  assert.equal((await service.cancelDay({ sessionDate: target })).cancelled, 0);
+});
+
+test("a day cancel rolls back entirely when one session has already started", async () => {
+  // A session can only have started if it is today, so this case only exists
+  // on a training day.
+  if (!isTrainingDay(daysFromToday(0))) return;
+
+  const client = await createClientPackage("bulk-cancel-rollback");
+  const today = daysFromToday(0);
+
+  const started = await service.createManual({
+    clientId: client.clientId,
+    sessionDate: day(35), // a Monday: day(33) is a Saturday, which closes at 10:00
+    startTime: "06:00"
+  });
+  const later = await service.createManual({
+    clientId: client.clientId,
+    sessionDate: day(35), // a Monday: day(33) is a Saturday, which closes at 10:00
+    startTime: "19:00"
+  });
+
+  // Move both onto today, one of them half an hour ago.
+  await testPool.query(
+    `UPDATE sessions
+     SET session_date = $2::date,
+         start_time = (CURRENT_TIMESTAMP AT TIME ZONE 'Africa/Johannesburg' - INTERVAL '30 minutes')::time(0)
+     WHERE id = $1`,
+    [started.id, today]
+  );
+  await testPool.query(
+    `UPDATE sessions
+     SET session_date = $2::date,
+         start_time = (CURRENT_TIMESTAMP AT TIME ZONE 'Africa/Johannesburg' + INTERVAL '3 hours')::time(0)
+     WHERE id = $1`,
+    [later.id, today]
+  );
+
+  await assert.rejects(
+    service.cancelDay({ sessionDate: today }),
+    (error) => error.status === 409
+  );
+
+  // Neither was cancelled: the whole day rolled back.
+  assert.equal((await service.getSession(started.id)).status, "scheduled");
+  assert.equal((await service.getSession(later.id)).status, "scheduled");
+});

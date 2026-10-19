@@ -228,16 +228,21 @@ export async function createReplacementSession(sessionId, payload) {
   return responseData(response);
 }
 
-export async function completeSession(sessionId, clientId) {
+export async function completeSession(sessionId, clientId, { applyToAll = false } = {}) {
   const response = await api.post(`/sessions/${sessionId}/complete`, {
-    ...(clientId ? { clientId } : {})
+    ...(applyToAll ? { applyToAll: true } : clientId ? { clientId } : {})
   });
   return responseData(response);
 }
 
-export async function markSessionNoShow(sessionId, clientId) {
+export async function cancelScheduleDay(sessionDate) {
+  const response = await api.post("/sessions/cancel-day", { sessionDate });
+  return responseData(response);
+}
+
+export async function markSessionNoShow(sessionId, clientId, { applyToAll = false } = {}) {
   const response = await api.post(`/sessions/${sessionId}/no-show`, {
-    ...(clientId ? { clientId } : {})
+    ...(applyToAll ? { applyToAll: true } : clientId ? { clientId } : {})
   });
   return responseData(response);
 }

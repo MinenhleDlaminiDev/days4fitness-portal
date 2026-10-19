@@ -141,14 +141,26 @@ export function createSessionsService(repository = sessionsRepository) {
       }
     },
 
+    async cancelDay(input = {}) {
+      const sessionDate = requireIsoDate(input.sessionDate, "sessionDate");
+      try {
+        const cancelledIds = await repository.cancelDay(sessionDate);
+        return { sessionDate, cancelled: cancelledIds.length, sessionIds: cancelledIds };
+      } catch (error) {
+        translateRepositoryError(error);
+      }
+    },
+
     async recordOutcome(sessionId, input, outcome) {
       const id = requirePositiveInteger(sessionId, "sessionId");
+      // applyToAll is the explicit opt-in for marking a whole group at once.
+      const applyToAll = input?.applyToAll === true;
       const clientId =
-        input?.clientId === undefined || input?.clientId === null
+        applyToAll || input?.clientId === undefined || input?.clientId === null
           ? null
           : requirePositiveInteger(input.clientId, "clientId");
       try {
-        const row = await repository.recordOutcome(id, clientId, outcome);
+        const row = await repository.recordOutcome(id, clientId, outcome, { applyToAll });
         if (!row) throw notFoundError("Session not found");
         return toSessionDto(row);
       } catch (error) {

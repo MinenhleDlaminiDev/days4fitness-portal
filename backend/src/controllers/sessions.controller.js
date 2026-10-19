@@ -47,6 +47,13 @@ export function createSessionsController(service = sessionsService) {
         next(error);
       }
     },
+    async cancelDay(req, res, next) {
+      try {
+        sendData(res, await service.cancelDay(req.body));
+      } catch (error) {
+        next(error);
+      }
+    },
     async complete(req, res, next) {
       try {
         sendData(res, await service.recordOutcome(req.params.id, req.body, "completed"));

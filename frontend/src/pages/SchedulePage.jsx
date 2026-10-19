@@ -4,7 +4,9 @@ import {
   ArrowLeft,
   ArrowRight,
   Calendar,
+  CalendarX,
   Check,
+  CheckCheck,
   Clock,
   Eye,
   EyeOff,
@@ -17,6 +19,7 @@ import {
 import SuccessToast from "../components/SuccessToast.jsx";
 import { useAppConfiguration } from "../context/AppConfigurationContext.jsx";
 import {
+  cancelScheduleDay,
   cancelSession,
   completeSession,
   createManualSession,
@@ -212,6 +215,7 @@ function BookingForm({ clients, initial, title, submitLabel, onCancel, onSubmit,
 }
 
 function SessionModal({
+  onOutcomeAll,
   session,
   clients,
   mode,
@@ -302,6 +306,33 @@ function SessionModal({
                   <Users size={16} /> {session.attendees.length} attendee
                   {session.attendees.length === 1 ? "" : "s"}
                 </p>
+                {session.status === "scheduled" &&
+                  hasStarted &&
+                  session.attendees.filter((attendee) => attendee.status === "scheduled").length >
+                    1 && (
+                    <div
+                      className={`mb-3 grid gap-2 ${hasEnded ? "grid-cols-2" : "grid-cols-1"}`}
+                    >
+                      {hasEnded && (
+                        <button
+                          type="button"
+                          disabled={isSaving}
+                          onClick={() => onOutcomeAll("complete")}
+                          className="action-btn action-btn-primary h-11 sm:h-11"
+                        >
+                          <CheckCheck size={15} className="mr-1" /> Mark all complete
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        disabled={isSaving}
+                        onClick={() => onOutcomeAll("no-show")}
+                        className="action-btn action-btn-warn h-11 sm:h-11"
+                      >
+                        Mark all no-show
+                      </button>
+                    </div>
+                  )}
                 <div className="space-y-3">
                   {session.attendees.map((attendee) => (
                     <div key={attendee.attendanceId} className="rounded-xl border border-line bg-surface p-3">
@@ -400,6 +431,7 @@ export default function SchedulePage() {
   const [modalMode, setModalMode] = useState(null);
   const [showManualBooking, setShowManualBooking] = useState(false);
   const [showCancelled, setShowCancelled] = useState(true);
+  const [dayToCancel, setDayToCancel] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState("");
@@ -537,6 +569,29 @@ export default function SchedulePage() {
     }
   }
 
+  async function cancelWholeDay(day) {
+    try {
+      setIsSaving(true);
+      setError("");
+      const result = await cancelScheduleDay(day.date);
+      setDayToCancel(null);
+      await loadWeek();
+      setNotice("");
+      const count = result.cancelled;
+      window.setTimeout(
+        () =>
+          setNotice(
+            `${count} ${count === 1 ? "session was" : "sessions were"} cancelled without consuming credits.`
+          ),
+        0
+      );
+    } catch (requestError) {
+      setError(getApiErrorMessage(requestError, "Unable to cancel this day."));
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
   async function submitDateAction(payload) {
     const action =
       modalMode === "reschedule"
@@ -650,6 +705,15 @@ export default function SchedulePage() {
                   </button>
                 ))}
               </div>
+              {selectedDayData.sessions.some((item) => item.status === "scheduled") && (
+                <button
+                  type="button"
+                  onClick={() => setDayToCancel(selectedDayData)}
+                  className="action-btn action-btn-danger w-full"
+                >
+                  <CalendarX size={15} className="mr-1" /> Cancel this day
+                </button>
+              )}
               <div className="space-y-2">
                 {selectedDayData.sessions.length === 0 && (
                   <div className="rounded-xl border border-dashed border-line-strong p-4 text-sm text-muted">
@@ -807,6 +871,17 @@ export default function SchedulePage() {
             "The session was cancelled without consuming a credit."
           )
         }
+        onOutcomeAll={(outcome) =>
+          runAction(
+            () =>
+              outcome === "complete"
+                ? completeSession(activeSession.id, null, { applyToAll: true })
+                : markSessionNoShow(activeSession.id, null, { applyToAll: true }),
+            outcome === "complete"
+              ? "Every attendee was marked complete and one credit each was used."
+              : "Every attendee was marked as a no-show and one credit each was used."
+          )
+        }
         onOutcome={(outcome, clientId) =>
           runAction(
             () =>
@@ -820,6 +895,46 @@ export default function SchedulePage() {
         }
       />
 
+      {dayToCancel && (
+        <div className="fixed inset-0 z-50 overflow-auto bg-slate-950/50 p-4 backdrop-blur-sm">
+          <div className="modal-panel mx-auto mt-24 max-w-sm overflow-hidden rounded-3xl bg-surface p-5 shadow-2xl">
+            <h2 className="text-lg font-bold text-strong">Cancel this day?</h2>
+            <p className="mt-2 text-sm text-muted">
+              {dayToCancel.sessions.filter((item) => item.status === "scheduled").length}{" "}
+              scheduled
+              {dayToCancel.sessions.filter((item) => item.status === "scheduled").length === 1
+                ? " session"
+                : " sessions"}{" "}
+              on {displayDate(dayToCancel.date, { weekday: "long", day: "numeric", month: "long" })}{" "}
+              will be cancelled. No credits are used, and each one can still have a
+              replacement booked.
+            </p>
+            <div className="mt-5 grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                disabled={isSaving}
+                onClick={() => setDayToCancel(null)}
+                className="action-btn action-btn-secondary"
+              >
+                Keep them
+              </button>
+              <button
+                type="button"
+                disabled={isSaving}
+                onClick={() => cancelWholeDay(dayToCancel)}
+                className="action-btn action-btn-danger-solid"
+              >
+                Cancel day
+              </button>
+            </div>
+            {error && (
+              <p className="mt-4 rounded-xl border border-danger-border bg-danger-soft p-3 text-sm font-semibold text-danger-strong">
+                {error}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
       <SuccessToast message={notice} onDismiss={() => setNotice("")} />
     </section>
   );

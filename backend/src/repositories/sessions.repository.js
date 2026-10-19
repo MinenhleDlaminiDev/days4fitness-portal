@@ -421,6 +421,52 @@ export function createSessionsRepository(
       }
     },
 
+    /**
+     * Cancels every session still scheduled on one date. One transaction, so a
+     * session that cannot be cancelled (one that has already started) rolls the
+     * whole day back rather than leaving it half done. Sessions already
+     * completed, cancelled or marked no-show are skipped, not re-processed.
+     */
+    async cancelDay(sessionDate) {
+      const db = await dbPool.connect();
+      try {
+        await db.query("BEGIN");
+        await db.query("SELECT set_config('TimeZone', $1, true)", [businessTimezone]);
+        const targets = await db.query(
+          `SELECT id
+           FROM sessions
+           WHERE session_date = $1::date
+             AND status = 'scheduled'
+           ORDER BY start_time, id
+           FOR UPDATE`,
+          [sessionDate]
+        );
+
+        const cancelledIds = [];
+        for (const row of targets.rows) {
+          const session = await findSession(db, row.id, true);
+          await assertSessionTiming(db, session, "before_start");
+          await db.query("UPDATE sessions SET status = 'cancelled' WHERE id = $1", [row.id]);
+          await db.query(
+            `UPDATE session_attendance
+             SET status = 'cancelled', credit_consumed = false, updated_at = NOW()
+             WHERE session_id = $1
+               AND status = 'scheduled'`,
+            [row.id]
+          );
+          cancelledIds.push(row.id);
+        }
+
+        await db.query("COMMIT");
+        return cancelledIds;
+      } catch (error) {
+        await db.query("ROLLBACK");
+        throw error;
+      } finally {
+        db.release();
+      }
+    },
+
     async createReplacement(sessionId, sessionDate, startTime) {
       const db = await dbPool.connect();
       try {
@@ -561,7 +607,7 @@ export function createSessionsRepository(
       }
     },
 
-    async recordOutcome(sessionId, clientId, outcome) {
+    async recordOutcome(sessionId, clientId, outcome, { applyToAll = false } = {}) {
       const db = await dbPool.connect();
       try {
         await db.query("BEGIN");
@@ -595,7 +641,7 @@ export function createSessionsRepository(
           error.code = "ATTENDEE_NOT_FOUND";
           throw error;
         }
-        if (clientId === null && attendanceResult.rows.length > 1) {
+        if (clientId === null && attendanceResult.rows.length > 1 && !applyToAll) {
           const error = new Error("A clientId is required for group session outcomes");
           error.code = "CLIENT_REQUIRED";
           throw error;
