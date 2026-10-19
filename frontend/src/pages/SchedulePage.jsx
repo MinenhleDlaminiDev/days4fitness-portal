@@ -12,6 +12,7 @@ import {
   EyeOff,
   Plus,
   RefreshCw,
+  Target,
   UserRound,
   Users,
   X
@@ -337,7 +338,7 @@ function SessionModal({
                   {session.attendees.map((attendee) => (
                     <div key={attendee.attendanceId} className="rounded-xl border border-line bg-surface p-3">
                       <div className="flex flex-wrap items-start justify-between gap-2">
-                        <div>
+                        <div className="min-w-0 flex-1">
                           <Link
                             to={`/clients/${attendee.clientId}`}
                             className="font-bold text-strong hover:text-accent"
@@ -347,6 +348,18 @@ function SessionModal({
                           <p className="text-xs text-subtle">
                             {attendee.sessionsTotal - attendee.sessionsUsed} of {attendee.sessionsTotal} credits remaining
                           </p>
+                          {/* What they are working towards, on one line so a
+                              full group stays readable. Nothing is rendered
+                              when they have no goal on the go. */}
+                          {attendee.goal && (
+                            <p
+                              title={attendee.goal}
+                              className="mt-1 flex min-w-0 items-center gap-1 text-xs text-muted"
+                            >
+                              <Target size={12} className="shrink-0 stroke-[1.75] text-accent" />
+                              <span className="truncate">{attendee.goal}</span>
+                            </p>
+                          )}
                         </div>
                         <span className="rounded-full bg-sunken px-2 py-1 text-xs font-bold capitalize text-muted">
                           {attendee.status.replace("_", " ")}

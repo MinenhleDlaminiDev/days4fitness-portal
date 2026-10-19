@@ -583,3 +583,38 @@ test("a day cancel rolls back entirely when one session has already started", as
   assert.equal((await service.getSession(started.id)).status, "scheduled");
   assert.equal((await service.getSession(later.id)).status, "scheduled");
 });
+
+test("an attendee carries the newest goal they have not achieved yet", async () => {
+  const client = await createClientPackage("goal");
+
+  // Oldest first, so the newest active one is unambiguous. The achieved goal
+  // is created last on purpose: recency must not beat being unfinished.
+  await testPool.query(
+    `INSERT INTO client_goals (client_id, goal, achieved_at, created_at)
+     VALUES
+       ($1, 'Lose 8kg', NULL, NOW() - INTERVAL '3 days'),
+       ($1, 'Run a 10k', NULL, NOW() - INTERVAL '1 day'),
+       ($1, 'Train three times a week', CURRENT_DATE, NOW())`,
+    [client.clientId]
+  );
+
+  const created = await service.createManual({
+    clientId: client.clientId,
+    sessionDate: day(1),
+    startTime: "12:00"
+  });
+  assert.equal(created.attendees[0].goal, "Run a 10k");
+
+  // The week listing carries it too, because the schedule reads that.
+  const week = await service.listWeek(day(0));
+  const listed = week.find((session) => session.id === created.id);
+  assert.equal(listed.attendees[0].goal, "Run a 10k");
+
+  // Achieving the last active goal leaves the attendee with none.
+  await testPool.query("UPDATE client_goals SET achieved_at = CURRENT_DATE WHERE client_id = $1", [
+    client.clientId
+  ]);
+  const afterAchieving = await service.listWeek(day(0));
+  const refreshed = afterAchieving.find((session) => session.id === created.id);
+  assert.equal(refreshed.attendees[0].goal, null);
+});

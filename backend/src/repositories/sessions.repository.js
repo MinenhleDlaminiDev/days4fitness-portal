@@ -27,6 +27,7 @@ const SESSION_SELECT_SQL = `
           'attendanceId', attendance.id,
           'clientId', client.id,
           'clientName', client.name,
+          'goal', headline_goal.goal,
           'packageId', package.id,
           'sessionsTotal', package.sessions_total,
           'sessionsUsed', package.sessions_used,
@@ -62,6 +63,17 @@ const SESSION_SELECT_SQL = `
   ) replacement_link ON true
   LEFT JOIN session_attendance attendance ON attendance.session_id = session.id
   LEFT JOIN clients client ON client.id = attendance.client_id
+  -- What this person is working towards, so the trainer sees it when they
+  -- open the session rather than having to go and look it up. Newest goal
+  -- not yet achieved; nothing when they have none.
+  LEFT JOIN LATERAL (
+    SELECT client_goal.goal
+    FROM client_goals client_goal
+    WHERE client_goal.client_id = client.id
+      AND client_goal.achieved_at IS NULL
+    ORDER BY client_goal.created_at DESC, client_goal.id DESC
+    LIMIT 1
+  ) headline_goal ON true
   LEFT JOIN packages package ON package.id = attendance.package_id
   LEFT JOIN LATERAL (
     SELECT COALESCE(SUM(payment.amount), 0) AS paid_amount
