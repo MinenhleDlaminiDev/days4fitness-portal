@@ -35,7 +35,8 @@ function translateRepositoryError(error) {
   if (error.code === "CLIENT_ARCHIVED") {
     throw conflictError(error.message);
   }
-  if (error.code === "23505" || error.code === "23514") {
+  // 23P01 is sessions_no_overlap, the database backstop for a clashing slot.
+  if (error.code === "23505" || error.code === "23514" || error.code === "23P01") {
     throw conflictError("The requested slot cannot be approved");
   }
   throw error;

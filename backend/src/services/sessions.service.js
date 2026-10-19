@@ -63,7 +63,9 @@ function translateRepositoryError(error) {
     "CREDIT_ALREADY_CONSUMED",
     "CLIENT_ARCHIVED",
     "23505",
-    "23514"
+    "23514",
+    // 23P01: sessions_no_overlap, the database backstop for a clashing slot.
+    "23P01"
   ]);
   if (conflictCodes.has(error.code)) throw conflictError(error.message);
   throw error;

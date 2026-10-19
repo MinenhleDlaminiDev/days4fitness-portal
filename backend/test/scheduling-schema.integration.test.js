@@ -324,6 +324,8 @@ test("enforces training-day, status, and active-slot constraints", async () => {
       [program.rows[0].id]
     );
 
+    // An exact clash. 23P01 is sessions_no_overlap, which replaced the old
+    // unique index on (session_date, start_time) in migration 019.
     await assert.rejects(
       testPool.query(
         `INSERT INTO sessions (
@@ -337,8 +339,60 @@ test("enforces training-day, status, and active-slot constraints", async () => {
          VALUES ($1, 'one_on_one', '2026-06-15', '08:00', 1, 'scheduled')`,
         [program.rows[0].id]
       ),
-      (error) => error.code === "23505"
+      (error) => error.code === "23P01"
     );
+
+    // A partial overlap: 08:30 starts inside the 08:00-09:00 session. The old
+    // unique index let this through because the start times differ.
+    await assert.rejects(
+      testPool.query(
+        `INSERT INTO sessions (
+           program_id,
+           session_type,
+           session_date,
+           start_time,
+           capacity,
+           status
+         )
+         VALUES ($1, 'one_on_one', '2026-06-15', '08:30', 1, 'scheduled')`,
+        [program.rows[0].id]
+      ),
+      (error) => error.code === "23P01"
+    );
+
+    // A longer session reaching forward into the next slot is caught too.
+    await assert.rejects(
+      testPool.query(
+        `INSERT INTO sessions (
+           program_id,
+           session_type,
+           session_date,
+           start_time,
+           duration_minutes,
+           capacity,
+           status
+         )
+         VALUES ($1, 'one_on_one', '2026-06-15', '07:00', 90, 1, 'scheduled')`,
+        [program.rows[0].id]
+      ),
+      (error) => error.code === "23P01"
+    );
+
+    // Back to back is legal: 09:00 begins exactly as 08:00-09:00 ends.
+    const backToBack = await testPool.query(
+      `INSERT INTO sessions (
+         program_id,
+         session_type,
+         session_date,
+         start_time,
+         capacity,
+         status
+       )
+       VALUES ($1, 'one_on_one', '2026-06-15', '09:00', 1, 'scheduled')
+       RETURNING id`,
+      [program.rows[0].id]
+    );
+    await testPool.query("DELETE FROM sessions WHERE id = $1", [backToBack.rows[0].id]);
 
     await testPool.query("UPDATE sessions SET status = 'cancelled' WHERE id = $1", [
       session.rows[0].id

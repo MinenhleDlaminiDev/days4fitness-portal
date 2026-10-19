@@ -401,3 +401,59 @@ test("enforces session timing for cancellation, rescheduling, and outcomes", asy
   );
   assert.equal(completed.status, "completed");
 });
+
+test("books at the configured session length and blocks the slot it now covers", async () => {
+  const client = await createClientPackage("configured-duration");
+  const original = (
+    await testPool.query(
+      "SELECT session_duration_minutes FROM scheduling_settings WHERE id = 1"
+    )
+  ).rows[0].session_duration_minutes;
+
+  try {
+    await testPool.query(
+      "UPDATE scheduling_settings SET session_duration_minutes = 90 WHERE id = 1"
+    );
+
+    const session = await service.createManual({
+      clientId: client.clientId,
+      sessionDate: day(28),
+      startTime: "09:00"
+    });
+
+    const stored = await testPool.query(
+      "SELECT duration_minutes FROM sessions WHERE id = $1",
+      [session.id]
+    );
+    assert.equal(
+      stored.rows[0].duration_minutes,
+      90,
+      "the configured length is persisted, not the column default"
+    );
+
+    // 09:00-10:30 now covers the 10:00 slot, which a 60-minute booking left free.
+    const other = await createClientPackage("configured-duration-clash");
+    await assert.rejects(
+      service.createManual({
+        clientId: other.clientId,
+        sessionDate: day(28),
+        startTime: "10:00"
+      }),
+      (error) => error.status === 409
+    );
+
+    // Training hours are whole hours, so with a 90-minute length the next
+    // bookable start after 09:00 is 11:00, not 10:30.
+    const after = await service.createManual({
+      clientId: other.clientId,
+      sessionDate: day(28),
+      startTime: "11:00"
+    });
+    assert.equal(after.status, "scheduled");
+  } finally {
+    await testPool.query(
+      "UPDATE scheduling_settings SET session_duration_minutes = $1 WHERE id = 1",
+      [original]
+    );
+  }
+});

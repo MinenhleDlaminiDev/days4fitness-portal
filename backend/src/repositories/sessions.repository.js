@@ -125,22 +125,34 @@ async function lockTargetDate(db, sessionDate) {
   await db.query("SELECT pg_advisory_xact_lock($1, hashtext($2))", [44032, sessionDate]);
 }
 
-async function findOverlaps(db, sessionDate, startTime) {
+async function findOverlaps(db, sessionDate, startTime, durationMinutes) {
+  // Both sides of the comparison use real durations: each existing row its own
+  // stored duration_minutes, and the booking the currently configured length.
+  // A fixed 60 minutes here silently missed every clash once the trainer could
+  // change session length.
   const result = await db.query(
     `SELECT id, program_id, session_type, start_time::text, capacity
      FROM sessions
      WHERE session_date = $1::date
        AND status <> 'cancelled'
-       AND start_time < ($2::time + INTERVAL '60 minutes')
-       AND (start_time + INTERVAL '60 minutes') > $2::time
+       AND start_time < ($2::time + make_interval(mins => $3::int))
+       AND (start_time + make_interval(mins => duration_minutes)) > $2::time
      FOR UPDATE`,
-    [sessionDate, startTime]
+    [sessionDate, startTime, durationMinutes]
   );
   return result.rows;
 }
 
+async function configuredSessionMinutes(db) {
+  const result = await db.query(
+    "SELECT session_duration_minutes FROM scheduling_settings WHERE id = 1"
+  );
+  return result.rows[0]?.session_duration_minutes ?? 60;
+}
+
 async function createSessionRow(db, packageRow, sessionDate, startTime) {
-  const overlaps = await findOverlaps(db, sessionDate, startTime);
+  const durationMinutes = await configuredSessionMinutes(db);
+  const overlaps = await findOverlaps(db, sessionDate, startTime, durationMinutes);
   const compatibleGroup = overlaps.find(
     (session) =>
       packageRow.program_type === "group" &&
@@ -168,16 +180,20 @@ async function createSessionRow(db, packageRow, sessionDate, startTime) {
        session_type,
        session_date,
        start_time,
+       duration_minutes,
        capacity,
        status
      )
-     VALUES ($1, $2, $3::date, $4::time, $5, 'scheduled')
+     VALUES ($1, $2, $3::date, $4::time, $5, $6, 'scheduled')
      RETURNING id`,
     [
       packageRow.program_id,
       packageRow.program_type,
       sessionDate,
       startTime,
+      // Persist the configured length. Leaving this to the column default meant
+      // the Session length setting had no effect on anything booked.
+      durationMinutes,
       packageRow.program_type === "group" ? settingsResult.rows[0].group_capacity : 1
     ]
   );
