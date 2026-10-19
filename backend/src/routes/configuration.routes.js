@@ -12,6 +12,7 @@ export function createConfigurationRouter(controller = configurationController) 
   // Writes are the trainer's alone. This router is mounted ahead of the global
   // guard in routes/index.js, so the guard is applied per route here.
   const guard = [requireAuth, requireRole("trainer", "admin")];
+  router.put("/programs", guard, controller.updatePrograms);
   router.put("/pricing", guard, controller.updatePricing);
   router.put("/package-sizes", guard, controller.updatePackageSizes);
   router.put("/business-hours", guard, controller.updateBusinessHours);

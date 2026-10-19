@@ -240,3 +240,108 @@ test("a size clients already bought cannot be removed", async () => {
     (error) => error.status === 409 && /already bought/.test(error.message)
   );
 });
+
+function programRepository(overrides = {}) {
+  return createRepository({
+    async listPrograms() {
+      return [
+        { id: 1, name: "Weight Loss", type: "one_on_one" },
+        { id: 2, name: "Small Groups", type: "group" }
+      ];
+    },
+    async replacePrograms() {},
+    ...overrides
+  });
+}
+
+test("saves the program catalogue as renames, additions and removals", async () => {
+  let received = null;
+  const service = createConfigurationService(
+    programRepository({
+      async replacePrograms(programs) {
+        received = programs;
+      }
+    })
+  );
+
+  await service.updatePrograms({
+    programs: [
+      { id: 1, name: "  Fat Loss  ", sessionType: "One-on-One" },
+      { name: "Boxing", sessionType: "Group" }
+    ]
+  });
+
+  // Weight Loss renamed, Boxing created, Small Groups left out so it is removed.
+  assert.deepEqual(received, [
+    { id: 1, name: "Fat Loss", type: "one_on_one" },
+    { name: "Boxing", type: "group" }
+  ]);
+});
+
+test("rejects empty, overlong, duplicate and unknown programs", async () => {
+  const service = createConfigurationService(programRepository());
+
+  for (const payload of [
+    { programs: [] },
+    { programs: "Weight Loss" },
+    { programs: [{ name: "   ", sessionType: "Group" }] },
+    { programs: [{ name: "x".repeat(61), sessionType: "Group" }] },
+    { programs: [{ name: "Boxing", sessionType: "Bootcamp" }] },
+    {
+      programs: [
+        { name: "Boxing", sessionType: "Group" },
+        { name: "boxing", sessionType: "Group" }
+      ]
+    }
+  ]) {
+    await assert.rejects(
+      service.updatePrograms(payload),
+      (error) => error.status === 400,
+      `expected ${JSON.stringify(payload)} to be rejected`
+    );
+  }
+
+  // The same name under a different session type is a different program.
+  await service.updatePrograms({
+    programs: [
+      { name: "Boxing", sessionType: "Group" },
+      { name: "Boxing", sessionType: "One-on-One" }
+    ]
+  });
+});
+
+test("a program cannot change session type once it exists", async () => {
+  const service = createConfigurationService(programRepository());
+
+  await assert.rejects(
+    service.updatePrograms({ programs: [{ id: 1, name: "Weight Loss", sessionType: "Group" }] }),
+    (error) => error.status === 400 && /session type/.test(error.message)
+  );
+});
+
+test("an unknown program id is reported rather than silently created", async () => {
+  const service = createConfigurationService(programRepository());
+
+  await assert.rejects(
+    service.updatePrograms({ programs: [{ id: 99, name: "Ghost", sessionType: "Group" }] }),
+    (error) => error.status === 404
+  );
+});
+
+test("a program clients have packages on cannot be removed", async () => {
+  const service = createConfigurationService(
+    programRepository({
+      async replacePrograms() {
+        const error = new Error("update or delete violates foreign key constraint");
+        error.code = "23503";
+        error.programName = "Small Groups";
+        throw error;
+      }
+    })
+  );
+
+  await assert.rejects(
+    service.updatePrograms({ programs: [{ id: 1, name: "Weight Loss", sessionType: "One-on-One" }] }),
+    (error) => error.status === 409 && /Small Groups/.test(error.message)
+  );
+});

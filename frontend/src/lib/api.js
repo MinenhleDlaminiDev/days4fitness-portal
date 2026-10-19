@@ -133,6 +133,11 @@ export async function rejectBookingRequest(requestId) {
   return responseData(response);
 }
 
+export async function updatePrograms(programs) {
+  const response = await api.put("/configuration/programs", { programs });
+  return responseData(response);
+}
+
 export async function updatePricing(pricing) {
   const response = await api.put("/configuration/pricing", { pricing });
   return responseData(response);

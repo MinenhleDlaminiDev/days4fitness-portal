@@ -119,6 +119,67 @@ export function createConfigurationRepository(pool = dbPool) {
       }
     },
 
+    /**
+     * Applies the program catalogue in one transaction. An entry with an id is
+     * a rename, one without is a new program, and an existing program missing
+     * from the list is removed. Deletes run first so a name can be freed and
+     * reused in the same save; packages.program_id restricts the delete of a
+     * program that has been sold, and the name of that program is attached to
+     * the error for the service to put in its message.
+     */
+    async replacePrograms(programs) {
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+        const existing = (await client.query("SELECT id, name, type FROM programs")).rows;
+        const keptIds = new Set(
+          programs.filter((program) => program.id !== undefined).map((program) => program.id)
+        );
+
+        const removed = existing.filter((program) => !keptIds.has(Number(program.id)));
+        for (const program of removed) {
+          try {
+            await client.query("DELETE FROM programs WHERE id = $1", [program.id]);
+          } catch (error) {
+            error.programName = program.name;
+            throw error;
+          }
+        }
+
+        const renamed = [];
+        for (const program of programs.filter((entry) => entry.id !== undefined)) {
+          const result = await client.query(
+            "UPDATE programs SET name = $2 WHERE id = $1 RETURNING name",
+            [program.id, program.name]
+          );
+          if (result.rowCount === 0) {
+            const error = new Error("Program not found");
+            error.code = "PROGRAM_NOT_FOUND";
+            error.programId = program.id;
+            throw error;
+          }
+          renamed.push(result.rows[0].name);
+        }
+
+        const added = [];
+        for (const program of programs.filter((entry) => entry.id === undefined)) {
+          const result = await client.query(
+            "INSERT INTO programs (name, type) VALUES ($1, $2) RETURNING name",
+            [program.name, program.type]
+          );
+          added.push(result.rows[0].name);
+        }
+
+        await client.query("COMMIT");
+        return { added, removed: removed.map((program) => program.name) };
+      } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+      } finally {
+        client.release();
+      }
+    },
+
     /** Replaces the whole week in one transaction so a failure changes nothing. */
     async replaceBusinessHours(slots) {
       const client = await pool.connect();

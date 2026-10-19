@@ -5,7 +5,7 @@ import {
   groupBusinessHours,
   setSettings
 } from "../config/settingsCache.js";
-import { conflictError, validationError } from "../errors/AppError.js";
+import { conflictError, notFoundError, validationError } from "../errors/AppError.js";
 import { configurationRepository } from "../repositories/configuration.repository.js";
 
 // The sessions table still constrains when a session may start, so a slot
@@ -15,6 +15,10 @@ const EARLIEST_SLOT = "05:00";
 const LATEST_SLOT = "19:00";
 const LATEST_SATURDAY_SLOT = "10:00";
 const TIME_PATTERN = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
+
+// Long enough for the names the studio actually uses and short enough that a
+// program picker does not wrap to three lines.
+const MAX_PROGRAM_NAME = 60;
 
 function requireArray(value, field) {
   if (!Array.isArray(value)) {
@@ -142,6 +146,91 @@ export function createConfigurationService(repository = configurationRepository)
       });
 
       await repository.updatePricing(entries);
+      return loadConfiguration();
+    },
+
+    /**
+     * Replaces the program catalogue. An entry keeps its id to be renamed,
+     * arrives without one to be created, and is left out to be removed.
+     * Session type is fixed after creation because sessions and approved
+     * recurring bookings hold composite keys to (program id, type) — changing
+     * it would strand a program's own history.
+     */
+    async updatePrograms(payload = {}) {
+      const rows = requireArray(payload.programs, "programs");
+      if (rows.length === 0) {
+        throw validationError("At least one program must remain", { field: "programs" });
+      }
+
+      const existing = await repository.listPrograms();
+      const existingById = new Map(existing.map((row) => [Number(row.id), row]));
+      const seen = new Set();
+      const programs = rows.map((row) => {
+        const name = typeof row?.name === "string" ? row.name.trim() : "";
+        if (!name) {
+          throw validationError("Every program needs a name", { field: "programs" });
+        }
+        if (name.length > MAX_PROGRAM_NAME) {
+          throw validationError(`Program names must be ${MAX_PROGRAM_NAME} characters or fewer`, {
+            field: "programs",
+            value: name
+          });
+        }
+
+        const type = sessionTypeToDatabase(row.sessionType);
+        if (!type) {
+          throw validationError("sessionType must be One-on-One or Group", {
+            field: "sessionType",
+            value: row.sessionType
+          });
+        }
+
+        let id;
+        if (row.id !== undefined && row.id !== null) {
+          id = Number(row.id);
+          const current = existingById.get(id);
+          if (!current) {
+            throw notFoundError("That program no longer exists. Refresh and try again.");
+          }
+          if (current.type !== type) {
+            throw validationError(
+              `${current.name} cannot change session type, because its sessions are recorded ` +
+                "against it. Add a new program instead.",
+              { field: "sessionType", value: row.sessionType }
+            );
+          }
+        }
+
+        const key = `${type}:${name.toLowerCase()}`;
+        if (seen.has(key)) {
+          throw validationError(`${name} is listed twice for ${row.sessionType}`, {
+            field: "programs"
+          });
+        }
+        seen.add(key);
+
+        return id === undefined ? { name, type } : { id, name, type };
+      });
+
+      try {
+        await repository.replacePrograms(programs);
+      } catch (error) {
+        // packages_program_id_fkey: the program has already been sold.
+        if (error?.code === "23503") {
+          throw conflictError(
+            `${error.programName ?? "That program"} cannot be removed because clients have ` +
+              "packages on it."
+          );
+        }
+        // programs_name_type_key: the pair is already taken.
+        if (error?.code === "23505") {
+          throw conflictError("Two programs of the same session type cannot share a name.");
+        }
+        if (error?.code === "PROGRAM_NOT_FOUND") {
+          throw notFoundError("That program no longer exists. Refresh and try again.");
+        }
+        throw error;
+      }
       return loadConfiguration();
     },
 

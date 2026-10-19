@@ -221,3 +221,60 @@ test("adds a package size, prices it at zero, and protects sold sizes", async ()
     await restore(saved);
   }
 });
+
+test("adds, renames and removes programs while protecting ones in use", async () => {
+  const before = await service.getConfiguration();
+  const keep = before.programs.map((program) => ({
+    id: program.id,
+    name: program.name,
+    sessionType: program.sessionType
+  }));
+
+  try {
+    const added = await service.updatePrograms({
+      programs: [...keep, { name: "Integration Boxing", sessionType: "Group" }]
+    });
+    const created = added.programs.find((program) => program.name === "Integration Boxing");
+    assert.ok(created, "the new program is offered");
+    assert.equal(created.sessionType, "Group");
+
+    // A rename keeps the same row, so anything pointing at it follows along.
+    const renamed = await service.updatePrograms({
+      programs: [...keep, { id: created.id, name: "Integration Kickboxing", sessionType: "Group" }]
+    });
+    const afterRename = renamed.programs.find((program) => program.id === created.id);
+    assert.equal(afterRename.name, "Integration Kickboxing");
+    assert.equal(
+      renamed.programs.some((program) => program.name === "Integration Boxing"),
+      false
+    );
+
+    // Leaving an unused program out of the list removes it.
+    const removed = await service.updatePrograms({ programs: keep });
+    assert.equal(
+      removed.programs.some((program) => program.id === created.id),
+      false
+    );
+
+    // A program with packages on it is held down by packages_program_id_fkey.
+    const sold = await testPool.query(
+      "SELECT DISTINCT program_id FROM packages ORDER BY program_id LIMIT 1"
+    );
+    if (sold.rows.length > 0) {
+      const soldId = Number(sold.rows[0].program_id);
+      const soldProgram = keep.find((program) => Number(program.id) === soldId);
+      await assert.rejects(
+        service.updatePrograms({
+          programs: keep.filter((program) => Number(program.id) !== soldId)
+        }),
+        (error) => error.status === 409 && error.message.includes(soldProgram.name)
+      );
+      // The refused removal left the catalogue exactly as it was.
+      const after = await service.getConfiguration();
+      assert.ok(after.programs.some((program) => Number(program.id) === soldId));
+    }
+  } finally {
+    await service.updatePrograms({ programs: keep });
+    resetSettings();
+  }
+});

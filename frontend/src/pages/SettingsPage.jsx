@@ -1,5 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
-import { Banknote, CalendarClock, Check, Layers, Plus, Settings as SettingsIcon, X } from "lucide-react";
+import {
+  Banknote,
+  CalendarClock,
+  Check,
+  Dumbbell,
+  Layers,
+  Plus,
+  Settings as SettingsIcon,
+  X
+} from "lucide-react";
 import SuccessToast from "../components/SuccessToast.jsx";
 import { useAppConfiguration } from "../context/AppConfigurationContext.jsx";
 import {
@@ -7,11 +16,15 @@ import {
   updateBusinessHours,
   updatePackageSizes,
   updatePricing,
+  updatePrograms,
   updateSchedulingSettings
 } from "../lib/api.js";
 
 const SESSION_TYPES = ["One-on-One", "Group"];
 const WEEK = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+// Mirrors the limit the configuration service enforces.
+const MAX_PROGRAM_NAME = 60;
 
 // Matches the window the sessions table still enforces, so the page only offers
 // slots that can actually be booked.
@@ -118,6 +131,16 @@ export default function SettingsPage() {
     );
   }, [configuration]);
 
+  const initialPrograms = useMemo(
+    () =>
+      (configuration?.programs ?? []).map((program) => ({
+        id: program.id,
+        name: program.name,
+        sessionType: program.sessionType
+      })),
+    [configuration]
+  );
+
   const initialHours = useMemo(
     () =>
       WEEK.map((day) => ({
@@ -153,6 +176,7 @@ export default function SettingsPage() {
     updatePackageSizes,
     applyConfiguration
   );
+  const programs = useSection(initialPrograms, updatePrograms, applyConfiguration);
   const hours = useSection(initialHours, updateBusinessHours, applyConfiguration);
   const scheduling = useSection(
     initialScheduling,
@@ -179,6 +203,22 @@ export default function SettingsPage() {
     pricing.setValue(
       pricing.value.map((row, position) => (position === index ? { ...row, price: nextPrice } : row))
     );
+  }
+
+  function setProgramName(index, name) {
+    programs.setValue(
+      programs.value.map((row, position) => (position === index ? { ...row, name } : row))
+    );
+  }
+
+  // A new program has no id until it is saved; that is what tells the API to
+  // create it rather than rename something.
+  function addProgram(sessionType) {
+    programs.setValue([...programs.value, { name: "", sessionType }]);
+  }
+
+  function removeProgram(index) {
+    programs.setValue(programs.value.filter((row, position) => position !== index));
   }
 
   function addSize() {
@@ -224,6 +264,63 @@ export default function SettingsPage() {
         <h1 className="page-title">Settings</h1>
         <p className="page-subtitle">Your prices, training hours and scheduling rules</p>
       </header>
+
+      <Section
+        icon={Dumbbell}
+        title="Programs"
+        description="What you train people in, per session type."
+      >
+        <div className="grid gap-5 sm:grid-cols-2">
+          {SESSION_TYPES.map((sessionType) => (
+            <div key={sessionType} className="space-y-2">
+              <p className="text-xs font-bold uppercase tracking-wide text-subtle">{sessionType}</p>
+              {programs.value
+                .map((row, index) => ({ row, index }))
+                .filter(({ row }) => row.sessionType === sessionType)
+                .map(({ row, index }) => (
+                  <div key={row.id ?? `new-${index}`} className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={row.name}
+                      maxLength={MAX_PROGRAM_NAME}
+                      onChange={(event) => setProgramName(index, event.target.value)}
+                      aria-label={`${sessionType} program name`}
+                      className="h-11 flex-1 rounded-xl border border-line-strong bg-surface px-3 text-sm outline-none transition focus:border-accent"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeProgram(index)}
+                      aria-label={`Remove ${row.name || "this program"}`}
+                      className="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-subtle"
+                    >
+                      <X size={15} />
+                    </button>
+                  </div>
+                ))}
+              <button
+                type="button"
+                onClick={() => addProgram(sessionType)}
+                className="action-btn action-btn-secondary"
+              >
+                <Plus size={15} className="mr-1" /> Add {sessionType.toLowerCase()} program
+              </button>
+            </div>
+          ))}
+        </div>
+        <p className="text-xs text-subtle">
+          Renaming a program updates it everywhere, including past packages and reports. A
+          program keeps the session type it was created with, because its existing sessions are
+          recorded against it — add a new program instead. One that clients already have packages
+          on cannot be removed.
+        </p>
+        <SaveRow
+          onSave={() => saveSection(programs, "Programs saved.")}
+          isSaving={programs.isSaving}
+          isDirty={programs.isDirty}
+          error={programs.error}
+          saved={programs.saved}
+        />
+      </Section>
 
       <Section
         icon={Layers}
