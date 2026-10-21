@@ -80,34 +80,59 @@ production when it finds a `localhost` origin.
 
 ### Netlify: Frontend
 
-GitHub Actions builds the site and publishes it with the Netlify CLI. **Netlify
-itself is not connected to the repository** — if it were, both would build on
-every push and race to publish.
+**Netlify builds the test site from Git.** Site `days4fitness-portal`, branch
+`main`, base directory `frontend`, build command `npm run build`, publish
+directory `frontend/dist`.
 
-Workflow: `.github/workflows/deploy-frontend.yml`. It runs on a push to `main`
-that touches `frontend/`, and on manual dispatch.
+Build-time values live in **Netlify → Site configuration → Environment
+variables**, not in GitHub:
 
-Repository secrets, under Settings → Secrets and variables → Actions:
-
-| Secret | Where it comes from |
+| Variable | Value |
 | --- | --- |
-| `NETLIFY_AUTH_TOKEN` | Netlify → User settings → Applications → new access token |
-| `NETLIFY_SITE_ID` | The site's API ID, under Site configuration → General |
 | `VITE_API_URL` | The Northflank service origin plus `/api` |
 | `VITE_GOOGLE_CLIENT_ID` | The same client id the backend uses |
 
-`VITE_*` values are **build-time**. Vite writes them into the bundle, so changing
-one means re-running the workflow — restarting anything achieves nothing. The
-workflow fails early and deliberately if `VITE_API_URL` is empty, because Vite
-treats a missing value as acceptable and the app would quietly fall back to
-`http://localhost:5000/api`: the site would deploy and look fine while every
-request failed in the browser.
+Neither is a secret and **neither may be marked "Contains secret values"**. Vite
+writes `VITE_*` values into the bundle by design, and Netlify fails any deploy
+where a value marked secret appears in the build output — so marking one rejects
+exactly what is supposed to happen. A Google OAuth client ID is public anyway;
+what protects it is the authorized origins list, not concealment.
 
-The SPA fallback is `frontend/public/_redirects`, not a `netlify.toml`. Vite
-copies `public/` into `dist/`, so the rule travels inside the published directory
-whatever working directory the CLI runs from. Without it, a hard refresh on any
-route other than `/` returns a Netlify 404, since no such file exists in the
-build. The workflow checks for it and refuses to publish if it is missing.
+`VITE_*` values are **build-time**. Changing one needs a redeploy; restarting
+nothing achieves anything. Vite does not treat a missing value as an error, so
+guard it in the build command rather than hoping:
+
+```sh
+[ -n "$VITE_API_URL" ] || { echo "VITE_API_URL is not set"; exit 1; }; npm run build
+```
+
+Without that, an empty `VITE_API_URL` falls back to `http://localhost:5000/api`,
+the site deploys looking perfectly healthy, and every request fails in the
+browser.
+
+### The deferred GitHub Actions path
+
+`.github/workflows/deploy-frontend.yml` builds `frontend/` and publishes with the
+Netlify CLI. It is **`workflow_dispatch` only** — the push trigger is commented
+out inside the file. It is intended for the real domain later.
+
+When it takes over: restore the push trigger **and** stop Netlify's own builds
+(Build & deploy → stop builds) in the same change. Two deployers publishing
+`--prod` on one push will race, and the slower build wins. Its four values move
+back to repository secrets: `NETLIFY_AUTH_TOKEN`, `NETLIFY_SITE_ID`,
+`VITE_API_URL`, `VITE_GOOGLE_CLIENT_ID`.
+
+### SPA fallback
+
+`frontend/public/_redirects` holds `/*  /index.html  200`. Vite copies `public/`
+into `dist/`, so it travels inside the published directory.
+
+Netlify's framework detection currently applies this automatically for a Vite
+build, so the file is redundant *for a Git-connected build* — verified on
+2026-10-21, with `/clients`, `/settings` and `/reports` all returning the app
+shell before the file was even committed. It is **not** redundant for the CLI
+path: `netlify deploy --dir=dist` uploads a directory with no framework
+detection at all, so without it every route except `/` would 404.
 
 **When the site URL changes, update `CORS_ORIGINS` on the Northflank service to
 match exactly** — `https`, no trailing slash, no path. Getting this wrong is
