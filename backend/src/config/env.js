@@ -9,12 +9,25 @@ function list(value, fallback = "") {
     .filter(Boolean);
 }
 
+// A typo in DATABASE_SSL would quietly fall back to an unencrypted connection,
+// so refuse anything that is not one of the modes we actually support.
+const DATABASE_SSL_MODES = ["", "true", "false", "no-verify"];
+
+function databaseSslMode(value) {
+  const mode = (value || "").trim().toLowerCase();
+  if (!DATABASE_SSL_MODES.includes(mode)) {
+    throw new Error(`DATABASE_SSL must be true, false or no-verify (received "${value}")`);
+  }
+  return mode;
+}
+
 export const env = {
   nodeEnv: process.env.NODE_ENV || "development",
   port: Number(process.env.PORT || 5000),
   businessTimezone: process.env.BUSINESS_TIMEZONE || "Africa/Johannesburg",
   corsOrigins: list(process.env.CORS_ORIGINS, "http://localhost:5173"),
   databaseUrl: process.env.DATABASE_URL || "",
+  databaseSsl: databaseSslMode(process.env.DATABASE_SSL),
   testDatabaseUrl: process.env.TEST_DATABASE_URL || "",
   dbHost: process.env.DB_HOST || "localhost",
   dbPort: Number(process.env.DB_PORT || 5432),
