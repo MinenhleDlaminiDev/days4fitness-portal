@@ -1,0 +1,20 @@
+# The build context is the repository root, so everything the API does not need
+# is excluded here: it keeps the context small and keeps real secrets out of it.
+**/node_modules
+**/npm-debug.log*
+**/.env
+**/.env.*
+
+.git
+.github
+.claude
+.agents
+.vscode
+
+frontend
+docs
+backend/test
+database/init
+
+*.md
+docker-compose.yml

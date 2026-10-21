@@ -43,16 +43,40 @@ always-on services and one database, so the API and Postgres fill it exactly.
 ### Northflank: API And Postgres
 
 1. Create the project, then add a **Postgres** addon.
-2. Add a **combined build and deploy service** pointed at this repository with
-   `backend/` as the build context.
+2. Add a **combined build and deploy service** pointed at this repository, with
+   build type **Dockerfile** and these two paths:
+
+   | Field | Value |
+   | --- | --- |
+   | Build context | `/` |
+   | Dockerfile location | `/backend/Dockerfile` |
+
+   The context is the repository root, **not** `/backend`. The migration runner
+   resolves migrations to `<repo>/database/migrations`, which sits outside
+   `backend/`, so a context of `/backend` cannot copy them and `npm run migrate`
+   would find nothing to apply.
 3. Set the service environment from the block above. Take `DATABASE_URL` from the
    addon's connection details rather than typing it out, and set
    `DATABASE_SSL=true`. If the service then fails to connect with a certificate
    error, the addon is signing with its own authority — use `no-verify`.
 4. Health checks: liveness on `/api/health`, readiness on `/api/health/ready`.
-5. Run `npm run migrate` once the database is reachable. It uses the same pool as
-   the server, so the `DATABASE_SSL` setting applies to it too.
+5. Run `npm run migrate` from the service's shell once the database is reachable.
+   It uses the same pool as the server, so the `DATABASE_SSL` setting applies to it
+   too, and the image already carries the migration files.
 6. Confirm `/api/health/ready` returns `"database": "connected"` over HTTPS.
+
+### Building The Image Locally
+
+The same image Northflank builds can be built and run from the repository root:
+
+```sh
+docker build -f backend/Dockerfile -t days4fitness-api:test .
+docker run --rm -p 5055:5000   -e DATABASE_URL="postgresql://postgres:postgres@host.docker.internal:5433/days4fitness"   -e DATABASE_SSL=false   -e CORS_ORIGINS="https://your-site.netlify.app"   days4fitness-api:test
+```
+
+`CORS_ORIGINS` must be a real non-localhost origin even for a local container run,
+because the image sets `NODE_ENV=production` and the server refuses to start in
+production when it finds a `localhost` origin.
 
 ### Node Version
 
