@@ -33,10 +33,16 @@ export function createAuthService(
 ) {
   let bootstrapPromise = null;
 
+  // Single-flight: concurrent first logins share one count-and-create rather
+  // than racing to insert the same trainer. A *failure* is deliberately not
+  // kept — the slot is cleared so the next login retries. Caching a rejection
+  // here once left sign-in returning 500 against a healthy, fully migrated
+  // database until the process happened to be restarted.
   async function ensureBootstrapTrainer() {
     if (!env.trainerBootstrapEmail || !env.trainerBootstrapPassword) return;
+
     if (!bootstrapPromise) {
-      bootstrapPromise = (async () => {
+      const attempt = (async () => {
         const count = await repository.countTrainerUsers();
         if (count > 0) return;
         await repository.createTrainerUser({
@@ -46,7 +52,20 @@ export function createAuthService(
           passwordHash: hashPassword(env.trainerBootstrapPassword)
         });
       })();
+
+      bootstrapPromise = attempt.catch((error) => {
+        bootstrapPromise = null;
+        // AppError is treated as operational and is not logged by the error
+        // handler, so the real cause is recorded here before it is replaced.
+        console.error("Bootstrap trainer setup failed:", error);
+        throw new AppError(
+          503,
+          "BOOTSTRAP_UNAVAILABLE",
+          "Could not prepare the trainer account. Please try again."
+        );
+      });
     }
+
     await bootstrapPromise;
   }
 

@@ -178,3 +178,77 @@ test("rejects Google sign-in for non-Gmail accounts during testing mode", async 
     { code: "GOOGLE_GMAIL_REQUIRED" }
   );
 });
+
+test("retries the bootstrap after a failure instead of caching the rejection", async () => {
+  const repository = fakeRepository();
+  let createCalls = 0;
+  let failNextCount = true;
+
+  const flaky = {
+    ...repository,
+    async countTrainerUsers() {
+      if (failNextCount) {
+        failNextCount = false;
+        throw new Error('relation "trainer_users" does not exist');
+      }
+      return repository.countTrainerUsers();
+    },
+    async createTrainerUser(user) {
+      createCalls += 1;
+      return repository.createTrainerUser(user);
+    }
+  };
+
+  const service = createAuthService(flaky);
+  const credentials = {
+    email: "trainer@days4fitness.local",
+    password: "ChangeMe123!"
+  };
+
+  // The first attempt fails on the database, not on the credentials.
+  await assert.rejects(() => service.login(credentials), {
+    code: "BOOTSTRAP_UNAVAILABLE"
+  });
+  assert.equal(createCalls, 0);
+
+  // The cause has gone away, so the next login must try again rather than
+  // replay the stored rejection.
+  const loggedIn = await service.login(credentials);
+  assert.equal(loggedIn.user.email, "trainer@days4fitness.local");
+  assert.equal(createCalls, 1);
+  assert.equal(repository.state.users.length, 1);
+});
+
+test("shares one bootstrap between concurrent first logins", async () => {
+  const repository = fakeRepository();
+  let createCalls = 0;
+
+  const counted = {
+    ...repository,
+    async countTrainerUsers() {
+      // Yield, so both logins get past the count before either one inserts.
+      await new Promise((resolve) => setImmediate(resolve));
+      return repository.countTrainerUsers();
+    },
+    async createTrainerUser(user) {
+      createCalls += 1;
+      return repository.createTrainerUser(user);
+    }
+  };
+
+  const service = createAuthService(counted);
+  const credentials = {
+    email: "trainer@days4fitness.local",
+    password: "ChangeMe123!"
+  };
+
+  const [first, second] = await Promise.all([
+    service.login(credentials),
+    service.login(credentials)
+  ]);
+
+  assert.ok(first.token);
+  assert.ok(second.token);
+  assert.equal(createCalls, 1, "the trainer must only be created once");
+  assert.equal(repository.state.users.length, 1);
+});
