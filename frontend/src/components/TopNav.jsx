@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { NavLink, useLocation } from "react-router-dom";
+import { Link, NavLink, useLocation } from "react-router-dom";
 import {
   Calendar as CalendarIcon,
   ClipboardCheck as ClipboardCheckIcon,
@@ -12,6 +12,7 @@ import {
 import ThemeToggle from "./ThemeToggle.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 import useDismissable from "../lib/useDismissable.js";
+import { LogoMark } from "./Logo.jsx";
 
 const items = [
   { to: "/", label: "Dashboard", icon: CalendarIcon },
@@ -94,7 +95,21 @@ export default function TopNav() {
 
   return (
     <header ref={barRef} className="app-nav sticky top-0 z-40 border-b backdrop-blur">
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-2 sm:px-6">
+      {/* No max width here, unlike the page content below: a chrome row
+          belongs against the edges of the window, not inside the content
+          column. Below 1152px this changes nothing, because the cap was
+          never binding at those widths. */}
+      <div className="flex items-center gap-3 px-4 py-2 sm:px-6 lg:px-8">
+        <div className="flex flex-1 items-center">
+          <Link
+            to="/"
+            aria-label="Days4Fitness dashboard"
+            className="grid h-9 shrink-0 place-items-center rounded-xl px-1 text-accent"
+          >
+            <LogoMark size={22} />
+          </Link>
+        </div>
+
         {/* The links only fit beside the controls from md up; below that they
             live in the menu instead. */}
         <nav className="hidden items-center gap-1 md:flex">
@@ -117,11 +132,9 @@ export default function TopNav() {
           })}
         </nav>
 
-        {/* ml-auto, not justify-between: below md the links are display:none,
-            so there is no left-hand item to push these to the right. */}
-        <div className="ml-auto flex items-center gap-3">
+        <div className="flex flex-1 items-center justify-end gap-3">
           <ThemeToggle />
-          <span className="hidden h-[30px] items-center rounded-full border border-success-border bg-surface/80 px-3 text-xs font-semibold text-accent md:inline-flex">
+          <span className="hidden h-[30px] items-center rounded-full border border-success-border bg-surface/80 px-3 text-xs font-semibold text-accent xl:inline-flex">
             {trainer?.name}
           </span>
           <button

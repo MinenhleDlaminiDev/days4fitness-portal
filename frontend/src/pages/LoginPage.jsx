@@ -3,6 +3,7 @@ import { useState } from "react";
 import { LockKeyhole, Mail } from "lucide-react";
 import GoogleAuthButton from "../components/GoogleAuthButton.jsx";
 import ThemeToggle from "../components/ThemeToggle.jsx";
+import { LogoLockup } from "../components/Logo.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 
 export default function LoginPage() {
@@ -25,9 +26,7 @@ export default function LoginPage() {
         <header className="bg-gradient-to-br from-emerald-950 via-emerald-800 to-emerald-600 px-6 py-7 text-white">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.22em] text-emerald-100">
-                Trainer Portal
-              </p>
+              <LogoLockup size={19} className="text-white" />
               <h1 className="mt-2 text-3xl font-bold">Sign in</h1>
               <p className="mt-2 text-sm text-emerald-100">
                 Access the Days4Fitness admin workspace.
