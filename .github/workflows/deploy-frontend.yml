@@ -1,13 +1,18 @@
 name: Deploy frontend
 
-# The API is deployed separately on Northflank, which builds from the same
-# branch. Only frontend changes need to rebuild and republish the site.
+# Manual only, deliberately. The test site on netlify.app is built by Netlify
+# itself from the repository, and two deployers publishing --prod on the same
+# push would race. This workflow is the path for the real domain later: when it
+# takes over, delete Netlify's own build (Build & deploy -> stop builds) and
+# restore the push trigger below in the same change, never leaving both live.
+#
+#  on:
+#    push:
+#      branches: [main]
+#      paths:
+#        - "frontend/**"
+#        - ".github/workflows/deploy-frontend.yml"
 on:
-  push:
-    branches: [main]
-    paths:
-      - "frontend/**"
-      - ".github/workflows/deploy-frontend.yml"
   workflow_dispatch:
 
 # Two pushes in quick succession would otherwise race to publish, and the
