@@ -5,6 +5,12 @@ import { env } from "../src/config/env.js";
 import { createPackagesRepository } from "../src/repositories/packages.repository.js";
 import { createPackagesService } from "../src/services/packages.service.js";
 import { addDays, addMonths, daysFromToday } from "./helpers/dates.js";
+import {
+  actorFor,
+  bindPackagesActor,
+  ensureTestTrainer,
+  OWNER_SUBQUERY
+} from "./helpers/trainer.js";
 
 const { Pool } = pg;
 
@@ -22,7 +28,14 @@ if (!env.testDatabaseUrl || !new URL(env.testDatabaseUrl).pathname.toLowerCase()
 }
 
 const testPool = new Pool({ connectionString: env.testDatabaseUrl });
-const service = createPackagesService(createPackagesRepository(testPool));
+
+// Fixtures own their clients since AUTH-03, so the suite needs a trainer
+// for them to belong to. Top-level await, so it is done before any test runs.
+await ensureTestTrainer(testPool);
+const service = bindPackagesActor(
+  createPackagesService(createPackagesRepository(testPool)),
+  actorFor(await ensureTestTrainer(testPool))
+);
 
 after(async () => {
   await testPool.end();
@@ -31,8 +44,8 @@ after(async () => {
 async function createClientAndPackage({ sessionsUsed = 0 } = {}) {
   const stamp = `${Date.now()}-${Math.random()}`;
   const clientResult = await testPool.query(
-    `INSERT INTO clients (name, phone, email)
-     VALUES ($1, $2, $3)
+    `INSERT INTO clients (name, phone, email, trainer_user_id)
+     VALUES ($1, $2, $3, ${OWNER_SUBQUERY})
      RETURNING id`,
     [`Package Client ${stamp}`, "+27 82 555 0101", `package-${stamp}@example.com`]
   );
@@ -146,8 +159,8 @@ test("prevents overpayment and active-package renewal", async () => {
 test("accepts an exact final payment after a decimal partial payment", async () => {
   const stamp = `${Date.now()}-${Math.random()}`;
   const clientResult = await testPool.query(
-    `INSERT INTO clients (name, phone, email)
-     VALUES ($1, '+27 82 555 0103', $2)
+    `INSERT INTO clients (name, phone, email, trainer_user_id)
+     VALUES ($1, '+27 82 555 0103', $2, ${OWNER_SUBQUERY})
      RETURNING id`,
     [`Decimal Client ${stamp}`, `decimal-${stamp}@example.com`]
   );
@@ -211,8 +224,8 @@ test("renews an exhausted package with an exact two-month expiry", async () => {
 test("rejects packages that do not expire exactly two months after purchase", async () => {
   const stamp = `${Date.now()}-${Math.random()}`;
   const clientResult = await testPool.query(
-    `INSERT INTO clients (name, phone, email)
-     VALUES ($1, '+27 82 555 0102', $2)
+    `INSERT INTO clients (name, phone, email, trainer_user_id)
+     VALUES ($1, '+27 82 555 0102', $2, ${OWNER_SUBQUERY})
      RETURNING id`,
     [`Expiry Client ${stamp}`, `expiry-${stamp}@example.com`]
   );
@@ -244,5 +257,79 @@ test("rejects packages that do not expire exactly two months after purchase", as
     );
   } finally {
     await testPool.query("DELETE FROM clients WHERE id = $1", [clientResult.rows[0].id]);
+  }
+});
+
+test("packages and payments follow the client's owner", async () => {
+  // Both plain trainers: an admin sees everything, which would hide the bug.
+  const alice = actorFor(
+    await ensureTestTrainer(testPool, { email: "pkg-alice@days4fitness.test", role: "trainer" })
+  );
+  const bob = actorFor(
+    await ensureTestTrainer(testPool, { email: "pkg-bob@days4fitness.test", role: "trainer" })
+  );
+  const raw = createPackagesService(createPackagesRepository(testPool));
+  const today = daysFromToday(0);
+
+  const stamp = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const clientResult = await testPool.query(
+    `INSERT INTO clients (name, phone, email, trainer_user_id)
+     VALUES ('Alice Package Client', '+27 82 910 0001', $1, $2)
+     RETURNING id`,
+    [`pkg-isolation-${stamp}@example.com`, alice.id]
+  );
+  const clientId = clientResult.rows[0].id;
+
+  try {
+    const created = await raw.createClientPackage(
+      clientId,
+      {
+        program: "Weight Loss",
+        sessionType: "One-on-One",
+        sessionsTotal: 4,
+        purchaseDate: today
+      },
+      alice
+    );
+    assert.ok(created.id, "Alice should be able to create a package for her own client");
+
+    // Bob owns no part of this and must be refused everywhere, as a 404 rather
+    // than a 403 so that no id is confirmed to exist.
+    await assert.rejects(() => raw.listClientPackages(clientId, bob), { status: 404 });
+    await assert.rejects(
+      () =>
+        raw.createClientPackage(
+          clientId,
+          {
+            program: "Weight Loss",
+            sessionType: "One-on-One",
+            sessionsTotal: 4,
+            purchaseDate: today
+          },
+          bob
+        ),
+      { status: 404 }
+    );
+    await assert.rejects(
+      () => raw.addPayment(created.id, { amount: 100, paymentDate: today, method: "cash" }, bob),
+      { status: 404 }
+    );
+
+    // Alice is unaffected by any of that, and the package is untouched.
+    const hers = await raw.listClientPackages(clientId, alice);
+    assert.equal(hers.length, 1);
+    assert.equal(hers[0].paidAmount, 0, "Bob's payment attempt must not have landed");
+
+    const payment = await raw.addPayment(
+      created.id,
+      { amount: 100, paymentDate: today, method: "cash" },
+      alice
+    );
+    assert.ok(payment.id);
+    await assert.rejects(() => raw.reversePayment(payment.id, { paymentDate: today }, bob), {
+      status: 404
+    });
+  } finally {
+    await testPool.query("DELETE FROM clients WHERE id = $1", [clientId]);
   }
 });

@@ -7,6 +7,7 @@ import { createClientsRepository } from "../src/repositories/clients.repository.
 import { createSessionsRepository } from "../src/repositories/sessions.repository.js";
 import { createBookingRequestsService } from "../src/services/bookingRequests.service.js";
 import { createClientsService } from "../src/services/clients.service.js";
+import { actorFor, bindActor, ensureTestTrainer } from "./helpers/trainer.js";
 import { createSessionsService } from "../src/services/sessions.service.js";
 import { addDays, addMonths, daysFromToday, upcomingMonday } from "./helpers/dates.js";
 
@@ -24,7 +25,13 @@ if (!env.testDatabaseUrl || !new URL(env.testDatabaseUrl).pathname.toLowerCase()
 }
 
 const testPool = new Pool({ connectionString: env.testDatabaseUrl });
-const service = createClientsService(createClientsRepository(testPool));
+// Clients belong to a trainer since AUTH-03, so the suite seeds one and acts
+// as it. Isolation between two trainers is tested separately, below.
+const trainer = await ensureTestTrainer(testPool);
+const service = bindActor(
+  createClientsService(createClientsRepository(testPool)),
+  actorFor(trainer)
+);
 const requestsService = createBookingRequestsService(createBookingRequestsRepository(testPool));
 const sessionsService = createSessionsService(createSessionsRepository(testPool));
 
@@ -355,6 +362,88 @@ test("a goal given at signup is saved with the client, and a bad one saves nothi
   } finally {
     if (created) {
       await testPool.query("DELETE FROM clients WHERE id = $1", [created.id]);
+    }
+  }
+});
+
+test("two trainers cannot see or touch each other's clients", async () => {
+  // Both plain trainers on purpose: an admin sees everything, so using one
+  // here would make the test pass for the wrong reason.
+  const alice = actorFor(
+    await ensureTestTrainer(testPool, { email: "alice@days4fitness.test", role: "trainer" })
+  );
+  const bob = actorFor(
+    await ensureTestTrainer(testPool, { email: "bob@days4fitness.test", role: "trainer" })
+  );
+  const raw = createClientsService(createClientsRepository(testPool));
+  const stamp = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const newClient = (name, phone, suffix) => ({
+    name,
+    phone,
+    email: `${suffix}-${stamp}@example.com`,
+    program: "Weight Loss",
+    sessionType: "One-on-One",
+    packageSize: 4,
+    purchaseDate: PURCHASE_DATE,
+    paid: false
+  });
+
+  const hers = await raw.createClient(newClient("Alice Client", "+27 82 900 0001", "alice"), alice);
+  let his;
+
+  try {
+    // Alice sees her own client; Bob does not see it at all.
+    const aliceList = await raw.listClients({ status: "all", pageSize: 50 }, alice);
+    const bobList = await raw.listClients({ status: "all", pageSize: 50 }, bob);
+    assert.ok(aliceList.items.some((item) => item.id === hers.id));
+    assert.ok(
+      !bobList.items.some((item) => item.id === hers.id),
+      "Bob must not see Alice's client in his list"
+    );
+
+    // Guessing the id must read as missing rather than forbidden: a 403 would
+    // confirm the client exists, which is itself a leak.
+    await assert.rejects(() => raw.getClient(hers.id, bob), { status: 404 });
+
+    // Every other way in has to refuse too. A list that filters correctly
+    // while a detail or write route does not is the usual shape of this bug.
+    // A complete payload on purpose: updateClient validates required fields
+    // before it looks the client up, so an incomplete one would be refused
+    // with a 400 and prove nothing about ownership. The 400 is identical
+    // whether or not the client exists, so it leaks nothing either way.
+    await assert.rejects(
+      () => raw.updateClient(hers.id, { name: "Hijacked", phone: "+27 82 900 0009" }, bob),
+      { status: 404 }
+    );
+    await assert.rejects(() => raw.setClientActive(hers.id, false, bob), { status: 404 });
+    await assert.rejects(
+      () => raw.updatePreferences(hers.id, { preferredDays: [] }, bob),
+      { status: 404 }
+    );
+    await assert.rejects(() => raw.addClientGoal(hers.id, { goal: "Steal this" }, bob), {
+      status: 404
+    });
+    await assert.rejects(() => raw.getPackageHistory(hers.id, bob), { status: 404 });
+    await assert.rejects(() => raw.getSessionHistory(hers.id, bob), { status: 404 });
+
+    // None of those attempts changed anything.
+    const stillHers = await raw.getClient(hers.id, alice);
+    assert.equal(stillHers.name, "Alice Client");
+    assert.equal(stillHers.isActive, true);
+
+    // A client Bob creates belongs to Bob, and Alice cannot see that one.
+    his = await raw.createClient(newClient("Bob Client", "+27 82 900 0002", "bob"), bob);
+    const aliceAgain = await raw.listClients({ status: "all", pageSize: 50 }, alice);
+    assert.ok(!aliceAgain.items.some((item) => item.id === his.id));
+
+    // The admin this suite runs as sees both, which is the point of the role.
+    const adminList = await service.listClients({ status: "all", pageSize: 50 });
+    assert.ok(adminList.items.some((item) => item.id === hers.id));
+    assert.ok(adminList.items.some((item) => item.id === his.id));
+  } finally {
+    const ids = [hers?.id, his?.id].filter(Boolean);
+    if (ids.length > 0) {
+      await testPool.query("DELETE FROM clients WHERE id = ANY($1::bigint[])", [ids]);
     }
   }
 });

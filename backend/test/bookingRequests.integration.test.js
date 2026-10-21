@@ -8,6 +8,7 @@ import { createSessionsRepository } from "../src/repositories/sessions.repositor
 import { createBookingRequestsService } from "../src/services/bookingRequests.service.js";
 import { createClientsService } from "../src/services/clients.service.js";
 import { createSessionsService } from "../src/services/sessions.service.js";
+import { actorFor, bindActor, ensureTestTrainer, OWNER_SUBQUERY } from "./helpers/trainer.js";
 
 const { Pool } = pg;
 
@@ -16,7 +17,14 @@ if (!env.testDatabaseUrl || !new URL(env.testDatabaseUrl).pathname.toLowerCase()
 }
 
 const testPool = new Pool({ connectionString: env.testDatabaseUrl });
-const clientsService = createClientsService(createClientsRepository(testPool));
+
+// Fixtures own their clients since AUTH-03, so the suite needs a trainer
+// for them to belong to. Top-level await, so it is done before any test runs.
+await ensureTestTrainer(testPool);
+const clientsService = bindActor(
+  createClientsService(createClientsRepository(testPool)),
+  actorFor(await ensureTestTrainer(testPool))
+);
 const requestsService = createBookingRequestsService(createBookingRequestsRepository(testPool));
 const sessionsService = createSessionsService(createSessionsRepository(testPool));
 const createdEmails = [];
@@ -75,8 +83,8 @@ async function createManualRequest({ suffix, dayOfWeek, startTime }) {
     "SELECT id FROM programs WHERE name = 'Weight Loss' AND type = 'one_on_one'"
   );
   const client = await testPool.query(
-    `INSERT INTO clients (name, phone, email)
-     VALUES ($1, '+27 82 777 0500', $2)
+    `INSERT INTO clients (name, phone, email, trainer_user_id)
+     VALUES ($1, '+27 82 777 0500', $2, ${OWNER_SUBQUERY})
      RETURNING id`,
     [`Phase 3 ${suffix}`, email]
   );
@@ -392,8 +400,8 @@ test("does not let expired recurring bookings block a weekly slot", async () => 
     "SELECT id FROM programs WHERE name = 'Weight Loss' AND type = 'one_on_one'"
   );
   const expiredClient = await testPool.query(
-    `INSERT INTO clients (name, phone, email)
-     VALUES ('Expired Booking Client', '+27 82 777 1000', $1)
+    `INSERT INTO clients (name, phone, email, trainer_user_id)
+     VALUES ('Expired Booking Client', '+27 82 777 1000', $1, ${OWNER_SUBQUERY})
      RETURNING id`,
     [expiredEmail]
   );
@@ -469,8 +477,8 @@ test("allows the same weekly slot when recurring date ranges do not overlap", as
     "SELECT id FROM programs WHERE name = 'Weight Loss' AND type = 'one_on_one'"
   );
   const futureClient = await testPool.query(
-    `INSERT INTO clients (name, phone, email)
-     VALUES ('Future Booking Client', '+27 82 777 1500', $1)
+    `INSERT INTO clients (name, phone, email, trainer_user_id)
+     VALUES ('Future Booking Client', '+27 82 777 1500', $1, ${OWNER_SUBQUERY})
      RETURNING id`,
     [futureEmail]
   );
@@ -587,20 +595,14 @@ test("rejects approval when the package has already expired", async () => {
     "SELECT id FROM programs WHERE name = 'Weight Loss' AND type = 'one_on_one'"
   );
   const client = await testPool.query(
-    `INSERT INTO clients (
-       name,
-       phone,
-       email,
-       preferred_days,
-       preferred_schedule
-     )
+    `INSERT INTO clients (name, phone, email, preferred_days, preferred_schedule, trainer_user_id)
      VALUES (
        'Expired Request Client',
        '+27 82 777 2000',
        $1,
        ARRAY['Wednesday'],
        '{"Wednesday":["13:00"]}'::jsonb
-     )
+     , ${OWNER_SUBQUERY})
      RETURNING id`,
     [email]
   );
@@ -657,7 +659,10 @@ test("starts next week when today's requested time has already passed", async ()
     connectionString: env.testDatabaseUrl,
     options: `-c timezone=${timezone}`
   });
-  const timeAwareClients = createClientsService(createClientsRepository(timeAwarePool));
+  const timeAwareClients = bindActor(
+    createClientsService(createClientsRepository(timeAwarePool)),
+    actorFor(await ensureTestTrainer(timeAwarePool))
+  );
   const timeAwareRequests = createBookingRequestsService(
     createBookingRequestsRepository(timeAwarePool, { businessTimezone: timezone })
   );

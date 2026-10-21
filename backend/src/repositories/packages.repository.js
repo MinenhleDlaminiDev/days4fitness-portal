@@ -1,4 +1,5 @@
 import { pool } from "../db/client.js";
+import { requireScope } from "../lib/ownership.js";
 
 const PACKAGE_FINANCIAL_SELECT = `
   SELECT
@@ -38,10 +39,13 @@ const PACKAGE_FINANCIAL_SELECT = `
 
 export function createPackagesRepository(dbPool = pool) {
   return {
-    async clientExists(clientId) {
+    async clientExists(clientId, scope) {
       const result = await dbPool.query(
-        "SELECT EXISTS (SELECT 1 FROM clients WHERE id = $1) AS exists",
-        [clientId]
+        `SELECT EXISTS (
+           SELECT 1 FROM clients
+           WHERE id = $1 AND ($2::bigint IS NULL OR trainer_user_id = $2)
+         ) AS exists`,
+        [clientId, requireScope(scope)]
       );
       return result.rows[0].exists;
     },
@@ -206,16 +210,18 @@ export function createPackagesRepository(dbPool = pool) {
       }
     },
 
-    async addPayment(packageId, paymentData) {
+    async addPayment(packageId, paymentData, scope) {
       const db = await dbPool.connect();
       try {
         await db.query("BEGIN");
         const packageResult = await db.query(
-          `SELECT id, price
-           FROM packages
-           WHERE id = $1
-           FOR UPDATE`,
-          [packageId]
+          `SELECT package.id, package.price
+           FROM packages package
+           JOIN clients client ON client.id = package.client_id
+           WHERE package.id = $1
+             AND ($2::bigint IS NULL OR client.trainer_user_id = $2)
+           FOR UPDATE OF package`,
+          [packageId, requireScope(scope)]
         );
         const packageRow = packageResult.rows[0];
         if (!packageRow) {
@@ -267,7 +273,7 @@ export function createPackagesRepository(dbPool = pool) {
       }
     },
 
-    async reversePayment(paymentId, reversalData) {
+    async reversePayment(paymentId, reversalData, scope) {
       const db = await dbPool.connect();
       try {
         await db.query("BEGIN");
@@ -275,9 +281,11 @@ export function createPackagesRepository(dbPool = pool) {
           `SELECT payment.*
            FROM package_payments payment
            JOIN packages package ON package.id = payment.package_id
+           JOIN clients client ON client.id = package.client_id
            WHERE payment.id = $1
+             AND ($2::bigint IS NULL OR client.trainer_user_id = $2)
            FOR UPDATE OF package`,
-          [paymentId]
+          [paymentId, requireScope(scope)]
         );
         const payment = paymentResult.rows[0];
         if (!payment) {

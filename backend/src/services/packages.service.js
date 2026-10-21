@@ -1,4 +1,5 @@
 import { conflictError, notFoundError, validationError } from "../errors/AppError.js";
+import { ownerScope } from "../lib/ownership.js";
 import {
   cleanString,
   requireIsoDate,
@@ -79,15 +80,15 @@ function translateError(error) {
 
 export function createPackagesService(repository = packagesRepository) {
   return {
-    async listClientPackages(clientId) {
+    async listClientPackages(clientId, actor) {
       const id = requirePositiveInteger(clientId, "clientId");
-      if (!(await repository.clientExists(id))) {
+      if (!(await repository.clientExists(id, ownerScope(actor)))) {
         throw notFoundError("Client not found");
       }
       return (await repository.findForClient(id)).map(toPackageDto);
     },
 
-    async createClientPackage(clientId, input = {}) {
+    async createClientPackage(clientId, input = {}, actor) {
       const id = requirePositiveInteger(clientId, "clientId");
       const sessionType = requireOneOf(input.sessionType, ["One-on-One", "Group"], "sessionType");
       const program = cleanString(input.program);
@@ -98,6 +99,11 @@ export function createPackagesService(repository = packagesRepository) {
         throw validationError(`sessionsTotal must be one of: ${packageSizes.join(", ")}`);
       }
       const purchaseDate = requireIsoDate(input.purchaseDate, "purchaseDate");
+      // Checked before the write: createForClient would otherwise happily hang
+      // a package off another trainer's client.
+      if (!(await repository.clientExists(id, ownerScope(actor)))) {
+        throw notFoundError("Client not found");
+      }
       try {
         const packageId = await repository.createForClient(id, {
           programName: program,
@@ -114,7 +120,7 @@ export function createPackagesService(repository = packagesRepository) {
       }
     },
 
-    async addPayment(packageId, input = {}) {
+    async addPayment(packageId, input = {}, actor) {
       const id = requirePositiveInteger(packageId, "packageId");
       try {
         const payment = await repository.addPayment(id, {
@@ -123,7 +129,7 @@ export function createPackagesService(repository = packagesRepository) {
           method: requireOneOf(input.method, PAYMENT_METHODS, "method"),
           reference: cleanString(input.reference) || null,
           notes: cleanString(input.notes) || null
-        });
+        }, ownerScope(actor));
         if (!payment) throw notFoundError("Package not found");
         return toPaymentDto(payment);
       } catch (error) {
@@ -131,14 +137,14 @@ export function createPackagesService(repository = packagesRepository) {
       }
     },
 
-    async reversePayment(paymentId, input = {}) {
+    async reversePayment(paymentId, input = {}, actor) {
       const id = requirePositiveInteger(paymentId, "paymentId");
       try {
         const reversal = await repository.reversePayment(id, {
           paymentDate: requireIsoDate(input.paymentDate, "paymentDate"),
           reference: cleanString(input.reference) || null,
           notes: cleanString(input.notes) || null
-        });
+        }, ownerScope(actor));
         if (!reversal) throw notFoundError("Payment not found");
         return toPaymentDto(reversal);
       } catch (error) {

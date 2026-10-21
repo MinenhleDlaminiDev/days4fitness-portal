@@ -1,6 +1,47 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createClientsService, normalizePreferredSchedule } from "../src/services/clients.service.js";
+import {
+  createClientsService as createUnboundClientsService,
+  normalizePreferredSchedule
+} from "../src/services/clients.service.js";
+
+// AUTH-03 gave every service method the acting trainer as its last argument.
+// These tests are about the service's own behaviour rather than authorisation,
+// so they all act as one trainer and the actor is bound here instead of being
+// repeated at twenty call sites. Two-trainer isolation is covered by the
+// integration tests, where it can be checked against a real database.
+const ACTOR = Object.freeze({ id: 1, role: "trainer" });
+
+// Arity per method, so a call that omits an optional middle argument still
+// puts the actor last rather than sliding it into the gap.
+const ACTOR_ARITY = {
+  listClients: 1,
+  listClientOptions: 0,
+  getClient: 1,
+  createClient: 1,
+  updatePreferences: 2,
+  updateClient: 2,
+  setClientActive: 2,
+  addClientGoal: 2,
+  updateClientGoal: 3,
+  removeClientGoal: 2,
+  getPackageHistory: 1,
+  getSessionHistory: 1
+};
+
+function createClientsService(...args) {
+  const service = createUnboundClientsService(...args);
+  const bound = { ...service };
+  for (const [name, arity] of Object.entries(ACTOR_ARITY)) {
+    if (typeof service[name] !== "function") continue;
+    bound[name] = (...callArgs) => {
+      const padded = [...callArgs];
+      while (padded.length < arity) padded.push(undefined);
+      return service[name](...padded, ACTOR);
+    };
+  }
+  return bound;
+}
 
 function clientRow(overrides = {}) {
   return {

@@ -5,6 +5,7 @@ import { env } from "../src/config/env.js";
 import { createReportsRepository } from "../src/repositories/reports.repository.js";
 import { createReportsService } from "../src/services/reports.service.js";
 import { addDays, addMonths, daysFromToday, upcomingMonday } from "./helpers/dates.js";
+import { ensureTestTrainer, OWNER_SUBQUERY } from "./helpers/trainer.js";
 
 const { Pool } = pg;
 
@@ -13,6 +14,10 @@ if (!env.testDatabaseUrl || !new URL(env.testDatabaseUrl).pathname.toLowerCase()
 }
 
 const testPool = new Pool({ connectionString: env.testDatabaseUrl });
+
+// Fixtures own their clients since AUTH-03, so the suite needs a trainer
+// for them to belong to. Top-level await, so it is done before any test runs.
+await ensureTestTrainer(testPool);
 const service = createReportsService(createReportsRepository(testPool));
 
 // A private window, so the assertions are exact rather than "greater than
@@ -28,8 +33,8 @@ let nextSlot = 0;
 async function seedClient(name, { completed = 0, noShow = 0, cancelled = 0, paid = 0 }) {
   const stamp = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
   const clientResult = await testPool.query(
-    `INSERT INTO clients (name, phone, email)
-     VALUES ($1, '+27 82 555 0300', $2) RETURNING id`,
+    `INSERT INTO clients (name, phone, email, trainer_user_id)
+     VALUES ($1, '+27 82 555 0300', $2, ${OWNER_SUBQUERY}) RETURNING id`,
     [name, `reports-${stamp}@example.com`]
   );
   const clientId = clientResult.rows[0].id;

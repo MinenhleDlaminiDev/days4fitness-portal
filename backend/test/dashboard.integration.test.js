@@ -4,6 +4,7 @@ import pg from "pg";
 import { env } from "../src/config/env.js";
 import { createDashboardRepository } from "../src/repositories/dashboard.repository.js";
 import { createDashboardService } from "../src/services/dashboard.service.js";
+import { ensureTestTrainer, OWNER_SUBQUERY } from "./helpers/trainer.js";
 
 const { Pool } = pg;
 
@@ -12,6 +13,10 @@ if (!env.testDatabaseUrl || !new URL(env.testDatabaseUrl).pathname.toLowerCase()
 }
 
 const testPool = new Pool({ connectionString: env.testDatabaseUrl });
+
+// Fixtures own their clients since AUTH-03, so the suite needs a trainer
+// for them to belong to. Top-level await, so it is done before any test runs.
+await ensureTestTrainer(testPool);
 const service = createDashboardService(createDashboardRepository(testPool));
 
 after(async () => {
@@ -24,8 +29,8 @@ async function createDashboardClient(
 ) {
   const stamp = `${Date.now()}-${Math.random()}`;
   const clientResult = await testPool.query(
-    `INSERT INTO clients (name, phone, email)
-     VALUES ($1, '+27 82 555 0700', $2)
+    `INSERT INTO clients (name, phone, email, trainer_user_id)
+     VALUES ($1, '+27 82 555 0700', $2, ${OWNER_SUBQUERY})
      RETURNING id`,
     [`Dashboard ${suffix}`, `dashboard-${suffix}-${stamp}@example.com`]
   );

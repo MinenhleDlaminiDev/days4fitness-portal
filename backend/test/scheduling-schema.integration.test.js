@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import pg from "pg";
 import { env } from "../src/config/env.js";
 import { applyMigrations } from "../src/db/migrationRunner.js";
+import { ensureTestTrainer, OWNER_SUBQUERY } from "./helpers/trainer.js";
 
 const { Pool } = pg;
 const migrationsDirectory = fileURLToPath(
@@ -17,6 +18,10 @@ if (!env.testDatabaseUrl || !new URL(env.testDatabaseUrl).pathname.toLowerCase()
 }
 
 const testPool = new Pool({ connectionString: env.testDatabaseUrl });
+
+// Fixtures own their clients since AUTH-03, so the suite needs a trainer
+// for them to belong to. Top-level await, so it is done before any test runs.
+await ensureTestTrainer(testPool);
 
 after(async () => {
   await testPool.end();
@@ -87,10 +92,10 @@ test("allows multiple clients to attend one group session", async () => {
       "SELECT id FROM programs WHERE type = 'group' ORDER BY id LIMIT 1"
     );
     const clients = await db.query(
-      `INSERT INTO clients (name, phone)
+      `INSERT INTO clients (name, phone, trainer_user_id)
        VALUES
-         ('Group Client One', '+27 82 000 1001'),
-         ('Group Client Two', '+27 82 000 1002')
+         ('Group Client One', '+27 82 000 1001', ${OWNER_SUBQUERY}),
+         ('Group Client Two', '+27 82 000 1002', ${OWNER_SUBQUERY})
        RETURNING id`
     );
     const firstPackage = await db.query(
@@ -175,6 +180,8 @@ test("preserves legacy preferences and session attendance during migration", asy
     }
 
     const clientResult = await db.query(
+      // No owner column here on purpose: this schema is built from migrations
+      // 001-004 only, which is before AUTH-03 added it.
       `INSERT INTO clients (name, phone, preferred_days, preferred_schedule)
        VALUES (
          'Legacy Client',
@@ -208,7 +215,22 @@ test("preserves legacy preferences and session attendance during migration", asy
       [packageResult.rows[0].id, clientResult.rows[0].id]
     );
 
-    await applyMigrations(db, () => {});
+    // 021 refuses to leave clients unowned, and this scratch schema starts at
+    // migration 004, so trainer_users does not exist yet and cannot be seeded
+    // beforehand. Run the migrations, seed the first trainer when the guard
+    // stops them, then let the run finish: the runner records what it applied,
+    // so the second call resumes rather than repeating. The catch is doing real
+    // work here -- it proves the guard fires rather than leaving rows unowned.
+    try {
+      await applyMigrations(db, () => {});
+    } catch (error) {
+      if (!String(error.message).includes("Cannot assign client ownership")) throw error;
+      await db.query(
+        `INSERT INTO trainer_users (email, name, role, password_hash)
+         VALUES ('legacy-owner@days4fitness.local', 'Legacy Owner', 'admin', 'not-a-real-hash')`
+      );
+      await applyMigrations(db, () => {});
+    }
 
     const requests = await db.query(
       `SELECT day_of_week, start_time::text, status, source
@@ -284,8 +306,8 @@ test("preserves legacy preferences and session attendance during migration", asy
 
 test("enforces training-day, status, and active-slot constraints", async () => {
   const client = await testPool.query(
-    `INSERT INTO clients (name, phone)
-     VALUES ('Phase 2 Constraint Client', '+27 82 333 4444')
+    `INSERT INTO clients (name, phone, trainer_user_id)
+     VALUES ('Phase 2 Constraint Client', '+27 82 333 4444', ${OWNER_SUBQUERY})
      RETURNING id`
   );
 
@@ -426,10 +448,10 @@ test("rejects attendance that uses another client's package", async () => {
       "SELECT id FROM programs WHERE type = 'one_on_one' ORDER BY id LIMIT 1"
     );
     const clients = await db.query(
-      `INSERT INTO clients (name, phone)
+      `INSERT INTO clients (name, phone, trainer_user_id)
        VALUES
-         ('Package Owner', '+27 82 000 2001'),
-         ('Wrong Attendee', '+27 82 000 2002')
+         ('Package Owner', '+27 82 000 2001', ${OWNER_SUBQUERY}),
+         ('Wrong Attendee', '+27 82 000 2002', ${OWNER_SUBQUERY})
        RETURNING id`
     );
     const packageResult = await db.query(
@@ -482,10 +504,10 @@ test("rejects an approved booking linked to another client's request", async () 
       "SELECT id FROM programs WHERE type = 'one_on_one' ORDER BY id LIMIT 1"
     );
     const clients = await db.query(
-      `INSERT INTO clients (name, phone)
+      `INSERT INTO clients (name, phone, trainer_user_id)
        VALUES
-         ('Request Owner', '+27 82 000 3001'),
-         ('Booking Owner', '+27 82 000 3002')
+         ('Request Owner', '+27 82 000 3001', ${OWNER_SUBQUERY}),
+         ('Booking Owner', '+27 82 000 3002', ${OWNER_SUBQUERY})
        RETURNING id`
     );
     const packages = [];
@@ -562,11 +584,11 @@ test("rejects attendance beyond capacity and from another program", async () => 
       "SELECT id FROM programs WHERE type = 'group' ORDER BY id LIMIT 1"
     );
     const clients = await db.query(
-      `INSERT INTO clients (name, phone)
+      `INSERT INTO clients (name, phone, trainer_user_id)
        VALUES
-         ('Capacity Client One', '+27 82 000 4001'),
-         ('Capacity Client Two', '+27 82 000 4002'),
-         ('Program Client', '+27 82 000 4003')
+         ('Capacity Client One', '+27 82 000 4001', ${OWNER_SUBQUERY}),
+         ('Capacity Client Two', '+27 82 000 4002', ${OWNER_SUBQUERY}),
+         ('Program Client', '+27 82 000 4003', ${OWNER_SUBQUERY})
        RETURNING id`
     );
     const packages = [];
@@ -651,10 +673,10 @@ test("rejects session updates that conflict with existing attendance", async () 
       "SELECT id FROM programs WHERE type = 'one_on_one' ORDER BY id LIMIT 1"
     );
     const clients = await db.query(
-      `INSERT INTO clients (name, phone)
+      `INSERT INTO clients (name, phone, trainer_user_id)
        VALUES
-         ('Update Client One', '+27 82 000 5001'),
-         ('Update Client Two', '+27 82 000 5002')
+         ('Update Client One', '+27 82 000 5001', ${OWNER_SUBQUERY}),
+         ('Update Client Two', '+27 82 000 5002', ${OWNER_SUBQUERY})
        RETURNING id`
     );
     const packages = [];
@@ -735,10 +757,10 @@ test("rejects attendance linked to another client's recurring booking", async ()
       "SELECT id FROM programs WHERE type = 'one_on_one' ORDER BY id LIMIT 1"
     );
     const clients = await db.query(
-      `INSERT INTO clients (name, phone)
+      `INSERT INTO clients (name, phone, trainer_user_id)
        VALUES
-         ('Recurring Owner', '+27 82 000 6001'),
-         ('Recurring Attendee', '+27 82 000 6002')
+         ('Recurring Owner', '+27 82 000 6001', ${OWNER_SUBQUERY}),
+         ('Recurring Attendee', '+27 82 000 6002', ${OWNER_SUBQUERY})
        RETURNING id`
     );
     const packages = [];
@@ -841,8 +863,8 @@ test("requires an approved request for recurring bookings", async () => {
       "SELECT id FROM programs WHERE type = 'one_on_one' ORDER BY id LIMIT 1"
     );
     const client = await db.query(
-      `INSERT INTO clients (name, phone)
-       VALUES ('Approval State Client', '+27 82 000 7001')
+      `INSERT INTO clients (name, phone, trainer_user_id)
+       VALUES ('Approval State Client', '+27 82 000 7001', ${OWNER_SUBQUERY})
        RETURNING id`
     );
     const packageResult = await db.query(
@@ -947,8 +969,8 @@ test("keeps attendance credit consumption consistent with status", async () => {
       "SELECT id FROM programs WHERE type = 'one_on_one' ORDER BY id LIMIT 1"
     );
     const client = await db.query(
-      `INSERT INTO clients (name, phone)
-       VALUES ('Credit State Client', '+27 82 000 8001')
+      `INSERT INTO clients (name, phone, trainer_user_id)
+       VALUES ('Credit State Client', '+27 82 000 8001', ${OWNER_SUBQUERY})
        RETURNING id`
     );
     const packageResult = await db.query(

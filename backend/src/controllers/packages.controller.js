@@ -5,7 +5,7 @@ export function createPackagesController(service = packagesService) {
   return {
     async listForClient(req, res, next) {
       try {
-        sendData(res, await service.listClientPackages(req.params.clientId));
+        sendData(res, await service.listClientPackages(req.params.clientId, req.auth.user));
       } catch (error) {
         next(error);
       }
@@ -13,7 +13,7 @@ export function createPackagesController(service = packagesService) {
 
     async createForClient(req, res, next) {
       try {
-        sendData(res, await service.createClientPackage(req.params.clientId, req.body), {
+        sendData(res, await service.createClientPackage(req.params.clientId, req.body, req.auth.user), {
           status: 201
         });
       } catch (error) {
@@ -23,7 +23,7 @@ export function createPackagesController(service = packagesService) {
 
     async addPayment(req, res, next) {
       try {
-        sendData(res, await service.addPayment(req.params.packageId, req.body), {
+        sendData(res, await service.addPayment(req.params.packageId, req.body, req.auth.user), {
           status: 201
         });
       } catch (error) {
@@ -33,7 +33,7 @@ export function createPackagesController(service = packagesService) {
 
     async reversePayment(req, res, next) {
       try {
-        sendData(res, await service.reversePayment(req.params.paymentId, req.body), {
+        sendData(res, await service.reversePayment(req.params.paymentId, req.body, req.auth.user), {
           status: 201
         });
       } catch (error) {

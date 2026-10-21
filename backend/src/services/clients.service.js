@@ -6,6 +6,7 @@ import {
 } from "../config/businessRules.js";
 import { getSettings, timeSlotsForDay } from "../config/settingsCache.js";
 import { conflictError, notFoundError, validationError } from "../errors/AppError.js";
+import { ownerId, ownerScope } from "../lib/ownership.js";
 import {
   cleanString,
   optionalBoolean,
@@ -222,14 +223,19 @@ export function createClientsService(repository = clientsRepository) {
   // Every goal operation needs the client to exist first, and a missing one
   // must read as a 404 rather than an empty list. A shared helper beats
   // `this` here, because a controller may hand a method around on its own.
-  async function requireClient(clientId) {
+  // Doubles as the ownership check. findById is scoped, so another trainer's
+  // client reads as missing rather than forbidden -- an id that is not yours
+  // should not be confirmed to exist.
+  async function requireClient(clientId, actor) {
     const id = requirePositiveInteger(clientId, "clientId");
-    if (!(await repository.findById(id))) throw notFoundError("Client not found");
+    if (!(await repository.findById(id, ownerScope(actor)))) {
+      throw notFoundError("Client not found");
+    }
     return id;
   }
 
   return {
-    async listClients(query = {}) {
+    async listClients(query = {}, actor) {
       const page = Math.max(1, Number(query.page) || 1);
       const pageSize = Math.min(50, Math.max(1, Number(query.pageSize) || 10));
       const status = ["active", "archived", "all"].includes(query.status)
@@ -238,13 +244,16 @@ export function createClientsService(repository = clientsRepository) {
       const packageStatus = ["active", "expired", "all"].includes(query.packageStatus)
         ? query.packageStatus
         : "all";
-      const result = await repository.findAll({
-        search: cleanString(query.search),
-        status,
-        packageStatus,
-        page,
-        pageSize
-      });
+      const result = await repository.findAll(
+        {
+          search: cleanString(query.search),
+          status,
+          packageStatus,
+          page,
+          pageSize
+        },
+        ownerScope(actor)
+      );
       return {
         items: result.rows.map(toClientDto),
         summary: {
@@ -259,8 +268,8 @@ export function createClientsService(repository = clientsRepository) {
       };
     },
 
-    async listClientOptions() {
-      const rows = await repository.findActiveOptions();
+    async listClientOptions(actor) {
+      const rows = await repository.findActiveOptions(ownerScope(actor));
       return rows.map((row) => ({
         id: row.id,
         name: row.name,
@@ -269,17 +278,17 @@ export function createClientsService(repository = clientsRepository) {
       }));
     },
 
-    async getClient(clientId) {
+    async getClient(clientId, actor) {
       const id = requirePositiveInteger(clientId, "clientId");
       const [row, goals] = await Promise.all([
-        repository.findById(id),
+        repository.findById(id, ownerScope(actor)),
         repository.listGoals(id)
       ]);
       if (!row) throw notFoundError("Client not found");
       return { ...toClientDto(row), goals: goals.map(toGoalDto) };
     },
 
-    async createClient(input = {}) {
+    async createClient(input = {}, actor) {
       requireFields(input, ["name", "phone", "program", "sessionType"]);
 
       const sessionType = cleanString(input.sessionType);
@@ -329,7 +338,8 @@ export function createClientsService(repository = clientsRepository) {
             expiryMonths: packageExpiryMonths,
             paid,
             paymentMethod
-          }
+          },
+          ownerId(actor)
         );
         return toClientDto(row);
       } catch (error) {
@@ -343,7 +353,7 @@ export function createClientsService(repository = clientsRepository) {
       }
     },
 
-    async updatePreferences(clientId, input = {}) {
+    async updatePreferences(clientId, input = {}, actor) {
       const id = requirePositiveInteger(clientId, "clientId");
       const { preferredDays, preferredSchedule } = normalizePreferredSchedule(
         input.preferredDays,
@@ -351,7 +361,12 @@ export function createClientsService(repository = clientsRepository) {
         { allowEmpty: true }
       );
       try {
-        const row = await repository.updatePreferences(id, preferredDays, preferredSchedule);
+        const row = await repository.updatePreferences(
+          id,
+          preferredDays,
+          preferredSchedule,
+          ownerScope(actor)
+        );
         if (!row) throw notFoundError("Client not found");
         return toClientDto(row);
       } catch (error) {
@@ -362,7 +377,7 @@ export function createClientsService(repository = clientsRepository) {
       }
     },
 
-    async updateClient(clientId, input = {}) {
+    async updateClient(clientId, input = {}, actor) {
       const id = requirePositiveInteger(clientId, "clientId");
       requireFields(input, ["name", "phone"]);
       const hasPreferences =
@@ -380,7 +395,8 @@ export function createClientsService(repository = clientsRepository) {
             phone: cleanString(input.phone),
             email: cleanString(input.email) || null
           },
-          preferences
+          preferences,
+          ownerScope(actor)
         );
         if (!row) throw notFoundError("Client not found");
         return toClientDto(row);
@@ -396,15 +412,15 @@ export function createClientsService(repository = clientsRepository) {
       }
     },
 
-    async setClientActive(clientId, isActive) {
+    async setClientActive(clientId, isActive, actor) {
       const id = requirePositiveInteger(clientId, "clientId");
-      const row = await repository.setActive(id, isActive);
+      const row = await repository.setActive(id, isActive, ownerScope(actor));
       if (!row) throw notFoundError("Client not found");
       return toClientDto(row);
     },
 
-    async addClientGoal(clientId, input = {}) {
-      const ownerId = await requireClient(clientId);
+    async addClientGoal(clientId, input = {}, actor) {
+      const ownerId = await requireClient(clientId, actor);
       const created = await repository.createGoal(ownerId, {
         goal: requireGoalText(input.goal),
         targetDate: input.targetDate ? requireIsoDate(input.targetDate, "targetDate") : null
@@ -422,8 +438,8 @@ export function createClientsService(repository = clientsRepository) {
      * Only the fields present are touched, so marking a goal achieved does not
      * require sending its text back.
      */
-    async updateClientGoal(clientId, goalId, input = {}) {
-      const ownerId = await requireClient(clientId);
+    async updateClientGoal(clientId, goalId, input = {}, actor) {
+      const ownerId = await requireClient(clientId, actor);
       const id = requirePositiveInteger(goalId, "goalId");
       const existing = (await repository.listGoals(ownerId)).find(
         (row) => Number(row.id) === id
@@ -464,8 +480,8 @@ export function createClientsService(repository = clientsRepository) {
       return (await repository.listGoals(ownerId)).map(toGoalDto);
     },
 
-    async removeClientGoal(clientId, goalId) {
-      const ownerId = await requireClient(clientId);
+    async removeClientGoal(clientId, goalId, actor) {
+      const ownerId = await requireClient(clientId, actor);
       const removed = await repository.deleteGoal(
         ownerId,
         requirePositiveInteger(goalId, "goalId")
@@ -476,16 +492,16 @@ export function createClientsService(repository = clientsRepository) {
       return (await repository.listGoals(ownerId)).map(toGoalDto);
     },
 
-    async getPackageHistory(clientId) {
+    async getPackageHistory(clientId, actor) {
       const id = requirePositiveInteger(clientId, "clientId");
-      const client = await repository.findById(id);
+      const client = await repository.findById(id, ownerScope(actor));
       if (!client) throw notFoundError("Client not found");
       return (await repository.findPackageHistory(id)).map(toPackageDto);
     },
 
-    async getSessionHistory(clientId) {
+    async getSessionHistory(clientId, actor) {
       const id = requirePositiveInteger(clientId, "clientId");
-      const client = await repository.findById(id);
+      const client = await repository.findById(id, ownerScope(actor));
       if (!client) throw notFoundError("Client not found");
       return (await repository.findSessionHistory(id)).map(toSessionHistoryDto);
     }

@@ -6,6 +6,7 @@ import { resetSettings } from "../src/config/settingsCache.js";
 import { createConfigurationRepository } from "../src/repositories/configuration.repository.js";
 import { createConfigurationService } from "../src/services/configuration.service.js";
 import { addMonths, daysFromToday } from "./helpers/dates.js";
+import { ensureTestTrainer, OWNER_SUBQUERY } from "./helpers/trainer.js";
 
 const { Pool } = pg;
 
@@ -14,6 +15,10 @@ if (!env.testDatabaseUrl || !new URL(env.testDatabaseUrl).pathname.toLowerCase()
 }
 
 const testPool = new Pool({ connectionString: env.testDatabaseUrl });
+
+// Fixtures own their clients since AUTH-03, so the suite needs a trainer
+// for them to belong to. Top-level await, so it is done before any test runs.
+await ensureTestTrainer(testPool);
 const repository = createConfigurationRepository(testPool);
 const service = createConfigurationService(repository);
 
@@ -138,8 +143,8 @@ test("replaces the whole week of business hours atomically", async () => {
 test("the package expiry trigger follows the configured window", async () => {
   const saved = await snapshot();
   const clientResult = await testPool.query(
-    `INSERT INTO clients (name, phone, email)
-     VALUES ('Expiry Window', '+27 82 555 0199', $1)
+    `INSERT INTO clients (name, phone, email, trainer_user_id)
+     VALUES ('Expiry Window', '+27 82 555 0199', $1, ${OWNER_SUBQUERY})
      RETURNING id`,
     [`expiry-window-${Date.now()}@example.com`]
   );

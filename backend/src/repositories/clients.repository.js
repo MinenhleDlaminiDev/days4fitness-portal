@@ -1,6 +1,7 @@
 import { pool } from "../db/client.js";
 import { env } from "../config/env.js";
 import { allocatePackageSessions } from "./packageAllocation.repository.js";
+import { requireScope } from "../lib/ownership.js";
 
 const CLIENT_SELECT_SQL = `
   SELECT
@@ -213,13 +214,18 @@ export function createClientsRepository(
   { businessTimezone = env.businessTimezone } = {}
 ) {
   return {
-    async findAll({ search, status, packageStatus, page, pageSize }) {
+    async findAll({ search, status, packageStatus, page, pageSize }, scope) {
       const conditions = [];
       const values = [];
       const addValue = (value) => {
         values.push(value);
         return `$${values.length}`;
       };
+
+      // Ownership goes on first, so every condition below narrows a set that
+      // is already restricted to what this trainer may see.
+      const owner = addValue(requireScope(scope));
+      conditions.push(`(${owner}::bigint IS NULL OR c.trainer_user_id = ${owner})`);
 
       if (search) {
         const placeholder = addValue(`%${search.toLowerCase()}%`);
@@ -295,7 +301,7 @@ export function createClientsRepository(
       };
     },
 
-    async findActiveOptions() {
+    async findActiveOptions(scope) {
       const result = await dbPool.query(
         `SELECT
            c.id,
@@ -311,13 +317,20 @@ export function createClientsRepository(
            LIMIT 1
          ) latest_package ON true
          WHERE c.is_active = true
-         ORDER BY c.created_at DESC, c.id DESC`
+           AND ($1::bigint IS NULL OR c.trainer_user_id = $1)
+         ORDER BY c.created_at DESC, c.id DESC`,
+        [requireScope(scope)]
       );
       return result.rows;
     },
 
-    async findById(id, db = dbPool) {
-      const result = await db.query(`${CLIENT_SELECT_SQL} WHERE c.id = $1`, [id]);
+    async findById(id, scope, db = dbPool) {
+      const result = await db.query(
+        `${CLIENT_SELECT_SQL}
+         WHERE c.id = $1
+           AND ($2::bigint IS NULL OR c.trainer_user_id = $2)`,
+        [id, requireScope(scope)]
+      );
       return result.rows[0] || null;
     },
 
@@ -399,21 +412,23 @@ export function createClientsRepository(
       return result.rowCount > 0;
     },
 
-    async createWithPackage(clientData, packageData) {
+    async createWithPackage(clientData, packageData, trainerUserId) {
       const db = await dbPool.connect();
       try {
         await db.query("BEGIN");
 
         const clientResult = await db.query(
-          `INSERT INTO clients (name, phone, email, preferred_days, preferred_schedule)
-           VALUES ($1, $2, $3, $4, $5::jsonb)
+          `INSERT INTO clients
+             (name, phone, email, preferred_days, preferred_schedule, trainer_user_id)
+           VALUES ($1, $2, $3, $4, $5::jsonb, $6)
            RETURNING id`,
           [
             clientData.name,
             clientData.phone,
             clientData.email,
             clientData.preferredDays,
-            JSON.stringify(clientData.preferredSchedule)
+            JSON.stringify(clientData.preferredSchedule),
+            trainerUserId
           ]
         );
         const clientId = clientResult.rows[0].id;
@@ -506,7 +521,7 @@ export function createClientsRepository(
           clientData.preferredSchedule
         );
 
-        const savedClient = await this.findById(clientId, db);
+        const savedClient = await this.findById(clientId, null, db);
         await db.query("COMMIT");
         return savedClient;
       } catch (error) {
@@ -517,7 +532,7 @@ export function createClientsRepository(
       }
     },
 
-    async update(id, clientData, preferences = null) {
+    async update(id, clientData, preferences = null, scope) {
       const db = await dbPool.connect();
       try {
         await db.query("BEGIN");
@@ -525,8 +540,9 @@ export function createClientsRepository(
           `SELECT id, is_active
            FROM clients
            WHERE id = $1
+             AND ($2::bigint IS NULL OR trainer_user_id = $2)
            FOR UPDATE`,
-          [id]
+          [id, requireScope(scope)]
         );
         if (!clientResult.rows[0]) {
           await db.query("ROLLBACK");
@@ -575,7 +591,7 @@ export function createClientsRepository(
           );
         }
 
-        const saved = await this.findById(id, db);
+        const saved = await this.findById(id, null, db);
         await db.query("COMMIT");
         return saved;
       } catch (error) {
@@ -586,14 +602,16 @@ export function createClientsRepository(
       }
     },
 
-    async setActive(id, isActive) {
+    async setActive(id, isActive, scope) {
       const db = await dbPool.connect();
       try {
         await db.query("BEGIN");
         await db.query("SELECT set_config('TimeZone', $1, true)", [businessTimezone]);
         const lockedClient = await db.query(
-          "SELECT id FROM clients WHERE id = $1 FOR UPDATE",
-          [id]
+          `SELECT id FROM clients
+           WHERE id = $1 AND ($2::bigint IS NULL OR trainer_user_id = $2)
+           FOR UPDATE`,
+          [id, requireScope(scope)]
         );
         if (!lockedClient.rows[0]) {
           await db.query("ROLLBACK");
@@ -656,7 +674,7 @@ export function createClientsRepository(
           }
         }
 
-        const saved = await this.findById(id, db);
+        const saved = await this.findById(id, null, db);
         await db.query("COMMIT");
         return saved;
       } catch (error) {
@@ -730,7 +748,7 @@ export function createClientsRepository(
       return result.rows;
     },
 
-    async updatePreferences(id, preferredDays, preferredSchedule) {
+    async updatePreferences(id, preferredDays, preferredSchedule, scope) {
       const db = await dbPool.connect();
       try {
         await db.query("BEGIN");
@@ -738,8 +756,9 @@ export function createClientsRepository(
           `SELECT id, is_active
            FROM clients
            WHERE id = $1
+             AND ($2::bigint IS NULL OR trainer_user_id = $2)
            FOR UPDATE`,
-          [id]
+          [id, requireScope(scope)]
         );
         if (!clientResult.rows[0]) {
           await db.query("ROLLBACK");
@@ -777,7 +796,7 @@ export function createClientsRepository(
           packageResult.rows[0].id,
           preferredSchedule
         );
-        const savedClient = await this.findById(id, db);
+        const savedClient = await this.findById(id, null, db);
         await db.query("COMMIT");
         return savedClient;
       } catch (error) {

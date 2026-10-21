@@ -9,6 +9,7 @@ import { createSessionsRepository } from "../src/repositories/sessions.repositor
 import { createSessionsRouter } from "../src/routes/sessions.routes.js";
 import { createSessionsService } from "../src/services/sessions.service.js";
 import { addDays, upcomingMonday } from "./helpers/dates.js";
+import { ensureTestTrainer, OWNER_SUBQUERY } from "./helpers/trainer.js";
 
 const { Pool } = pg;
 
@@ -21,6 +22,10 @@ if (!env.testDatabaseUrl || !new URL(env.testDatabaseUrl).pathname.toLowerCase()
 }
 
 const testPool = new Pool({ connectionString: env.testDatabaseUrl });
+
+// Fixtures own their clients since AUTH-03, so the suite needs a trainer
+// for them to belong to. Top-level await, so it is done before any test runs.
+await ensureTestTrainer(testPool);
 const service = createSessionsService(createSessionsRepository(testPool));
 const controller = createSessionsController(service);
 const app = express();
@@ -62,8 +67,8 @@ after(async () => {
 
 async function createClientPackage() {
   const clientResult = await testPool.query(
-    `INSERT INTO clients (name, phone, email)
-     VALUES ('Phase 4 HTTP Client', '+27 82 444 9100', $1)
+    `INSERT INTO clients (name, phone, email, trainer_user_id)
+     VALUES ('Phase 4 HTTP Client', '+27 82 444 9100', $1, ${OWNER_SUBQUERY})
      RETURNING id`,
     [`phase4-http-${Date.now()}@example.com`]
   );

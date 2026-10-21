@@ -1,6 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createPackagesService } from "../src/services/packages.service.js";
+import { createPackagesService as createUnboundPackagesService } from "../src/services/packages.service.js";
+import { bindPackagesActor } from "./helpers/trainer.js";
+
+// AUTH-03 gave every packages service method the acting trainer as its last
+// argument. These tests are about package behaviour, not authorisation, so
+// they all act as one trainer; isolation is covered by the integration tests.
+const ACTOR = Object.freeze({ id: 1, role: "trainer" });
+const createPackagesService = (...args) =>
+  bindPackagesActor(createUnboundPackagesService(...args), ACTOR);
 
 function packageRow(overrides = {}) {
   return {
@@ -44,6 +52,11 @@ test("returns package balances and statuses as API-friendly values", async () =>
 
 test("creates a configured replacement package", async () => {
   const repository = {
+    // AUTH-03: the service checks the client is this trainer's before it
+    // writes. This test is not about ownership, so the client is always theirs.
+    async clientExists() {
+      return true;
+    },
     async createForClient(clientId, input) {
       assert.equal(clientId, 20);
       assert.deepEqual(input, {

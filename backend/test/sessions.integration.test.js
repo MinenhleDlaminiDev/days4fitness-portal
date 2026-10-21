@@ -12,6 +12,7 @@ import {
   upcomingMonday
 } from "./helpers/dates.js";
 import { businessToday, timezoneWhereLocalHourIs } from "./helpers/businessClock.js";
+import { ensureTestTrainer, OWNER_SUBQUERY } from "./helpers/trainer.js";
 
 const { Pool } = pg;
 
@@ -26,13 +27,17 @@ if (!env.testDatabaseUrl || !new URL(env.testDatabaseUrl).pathname.toLowerCase()
 }
 
 const testPool = new Pool({ connectionString: env.testDatabaseUrl });
+
+// Fixtures own their clients since AUTH-03, so the suite needs a trainer
+// for them to belong to. Top-level await, so it is done before any test runs.
+await ensureTestTrainer(testPool);
 const service = createSessionsService(createSessionsRepository(testPool));
 const createdClientIds = [];
 
 async function createClientPackage(suffix, options = {}) {
   const clientResult = await testPool.query(
-    `INSERT INTO clients (name, phone, email)
-     VALUES ($1, '+27 82 444 9000', $2)
+    `INSERT INTO clients (name, phone, email, trainer_user_id)
+     VALUES ($1, '+27 82 444 9000', $2, ${OWNER_SUBQUERY})
      RETURNING id`,
     [
       `Phase 4 ${suffix}`,

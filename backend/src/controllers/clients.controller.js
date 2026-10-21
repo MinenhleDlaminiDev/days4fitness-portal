@@ -5,7 +5,7 @@ export function createClientsController(service = clientsService) {
   return {
     async list(req, res, next) {
       try {
-        sendData(res, await service.listClients(req.query));
+        sendData(res, await service.listClients(req.query, req.auth.user));
       } catch (error) {
         next(error);
       }
@@ -13,7 +13,7 @@ export function createClientsController(service = clientsService) {
 
     async options(req, res, next) {
       try {
-        sendData(res, await service.listClientOptions());
+        sendData(res, await service.listClientOptions(req.auth.user));
       } catch (error) {
         next(error);
       }
@@ -21,7 +21,7 @@ export function createClientsController(service = clientsService) {
 
     async get(req, res, next) {
       try {
-        sendData(res, await service.getClient(req.params.id));
+        sendData(res, await service.getClient(req.params.id, req.auth.user));
       } catch (error) {
         next(error);
       }
@@ -29,7 +29,7 @@ export function createClientsController(service = clientsService) {
 
     async create(req, res, next) {
       try {
-        sendData(res, await service.createClient(req.body), { status: 201 });
+        sendData(res, await service.createClient(req.body, req.auth.user), { status: 201 });
       } catch (error) {
         next(error);
       }
@@ -37,7 +37,7 @@ export function createClientsController(service = clientsService) {
 
     async updatePreferences(req, res, next) {
       try {
-        sendData(res, await service.updatePreferences(req.params.id, req.body));
+        sendData(res, await service.updatePreferences(req.params.id, req.body, req.auth.user));
       } catch (error) {
         next(error);
       }
@@ -45,7 +45,7 @@ export function createClientsController(service = clientsService) {
 
     async update(req, res, next) {
       try {
-        sendData(res, await service.updateClient(req.params.id, req.body));
+        sendData(res, await service.updateClient(req.params.id, req.body, req.auth.user));
       } catch (error) {
         next(error);
       }
@@ -53,7 +53,7 @@ export function createClientsController(service = clientsService) {
 
     async addGoal(req, res, next) {
       try {
-        sendData(res, await service.addClientGoal(req.params.id, req.body), { status: 201 });
+        sendData(res, await service.addClientGoal(req.params.id, req.body, req.auth.user), { status: 201 });
       } catch (error) {
         next(error);
       }
@@ -63,7 +63,7 @@ export function createClientsController(service = clientsService) {
       try {
         sendData(
           res,
-          await service.updateClientGoal(req.params.id, req.params.goalId, req.body)
+          await service.updateClientGoal(req.params.id, req.params.goalId, req.body, req.auth.user)
         );
       } catch (error) {
         next(error);
@@ -72,7 +72,7 @@ export function createClientsController(service = clientsService) {
 
     async removeGoal(req, res, next) {
       try {
-        sendData(res, await service.removeClientGoal(req.params.id, req.params.goalId));
+        sendData(res, await service.removeClientGoal(req.params.id, req.params.goalId, req.auth.user));
       } catch (error) {
         next(error);
       }
@@ -80,7 +80,7 @@ export function createClientsController(service = clientsService) {
 
     async archive(req, res, next) {
       try {
-        sendData(res, await service.setClientActive(req.params.id, false));
+        sendData(res, await service.setClientActive(req.params.id, false, req.auth.user));
       } catch (error) {
         next(error);
       }
@@ -88,7 +88,7 @@ export function createClientsController(service = clientsService) {
 
     async restore(req, res, next) {
       try {
-        sendData(res, await service.setClientActive(req.params.id, true));
+        sendData(res, await service.setClientActive(req.params.id, true, req.auth.user));
       } catch (error) {
         next(error);
       }
@@ -96,7 +96,7 @@ export function createClientsController(service = clientsService) {
 
     async packages(req, res, next) {
       try {
-        sendData(res, await service.getPackageHistory(req.params.id));
+        sendData(res, await service.getPackageHistory(req.params.id, req.auth.user));
       } catch (error) {
         next(error);
       }
@@ -104,7 +104,7 @@ export function createClientsController(service = clientsService) {
 
     async sessions(req, res, next) {
       try {
-        sendData(res, await service.getSessionHistory(req.params.id));
+        sendData(res, await service.getSessionHistory(req.params.id, req.auth.user));
       } catch (error) {
         next(error);
       }
