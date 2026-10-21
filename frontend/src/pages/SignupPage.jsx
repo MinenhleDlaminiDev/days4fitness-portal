@@ -15,9 +15,10 @@ export default function SignupPage() {
           <div className="flex items-start justify-between gap-3">
             <div>
               <LogoLockup size={19} className="text-white" />
-              <h1 className="mt-2 text-3xl font-bold">Create account</h1>
+              <h1 className="mt-2 text-3xl font-bold">Set up account</h1>
               <p className="mt-2 text-sm text-emerald-100">
-                Use a Gmail account to join the pre-live trainer workspace.
+                Trainer access is by invitation. Sign in with the Gmail address an
+                admin has approved.
               </p>
             </div>
             <ThemeToggle />

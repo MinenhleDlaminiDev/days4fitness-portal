@@ -43,6 +43,12 @@ export const env = {
     process.env.TRAINER_BOOTSTRAP_PASSWORD ||
     (process.env.NODE_ENV === "production" ? "" : "ChangeMe123!"),
   googleClientId: process.env.GOOGLE_CLIENT_ID || "",
+  // Only these addresses may create a trainer account. Empty means nobody can,
+  // which is the safe default: signing in never creates an account, so an unset
+  // allowlist is a closed door rather than an open one.
+  trainerAllowedEmails: list(process.env.TRAINER_ALLOWED_EMAILS).map((email) =>
+    email.toLowerCase()
+  ),
   requestBodyLimit: process.env.REQUEST_BODY_LIMIT || "100kb",
   rateLimitWindowMs: Number(process.env.RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000),
   rateLimitMax: Number(process.env.RATE_LIMIT_MAX || 300),

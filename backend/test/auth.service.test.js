@@ -25,14 +25,6 @@ function fakeRepository() {
       state.users.push(row);
       return row;
     },
-    async findOrCreateTrainerUser(user) {
-      const existing = state.users.find((item) => item.email === user.email.toLowerCase());
-      if (existing) {
-        existing.name = user.name || existing.name;
-        return existing;
-      }
-      return this.createTrainerUser(user);
-    },
     async findUserByEmail(email) {
       return state.users.find((user) => user.email === email.toLowerCase()) || null;
     },
@@ -112,8 +104,15 @@ test("rejects invalid trainer credentials", async () => {
   );
 });
 
-test("allows verified Gmail Google sign-in during testing mode", async () => {
+test("signs an existing trainer in with Google", async () => {
   const repository = fakeRepository();
+  // Seeded first, because signing in no longer creates the account.
+  await repository.createTrainerUser({
+    email: "newtrainer@gmail.com",
+    name: "New Trainer",
+    role: "trainer",
+    passwordHash: "unused"
+  });
   const service = createAuthService(repository, {
     googleVerifier: async () => ({
       email: "newtrainer@gmail.com",
@@ -137,7 +136,8 @@ test("allows verified Gmail Google sign-up during testing mode", async () => {
       email: "signuptrainer@gmail.com",
       name: "Signup Trainer",
       emailVerified: true
-    })
+    }),
+    allowedEmails: ["signuptrainer@gmail.com"]
   });
 
   const signedUp = await service.googleSignup({ credential: "fake-google-token" });
@@ -154,7 +154,8 @@ test("auth helper methods are safe when called without service binding", async (
       email: "unboundtrainer@gmail.com",
       name: "Unbound Trainer",
       emailVerified: true
-    })
+    }),
+    allowedEmails: ["unboundtrainer@gmail.com"]
   });
   const { googleSignup, me } = service;
 
@@ -251,4 +252,81 @@ test("shares one bootstrap between concurrent first logins", async () => {
   assert.ok(second.token);
   assert.equal(createCalls, 1, "the trainer must only be created once");
   assert.equal(repository.state.users.length, 1);
+});
+
+function googleServiceFor(email, options = {}) {
+  const repository = fakeRepository();
+  const service = createAuthService(repository, {
+    googleVerifier: async () => ({ email, name: "Someone", emailVerified: true }),
+    ...options
+  });
+  return { repository, service };
+}
+
+test("Google sign-in does not create an account for an unknown address", async () => {
+  const { repository, service } = googleServiceFor("stranger@gmail.com");
+
+  await assert.rejects(() => service.googleLogin({ credential: "token" }), {
+    code: "TRAINER_NOT_REGISTERED"
+  });
+  // The actual exposure was the side effect, not the error: a stranger used to
+  // be registered simply by signing in.
+  assert.equal(repository.state.users.length, 0);
+});
+
+test("Google sign-up refuses an address that is not on the allowlist", async () => {
+  const { repository, service } = googleServiceFor("stranger@gmail.com", {
+    allowedEmails: ["someone.else@gmail.com"]
+  });
+
+  await assert.rejects(() => service.googleSignup({ credential: "token" }), {
+    code: "TRAINER_NOT_INVITED"
+  });
+  assert.equal(repository.state.users.length, 0);
+});
+
+test("an empty allowlist closes sign-up completely", async () => {
+  const { repository, service } = googleServiceFor("stranger@gmail.com", {
+    allowedEmails: []
+  });
+
+  await assert.rejects(() => service.googleSignup({ credential: "token" }), {
+    code: "TRAINER_NOT_INVITED"
+  });
+  assert.equal(repository.state.users.length, 0);
+});
+
+test("an allowlisted address can sign up, and only once", async () => {
+  const { repository, service } = googleServiceFor("invited@gmail.com", {
+    allowedEmails: ["invited@gmail.com"]
+  });
+
+  const first = await service.googleSignup({ credential: "token" });
+  assert.equal(first.user.email, "invited@gmail.com");
+  assert.equal(repository.state.users.length, 1);
+
+  // Signing up again is just a sign-in, not a second row.
+  const second = await service.googleSignup({ credential: "token" });
+  assert.equal(second.user.email, "invited@gmail.com");
+  assert.equal(repository.state.users.length, 1);
+});
+
+test("an inactive trainer is refused on both Google paths", async () => {
+  const { repository, service } = googleServiceFor("retired@gmail.com", {
+    allowedEmails: ["retired@gmail.com"]
+  });
+  const user = await repository.createTrainerUser({
+    email: "retired@gmail.com",
+    name: "Retired",
+    role: "trainer",
+    passwordHash: "unused"
+  });
+  user.is_active = false;
+
+  await assert.rejects(() => service.googleLogin({ credential: "token" }), {
+    code: "TRAINER_ACCOUNT_INACTIVE"
+  });
+  await assert.rejects(() => service.googleSignup({ credential: "token" }), {
+    code: "TRAINER_ACCOUNT_INACTIVE"
+  });
 });

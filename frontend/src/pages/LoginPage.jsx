@@ -116,9 +116,9 @@ export default function LoginPage() {
           )}
 
           <p className="text-center text-sm text-muted">
-            New trainer?{" "}
+            Been invited?{" "}
             <Link to="/signup" className="font-bold text-accent hover:text-accent">
-              Create an account
+              Set up your account
             </Link>
           </p>
         </form>

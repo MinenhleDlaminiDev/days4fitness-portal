@@ -29,7 +29,7 @@ function requireCredentials(input = {}) {
 
 export function createAuthService(
   repository = authRepository,
-  { googleVerifier = verifyGoogleCredential } = {}
+  { googleVerifier = verifyGoogleCredential, allowedEmails = env.trainerAllowedEmails } = {}
 ) {
   let bootstrapPromise = null;
 
@@ -99,7 +99,7 @@ export function createAuthService(
     return createAuthenticatedSession(user);
   }
 
-  async function googleLogin(input = {}) {
+  async function verifiedGoogleUser(input) {
     const credential = String(input.credential || "");
     if (!credential) throw validationError("Google credential is required");
     const googleUser = await googleVerifier(credential);
@@ -109,17 +109,57 @@ export function createAuthService(
     if (!googleUser.email.endsWith("@gmail.com")) {
       throw new AppError(403, "GOOGLE_GMAIL_REQUIRED", "Use a Gmail account for trainer access");
     }
+    return googleUser;
+  }
 
-    const user = await repository.findOrCreateTrainerUser({
+  function requireActive(user) {
+    if (!user?.is_active) {
+      throw new AppError(403, "TRAINER_ACCOUNT_INACTIVE", "Trainer account is inactive");
+    }
+    return user;
+  }
+
+  // Signing in must never create an account. It used to, through
+  // findOrCreateTrainerUser, which meant any verified Gmail address reaching
+  // the portal registered itself and could then see every client.
+  async function googleLogin(input = {}) {
+    const googleUser = await verifiedGoogleUser(input);
+    const user = await repository.findUserByEmail(googleUser.email);
+    if (!user) {
+      throw new AppError(
+        403,
+        "TRAINER_NOT_REGISTERED",
+        "This account does not have trainer access"
+      );
+    }
+    return createAuthenticatedSession(requireActive(user));
+  }
+
+  // Creating an account is the only path that may insert, and it is gated on
+  // the configured allowlist. An unset allowlist closes signup entirely rather
+  // than leaving it open.
+  async function googleSignup(input = {}) {
+    const googleUser = await verifiedGoogleUser(input);
+    const existing = await repository.findUserByEmail(googleUser.email);
+    if (existing) return createAuthenticatedSession(requireActive(existing));
+
+    if (!allowedEmails.includes(googleUser.email.toLowerCase())) {
+      throw new AppError(
+        403,
+        "TRAINER_NOT_INVITED",
+        "This account is not approved for trainer access. Ask an admin to add it."
+      );
+    }
+
+    const created = await repository.createTrainerUser({
       email: googleUser.email,
       name: googleUser.name,
       role: "trainer",
       passwordHash: hashPassword(createSessionToken())
     });
-    if (!user?.is_active) {
-      throw new AppError(403, "TRAINER_ACCOUNT_INACTIVE", "Trainer account is inactive");
-    }
-    return createAuthenticatedSession(user);
+    // createTrainerUser does nothing on conflict, so a race returns null here.
+    const user = created || (await repository.findUserByEmail(googleUser.email));
+    return createAuthenticatedSession(requireActive(user));
   }
 
   async function authenticateToken(token) {
@@ -140,9 +180,7 @@ export function createAuthService(
     login,
     googleLogin,
 
-    async googleSignup(input = {}) {
-      return googleLogin(input);
-    },
+    googleSignup,
     authenticateToken,
 
     async me(token) {

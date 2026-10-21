@@ -18,18 +18,6 @@ export function createAuthRepository(dbPool = pool) {
       return result.rows[0] || null;
     },
 
-    async findOrCreateTrainerUser({ email, name, role, passwordHash }) {
-      const result = await dbPool.query(
-        `INSERT INTO trainer_users (email, name, role, password_hash)
-         VALUES (LOWER($1), $2, $3, $4)
-         ON CONFLICT (email) DO UPDATE
-           SET name = COALESCE(NULLIF(EXCLUDED.name, ''), trainer_users.name)
-         RETURNING id, email, name, role, is_active, created_at`,
-        [email, name, role, passwordHash]
-      );
-      return result.rows[0];
-    },
-
     async findUserByEmail(email) {
       const result = await dbPool.query(
         `SELECT id, email, name, role, password_hash, is_active
