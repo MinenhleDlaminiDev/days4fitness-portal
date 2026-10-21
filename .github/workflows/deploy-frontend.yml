@@ -1,0 +1,72 @@
+name: Deploy frontend
+
+# The API is deployed separately on Northflank, which builds from the same
+# branch. Only frontend changes need to rebuild and republish the site.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "frontend/**"
+      - ".github/workflows/deploy-frontend.yml"
+  workflow_dispatch:
+
+# Two pushes in quick succession would otherwise race to publish, and the
+# slower build could land last and win.
+concurrency:
+  group: deploy-frontend
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      # Vite bakes VITE_* in at build time. An empty one is not an error to
+      # Vite: the app would fall back to http://localhost:5000/api and the
+      # deployed site would look fine until every request failed in a browser.
+      - name: Require the API URL
+        env:
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+        run: |
+          if [ -z "$VITE_API_URL" ]; then
+            echo "::error::VITE_API_URL is not set. The build would fall back to localhost."
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        env:
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+          VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
+        run: npm run build
+
+      # Fails the job before publishing if the SPA fallback did not make it
+      # into the build, which would 404 every route but "/".
+      - name: Check the build output
+        run: |
+          test -f dist/index.html || { echo "::error::dist/index.html is missing"; exit 1; }
+          test -f dist/_redirects || { echo "::error::dist/_redirects is missing"; exit 1; }
+
+      - name: Publish to Netlify
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+        run: >
+          npx --yes netlify-cli@27.14.0 deploy
+          --dir=dist
+          --prod
+          --no-build
+          --message "${{ github.sha }}"

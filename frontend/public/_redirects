@@ -1,0 +1,5 @@
+# React Router owns the routing, so every path has to be served index.html.
+# Without this a hard refresh on /clients or /settings returns a Netlify 404,
+# because no such file exists in the build. 200 rewrites rather than redirects,
+# so the URL the user typed is the URL they keep.
+/*  /index.html  200

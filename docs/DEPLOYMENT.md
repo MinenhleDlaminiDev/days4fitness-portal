@@ -78,6 +78,42 @@ docker run --rm -p 5055:5000   -e DATABASE_URL="postgresql://postgres:postgres@h
 because the image sets `NODE_ENV=production` and the server refuses to start in
 production when it finds a `localhost` origin.
 
+### Netlify: Frontend
+
+GitHub Actions builds the site and publishes it with the Netlify CLI. **Netlify
+itself is not connected to the repository** — if it were, both would build on
+every push and race to publish.
+
+Workflow: `.github/workflows/deploy-frontend.yml`. It runs on a push to `main`
+that touches `frontend/`, and on manual dispatch.
+
+Repository secrets, under Settings → Secrets and variables → Actions:
+
+| Secret | Where it comes from |
+| --- | --- |
+| `NETLIFY_AUTH_TOKEN` | Netlify → User settings → Applications → new access token |
+| `NETLIFY_SITE_ID` | The site's API ID, under Site configuration → General |
+| `VITE_API_URL` | The Northflank service origin plus `/api` |
+| `VITE_GOOGLE_CLIENT_ID` | The same client id the backend uses |
+
+`VITE_*` values are **build-time**. Vite writes them into the bundle, so changing
+one means re-running the workflow — restarting anything achieves nothing. The
+workflow fails early and deliberately if `VITE_API_URL` is empty, because Vite
+treats a missing value as acceptable and the app would quietly fall back to
+`http://localhost:5000/api`: the site would deploy and look fine while every
+request failed in the browser.
+
+The SPA fallback is `frontend/public/_redirects`, not a `netlify.toml`. Vite
+copies `public/` into `dist/`, so the rule travels inside the published directory
+whatever working directory the CLI runs from. Without it, a hard refresh on any
+route other than `/` returns a Netlify 404, since no such file exists in the
+build. The workflow checks for it and refuses to publish if it is missing.
+
+**When the site URL changes, update `CORS_ORIGINS` on the Northflank service to
+match exactly** — `https`, no trailing slash, no path. Getting this wrong is
+easy to miss: health checks and `curl` keep working, because requests without an
+`Origin` header are always allowed. Only the browser is refused.
+
 ### Node Version
 
 `backend/package.json` pins `engines.node`. Keep the GitHub Actions workflow on
