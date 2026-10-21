@@ -11,6 +11,7 @@ import {
   isTrainingDay,
   upcomingMonday
 } from "./helpers/dates.js";
+import { businessToday, timezoneWhereLocalHourIs } from "./helpers/businessClock.js";
 
 const { Pool } = pg;
 
@@ -348,7 +349,15 @@ test("enforces session timing for cancellation, rescheduling, and outcomes", asy
   // A session that has started but not ended can only exist today, and the
   // schema allows sessions Monday to Saturday only, so this branch is not
   // reachable on a Sunday — when the business is closed anyway.
-  if (isTrainingDay(daysFromToday(0))) {
+  // The clock matters as well as the weekday: "half an hour ago" falls below
+  // the 05:00 floor if the suite runs before 05:30, so the business timezone is
+  // chosen rather than inherited. See helpers/businessClock.js.
+  const businessTimezone = timezoneWhereLocalHourIs();
+  const timedService = createSessionsService(
+    createSessionsRepository(testPool, { businessTimezone })
+  );
+
+  if (isTrainingDay(await businessToday(testPool, businessTimezone))) {
     const startedSession = await service.createManual({
       clientId: client.clientId,
       sessionDate: day(22),
@@ -357,18 +366,18 @@ test("enforces session timing for cancellation, rescheduling, and outcomes", asy
     await testPool.query(
       `UPDATE sessions
        SET
-         session_date = (CURRENT_TIMESTAMP AT TIME ZONE 'Africa/Johannesburg')::date,
+         session_date = (CURRENT_TIMESTAMP AT TIME ZONE $2)::date,
          start_time = (
-           CURRENT_TIMESTAMP AT TIME ZONE 'Africa/Johannesburg' - INTERVAL '30 minutes'
+           (CURRENT_TIMESTAMP AT TIME ZONE $2) - INTERVAL '30 minutes'
          )::time(0)
        WHERE id = $1`,
-      [startedSession.id]
+      [startedSession.id, businessTimezone]
     );
     await assert.rejects(
-      service.recordOutcome(startedSession.id, { clientId: client.clientId }, "completed"),
+      timedService.recordOutcome(startedSession.id, { clientId: client.clientId }, "completed"),
       (error) => error.status === 409
     );
-    const noShow = await service.recordOutcome(
+    const noShow = await timedService.recordOutcome(
       startedSession.id,
       { clientId: client.clientId },
       "no_show"
@@ -541,11 +550,19 @@ test("cancels a whole day at once and skips sessions already finished", async ()
 
 test("a day cancel rolls back entirely when one session has already started", async () => {
   // A session can only have started if it is today, so this case only exists
-  // on a training day.
-  if (!isTrainingDay(daysFromToday(0))) return;
+  // on a training day. It also only exists mid-trading-day: "three hours from
+  // now" breaches the 20:00 ceiling after 17:00 and "half an hour ago" breaches
+  // the 05:00 floor before 05:30, which used to make this test fail every
+  // evening. The business timezone is chosen so both land inside the window
+  // whatever time the suite runs. See helpers/businessClock.js.
+  const businessTimezone = timezoneWhereLocalHourIs();
+  const timedService = createSessionsService(
+    createSessionsRepository(testPool, { businessTimezone })
+  );
+  const today = await businessToday(testPool, businessTimezone);
+  if (!isTrainingDay(today)) return;
 
   const client = await createClientPackage("bulk-cancel-rollback");
-  const today = daysFromToday(0);
 
   const started = await service.createManual({
     clientId: client.clientId,
@@ -562,20 +579,20 @@ test("a day cancel rolls back entirely when one session has already started", as
   await testPool.query(
     `UPDATE sessions
      SET session_date = $2::date,
-         start_time = (CURRENT_TIMESTAMP AT TIME ZONE 'Africa/Johannesburg' - INTERVAL '30 minutes')::time(0)
+         start_time = ((CURRENT_TIMESTAMP AT TIME ZONE $3) - INTERVAL '30 minutes')::time(0)
      WHERE id = $1`,
-    [started.id, today]
+    [started.id, today, businessTimezone]
   );
   await testPool.query(
     `UPDATE sessions
      SET session_date = $2::date,
-         start_time = (CURRENT_TIMESTAMP AT TIME ZONE 'Africa/Johannesburg' + INTERVAL '3 hours')::time(0)
+         start_time = ((CURRENT_TIMESTAMP AT TIME ZONE $3) + INTERVAL '3 hours')::time(0)
      WHERE id = $1`,
-    [later.id, today]
+    [later.id, today, businessTimezone]
   );
 
   await assert.rejects(
-    service.cancelDay({ sessionDate: today }),
+    timedService.cancelDay({ sessionDate: today }),
     (error) => error.status === 409
   );
 
