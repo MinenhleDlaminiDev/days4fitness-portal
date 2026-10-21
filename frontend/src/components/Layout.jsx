@@ -1,30 +1,13 @@
 import { Outlet } from "react-router-dom";
-import BottomNav from "./BottomNav.jsx";
-import ThemeToggle from "./ThemeToggle.jsx";
-import { useAuth } from "../context/AuthContext.jsx";
+import TopNav from "./TopNav.jsx";
 
 export default function Layout() {
-  const { logout, trainer } = useAuth();
-
   return (
     <div className="app-shell">
-      <div className="mx-auto flex max-w-6xl items-center justify-end gap-3 px-4 pt-4 sm:px-6">
-        <ThemeToggle />
-        <span className="hidden h-[30px] items-center rounded-full border border-success-border bg-surface/80 px-3 text-xs font-semibold text-accent sm:inline-flex">
-          {trainer?.name}
-        </span>
-        <button
-          type="button"
-          onClick={logout}
-          className="sign-out-btn rounded-full border px-3 py-1.5 text-xs font-bold shadow-sm transition"
-        >
-          Sign out
-        </button>
-      </div>
-      <main className="mx-auto max-w-6xl pb-20">
+      <TopNav />
+      <main className="mx-auto max-w-6xl">
         <Outlet />
       </main>
-      <BottomNav />
     </div>
   );
 }
