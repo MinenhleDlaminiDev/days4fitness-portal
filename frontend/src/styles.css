@@ -236,6 +236,62 @@ body {
     transform: translateX(24px);
   }
 
+  /* The panel sits in the page flow, so it has to animate its real height or
+     the content below would jump while it eased in. height cannot animate from
+     auto; a grid row from 0fr to 1fr can, and needs no magic number to keep in
+     step with the number of links. */
+  .nav-menu {
+    display: grid;
+    grid-template-rows: 1fr;
+    animation: nav-menu-in 180ms ease-out both;
+  }
+
+  .nav-menu.is-closing {
+    animation: nav-menu-out 160ms ease-in both;
+  }
+
+  .nav-menu-inner {
+    overflow: hidden;
+  }
+
+  .nav-burger-bars {
+    @apply relative block h-5 w-5;
+  }
+
+  .nav-burger-bar {
+    @apply absolute left-0 h-0.5 w-5 rounded-full;
+    top: 50%;
+    background: currentColor;
+    transition:
+      transform 180ms ease,
+      opacity 120ms ease;
+  }
+
+  /* Centred on the middle bar, then spread 6px apart. */
+  .nav-burger-bar:nth-child(1) {
+    transform: translateY(-7px);
+  }
+
+  .nav-burger-bar:nth-child(2) {
+    transform: translateY(-1px);
+  }
+
+  .nav-burger-bar:nth-child(3) {
+    transform: translateY(5px);
+  }
+
+  .nav-burger.is-open .nav-burger-bar:nth-child(1) {
+    transform: translateY(-1px) rotate(45deg);
+  }
+
+  .nav-burger.is-open .nav-burger-bar:nth-child(2) {
+    opacity: 0;
+  }
+
+  .nav-burger.is-open .nav-burger-bar:nth-child(3) {
+    transform: translateY(-1px) rotate(-45deg);
+  }
+
   .app-nav {
     border-color: rgb(var(--c-border));
     background: rgb(var(--c-surface) / 0.95);
@@ -363,6 +419,33 @@ body {
   }
 }
 
+@keyframes nav-menu-in {
+  from {
+    grid-template-rows: 0fr;
+    opacity: 0;
+  }
+  to {
+    grid-template-rows: 1fr;
+    opacity: 1;
+  }
+}
+
+@keyframes nav-menu-out {
+  from {
+    grid-template-rows: 1fr;
+    opacity: 1;
+  }
+  to {
+    grid-template-rows: 0fr;
+    opacity: 0;
+  }
+}
+
+/* Page-level motion is what this setting is for: whole screens sliding in,
+   lists cascading, modals flying up. The nav menu is deliberately left out.
+   It is a small panel opening under the button that was just pressed, and
+   suppressing it here is what made the animation dead on any machine with
+   the setting on. */
 @media (prefers-reduced-motion: reduce) {
   .page-wrap,
   .stagger-list > .stagger-item,

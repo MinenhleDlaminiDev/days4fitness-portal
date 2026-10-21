@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
   Calendar as CalendarIcon,
@@ -6,13 +6,12 @@ import {
   BarChart3 as ReportsIcon,
   Clock as ClockIcon,
   LogOut,
-  Menu as MenuIcon,
   Settings as SettingsIcon,
-  Users as UsersIcon,
-  X as CloseIcon
+  Users as UsersIcon
 } from "lucide-react";
 import ThemeToggle from "./ThemeToggle.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
+import useDismissable from "../lib/useDismissable.js";
 
 const items = [
   { to: "/", label: "Dashboard", icon: CalendarIcon },
@@ -31,6 +30,41 @@ export default function TopNav() {
   const barRef = useRef(null);
   const { pathname } = useLocation();
 
+  const closeMenu = useCallback(() => setIsMenuOpen(false), []);
+  // The menu keeps its exit animation even under reduced motion: it is a small
+  // panel opening below the button, not a screen-sized movement, and skipping
+  // it here would leave the CSS animating out against an already-unmounted
+  // panel.
+  const [isMenuClosing, dismissMenu, cancelDismissMenu] = useDismissable(closeMenu, {
+    respectReducedMotion: false
+  });
+
+  // While the panel animates out it is still mounted, so the button and
+  // aria-expanded follow this rather than isMenuOpen: both should read as
+  // closed the moment the close starts.
+  const isMenuShown = isMenuOpen && !isMenuClosing;
+
+  // Two taps landing in the same React batch would both read the same render's
+  // isMenuShown and both open the menu, so the toggle reads a ref it can update
+  // on the spot instead.
+  const shownRef = useRef(isMenuShown);
+  useEffect(() => {
+    shownRef.current = isMenuShown;
+  }, [isMenuShown]);
+
+  function toggleMenu() {
+    if (shownRef.current) {
+      shownRef.current = false;
+      dismissMenu();
+      return;
+    }
+    shownRef.current = true;
+    // Call off a close still in flight, or it would shut the menu we are
+    // about to reopen.
+    cancelDismissMenu();
+    setIsMenuOpen(true);
+  }
+
   // Navigating is the most common way the menu should close, and a NavLink
   // inside it does not tell us it was tapped.
   useEffect(() => {
@@ -38,15 +72,15 @@ export default function TopNav() {
   }, [pathname]);
 
   useEffect(() => {
-    if (!isMenuOpen) return undefined;
+    if (!isMenuShown) return undefined;
 
     function onKeyDown(event) {
-      if (event.key === "Escape") setIsMenuOpen(false);
+      if (event.key === "Escape") dismissMenu();
     }
     // pointerdown rather than click: a tap that starts outside should dismiss
     // even if it lands on something that stops the click.
     function onPointerDown(event) {
-      if (!barRef.current?.contains(event.target)) setIsMenuOpen(false);
+      if (!barRef.current?.contains(event.target)) dismissMenu();
     }
 
     document.addEventListener("keydown", onKeyDown);
@@ -55,7 +89,8 @@ export default function TopNav() {
       document.removeEventListener("keydown", onKeyDown);
       document.removeEventListener("pointerdown", onPointerDown);
     };
-  }, [isMenuOpen]);
+  }, [isMenuShown, dismissMenu]);
+
 
   return (
     <header ref={barRef} className="app-nav sticky top-0 z-40 border-b backdrop-blur">
@@ -98,17 +133,19 @@ export default function TopNav() {
           </button>
           <button
             type="button"
-            onClick={() => setIsMenuOpen((open) => !open)}
-            aria-expanded={isMenuOpen}
+            onClick={toggleMenu}
+            aria-expanded={isMenuShown}
             aria-controls={MENU_ID}
-            aria-label={isMenuOpen ? "Close main menu" : "Open main menu"}
-            className="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-copy md:hidden"
+            aria-label={isMenuShown ? "Close main menu" : "Open main menu"}
+            className={`nav-burger grid h-11 w-11 shrink-0 place-items-center rounded-xl text-copy md:hidden ${
+              isMenuShown ? "is-open" : ""
+            }`}
           >
-            {isMenuOpen ? (
-              <CloseIcon size={20} className="stroke-[1.75]" />
-            ) : (
-              <MenuIcon size={20} className="stroke-[1.75]" />
-            )}
+            <span className="nav-burger-bars" aria-hidden="true">
+              <span className="nav-burger-bar" />
+              <span className="nav-burger-bar" />
+              <span className="nav-burger-bar" />
+            </span>
           </button>
         </div>
       </div>
@@ -116,36 +153,41 @@ export default function TopNav() {
       {/* Rendered only while open rather than hidden with a class, so nothing
           in it is reachable by keyboard behind a closed menu. */}
       {isMenuOpen && (
-        <div id={MENU_ID} className="border-t border-line px-4 pb-3 pt-2 md:hidden">
-          <nav className="flex flex-col">
-            {items.map((item) => {
-              const Icon = item.icon;
-              return (
-                <NavLink
-                  key={item.to}
-                  to={item.to}
-                  className={({ isActive }) =>
-                    `app-nav-link flex h-11 items-center gap-3 rounded-xl px-3 text-sm font-medium transition ${
-                      isActive ? "bg-brand-tint text-accent" : "text-copy"
-                    }`
-                  }
-                >
-                  <Icon size={18} className="stroke-[1.75]" />
-                  <span>{item.label}</span>
-                </NavLink>
-              );
-            })}
-          </nav>
-          <div className="mt-2 flex items-center justify-between gap-3 border-t border-line pt-3">
-            <span className="truncate text-xs font-semibold text-accent">{trainer?.name}</span>
-            <button
-              type="button"
-              onClick={logout}
-              className="sign-out-btn inline-flex h-11 shrink-0 items-center rounded-xl border px-4 text-xs font-bold transition"
-            >
-              <LogOut size={15} className="mr-2 stroke-[1.75]" />
-              Sign out
-            </button>
+        <div
+          id={MENU_ID}
+          className={`nav-menu border-t border-line md:hidden ${isMenuClosing ? "is-closing" : ""}`}
+        >
+          <div className="nav-menu-inner px-4 pb-3 pt-2">
+            <nav className="flex flex-col">
+              {items.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    className={({ isActive }) =>
+                      `app-nav-link flex h-11 items-center gap-3 rounded-xl px-3 text-sm font-medium transition ${
+                        isActive ? "bg-brand-tint text-accent" : "text-copy"
+                      }`
+                    }
+                  >
+                    <Icon size={18} className="stroke-[1.75]" />
+                    <span>{item.label}</span>
+                  </NavLink>
+                );
+              })}
+            </nav>
+            <div className="mt-2 flex items-center justify-between gap-3 border-t border-line pt-3">
+              <span className="truncate text-xs font-semibold text-accent">{trainer?.name}</span>
+              <button
+                type="button"
+                onClick={logout}
+                className="sign-out-btn inline-flex h-11 shrink-0 items-center rounded-xl border px-4 text-xs font-bold transition"
+              >
+                <LogOut size={15} className="mr-2 stroke-[1.75]" />
+                Sign out
+              </button>
+            </div>
           </div>
         </div>
       )}
