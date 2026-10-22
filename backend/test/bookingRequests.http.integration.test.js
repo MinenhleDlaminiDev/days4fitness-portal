@@ -10,7 +10,7 @@ import { createClientsRepository } from "../src/repositories/clients.repository.
 import { createBookingRequestsRouter } from "../src/routes/bookingRequests.routes.js";
 import { createBookingRequestsService } from "../src/services/bookingRequests.service.js";
 import { createClientsService } from "../src/services/clients.service.js";
-import { actorFor, bindActor, ensureTestTrainer } from "./helpers/trainer.js";
+import { actorFor, bindActor, ensureTestTrainer, withSettings } from "./helpers/trainer.js";
 
 const { Pool } = pg;
 
@@ -20,7 +20,7 @@ if (!env.testDatabaseUrl || !new URL(env.testDatabaseUrl).pathname.toLowerCase()
 
 const testPool = new Pool({ connectionString: env.testDatabaseUrl });
 const clientsService = bindActor(
-  createClientsService(createClientsRepository(testPool)),
+  createClientsService(createClientsRepository(testPool), withSettings(testPool)),
   actorFor(await ensureTestTrainer(testPool))
 );
 const requestsService = createBookingRequestsService(createBookingRequestsRepository(testPool));

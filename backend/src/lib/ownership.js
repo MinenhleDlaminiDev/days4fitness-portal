@@ -42,3 +42,23 @@ export function requireScope(scope) {
   }
   return scope;
 }
+
+/**
+ * Guards a query that is about **one** trainer's own records rather than a
+ * scoped view of everyone's — their settings, their training hours.
+ *
+ * Distinct from requireScope on purpose: `null` is valid there and means "an
+ * admin, no restriction", but here it would silently widen a read to every
+ * trainer's rows at once or, worse, a write to all of them. There is no such
+ * thing as "all trainers' session length", so both null and undefined are
+ * mistakes.
+ */
+export function requireOwner(trainerId) {
+  if (trainerId === undefined || trainerId === null) {
+    throw new Error(
+      "A trainer id is required. These records belong to one trainer, so null " +
+        "means a caller passed an ownership scope by mistake."
+    );
+  }
+  return Number(trainerId);
+}

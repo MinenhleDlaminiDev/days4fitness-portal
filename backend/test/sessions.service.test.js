@@ -1,7 +1,23 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { configureSettingsLoader, DEFAULTS } from "../src/config/settingsCache.js";
 import { AppError } from "../src/errors/AppError.js";
 import { createSessionsService } from "../src/services/sessions.service.js";
+
+// Training hours belong to the owning trainer and are read from the database
+// since AUTH-05. There is none here, so every trainer keeps the default week.
+configureSettingsLoader(async () => DEFAULTS);
+
+// The service asks who owns the client or session before it checks the slot
+// against their hours. Ownership itself is covered by the integration tests.
+const OWNS_EVERYTHING = {
+  async clientOwner() {
+    return TRAINER.id;
+  },
+  async sessionOwner() {
+    return TRAINER.id;
+  }
+};
 
 // Every sessions service call takes the acting trainer since AUTH-04, and
 // refuses to run without one.
@@ -64,7 +80,7 @@ test("lists a Monday-based schedule week as API DTOs", async () => {
 });
 
 test("rejects non-Monday week starts and invalid training slots", async () => {
-  const service = createSessionsService({});
+  const service = createSessionsService({ ...OWNS_EVERYTHING });
 
   await assert.rejects(
     service.listWeek("2026-06-16", TRAINER),
@@ -97,6 +113,7 @@ test("rejects non-Monday week starts and invalid training slots", async () => {
 test("passes manual booking and attendance outcome inputs to the repository", async () => {
   const calls = [];
   const service = createSessionsService({
+    ...OWNS_EVERYTHING,
     async createManual(...args) {
       calls.push(["create", ...args]);
       return sessionRow;

@@ -2,11 +2,16 @@ import assert from "node:assert/strict";
 import { after, test } from "node:test";
 import pg from "pg";
 import { env } from "../src/config/env.js";
-import { resetSettings } from "../src/config/settingsCache.js";
 import { createConfigurationRepository } from "../src/repositories/configuration.repository.js";
-import { createConfigurationService } from "../src/services/configuration.service.js";
+import { createConfigurationService as createUnboundConfigurationService } from "../src/services/configuration.service.js";
 import { addMonths, daysFromToday } from "./helpers/dates.js";
-import { ensureTestTrainer, OWNER_SUBQUERY } from "./helpers/trainer.js";
+import {
+  actorFor,
+  ensureTestTrainer,
+  OWNER_SUBQUERY,
+  settingsFor,
+  withSettings
+} from "./helpers/trainer.js";
 
 const { Pool } = pg;
 
@@ -18,17 +23,47 @@ const testPool = new Pool({ connectionString: env.testDatabaseUrl });
 
 // Fixtures own their clients since AUTH-03, so the suite needs a trainer
 // for them to belong to. Top-level await, so it is done before any test runs.
-await ensureTestTrainer(testPool);
+const owner = await ensureTestTrainer(testPool);
 const repository = createConfigurationRepository(testPool);
-const service = createConfigurationService(repository);
+const settings = settingsFor(testPool);
+const resetSettings = () => settings.resetSettings();
+
+// Configuration belongs to one trainer since AUTH-05, so every call names who
+// is asking. This suite acts as the trainer its fixtures belong to.
+const ACTOR_ARITY = {
+  getConfiguration: 0,
+  updatePricing: 1,
+  updatePrograms: 1,
+  updatePackageSizes: 1,
+  updateBusinessHours: 1,
+  updateSchedulingSettings: 1
+};
+
+function bindConfigurationActor(unbound, actor) {
+  const bound = { ...unbound };
+  for (const [name, arity] of Object.entries(ACTOR_ARITY)) {
+    bound[name] = (...args) => {
+      const padded = [...args];
+      while (padded.length < arity) padded.push(undefined);
+      return unbound[name](...padded, actor);
+    };
+  }
+  return bound;
+}
+
+const unboundService = createUnboundConfigurationService(repository, withSettings(testPool));
+const service = bindConfigurationActor(unboundService, actorFor(owner));
 
 async function snapshot() {
   const [pricing, hours, settings] = await Promise.all([
     testPool.query("SELECT program_type, sessions_total, price FROM package_pricing"),
-    testPool.query("SELECT day_of_week, start_time FROM business_hours"),
+    testPool.query("SELECT day_of_week, start_time FROM business_hours WHERE trainer_user_id = $1", [
+      owner.id
+    ]),
     testPool.query(
       `SELECT group_capacity, session_duration_minutes, package_expiry_months
-       FROM scheduling_settings WHERE id = 1`
+       FROM scheduling_settings WHERE trainer_user_id = $1`,
+      [owner.id]
     )
   ]);
   return { pricing: pricing.rows, hours: hours.rows, settings: settings.rows[0] };
@@ -45,18 +80,19 @@ async function restore(saved) {
         [row.program_type, row.sessions_total, row.price]
       );
     }
-    await client.query("DELETE FROM business_hours");
+    await client.query("DELETE FROM business_hours WHERE trainer_user_id = $1", [owner.id]);
     for (const row of saved.hours) {
       await client.query(
-        "INSERT INTO business_hours (day_of_week, start_time) VALUES ($1, $2)",
-        [row.day_of_week, row.start_time]
+        "INSERT INTO business_hours (trainer_user_id, day_of_week, start_time) VALUES ($1, $2, $3)",
+        [owner.id, row.day_of_week, row.start_time]
       );
     }
     await client.query(
       `UPDATE scheduling_settings
-       SET group_capacity = $1, session_duration_minutes = $2, package_expiry_months = $3
-       WHERE id = 1`,
+       SET group_capacity = $2, session_duration_minutes = $3, package_expiry_months = $4
+       WHERE trainer_user_id = $1`,
       [
+        owner.id,
         saved.settings.group_capacity,
         saved.settings.session_duration_minutes,
         saved.settings.package_expiry_months
@@ -282,4 +318,91 @@ test("adds, renames and removes programs while protecting ones in use", async ()
     await service.updatePrograms({ programs: keep });
     resetSettings();
   }
+});
+
+test("two trainers keep their own hours, length and expiry window", async () => {
+  // AUTH-05. Both plain trainers: this is about settings being separate, not
+  // about what an admin may see.
+  const alice = await ensureTestTrainer(testPool, {
+    email: "alice-config@days4fitness.test",
+    role: "trainer"
+  });
+  const bob = await ensureTestTrainer(testPool, {
+    email: "bob-config@days4fitness.test",
+    role: "trainer"
+  });
+  const hers = bindConfigurationActor(unboundService, actorFor(alice));
+  const his = bindConfigurationActor(unboundService, actorFor(bob));
+
+  // Migration 023 seeds every trainer with the same starting week, so they
+  // begin identical and only diverge because one of them saves.
+  const before = await his.getConfiguration();
+  assert.equal(before.businessHours[0].timeSlots[0], "05:00");
+  assert.equal(before.sessionDurationMinutes, 60);
+
+  await hers.updateBusinessHours({
+    businessHours: [{ day: "Monday", timeSlots: ["06:00", "07:00"] }]
+  });
+  await hers.updateSchedulingSettings({ sessionDurationMinutes: 45, packageExpiryMonths: 6 });
+
+  const herConfiguration = await hers.getConfiguration();
+  assert.deepEqual(
+    herConfiguration.businessHours.map((entry) => entry.day),
+    ["Monday"]
+  );
+  assert.deepEqual(herConfiguration.businessHours[0].timeSlots, ["06:00", "07:00"]);
+  assert.equal(herConfiguration.sessionDurationMinutes, 45);
+  assert.equal(herConfiguration.packageExpiryMonths, 6);
+
+  // His week is exactly as it was. A shared table with a forgotten predicate
+  // would have cleared it.
+  const hisConfiguration = await his.getConfiguration();
+  assert.deepEqual(hisConfiguration.businessHours, before.businessHours);
+  assert.equal(hisConfiguration.sessionDurationMinutes, 60);
+  assert.equal(hisConfiguration.packageExpiryMonths, before.packageExpiryMonths);
+
+  // And what the booking rules read matches, for each of them, with no
+  // further database read needed: saving refreshed only her entry.
+  const herSettings = await settings.getSettings(alice.id);
+  const hisSettings = await settings.getSettings(bob.id);
+  assert.equal(herSettings.sessionDurationMinutes, 45);
+  assert.equal(hisSettings.sessionDurationMinutes, 60);
+  assert.deepEqual(herSettings.businessHours[0].timeSlots, ["06:00", "07:00"]);
+  assert.equal(hisSettings.businessHours[0].timeSlots[0], "05:00");
+});
+
+test("a new trainer starts with a working week rather than an empty one", async () => {
+  // Criterion 2: an empty settings screen is not just blank, it makes booking
+  // impossible, so the trigger on trainer_users seeds every new account.
+  const fresh = await ensureTestTrainer(testPool, {
+    email: `fresh-${Date.now()}@days4fitness.test`,
+    role: "trainer"
+  });
+  const theirs = bindConfigurationActor(unboundService, actorFor(fresh));
+
+  const configuration = await theirs.getConfiguration();
+
+  assert.deepEqual(
+    configuration.businessHours.map((entry) => entry.day),
+    ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+  );
+  assert.equal(configuration.businessHours[0].timeSlots.length, 15);
+  assert.deepEqual(configuration.businessHours.at(-1).timeSlots, [
+    "05:00",
+    "06:00",
+    "07:00",
+    "08:00",
+    "09:00",
+    "10:00"
+  ]);
+  assert.equal(configuration.sessionDurationMinutes, 60);
+  assert.equal(configuration.groupCapacity, 8);
+  assert.equal(configuration.packageExpiryMonths, 2);
+
+  // The rows are really there, not defaults standing in for missing ones.
+  const rows = await testPool.query(
+    "SELECT COUNT(*)::int AS slots FROM business_hours WHERE trainer_user_id = $1",
+    [fresh.id]
+  );
+  assert.equal(rows.rows[0].slots, 81);
 });

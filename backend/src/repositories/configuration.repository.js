@@ -1,4 +1,5 @@
 import { pool as dbPool } from "../db/client.js";
+import { requireOwner } from "../lib/ownership.js";
 
 export function createConfigurationRepository(pool = dbPool) {
   const run = (text, values) => pool.query(text, values);
@@ -31,20 +32,26 @@ export function createConfigurationRepository(pool = dbPool) {
       return result.rows.map((row) => row.sessions_total);
     },
 
-    async listBusinessHours() {
+    // Hours and scheduling settings belong to one trainer since AUTH-05, so
+    // these take the trainer themselves rather than an ownership scope: there
+    // is no "all trainers' hours" to serve.
+    async listBusinessHours(trainerId) {
       const result = await run(
         `SELECT day_of_week, to_char(start_time, 'HH24:MI') AS start_time
          FROM business_hours
-         ORDER BY day_of_week, start_time`
+         WHERE trainer_user_id = $1
+         ORDER BY day_of_week, start_time`,
+        [requireOwner(trainerId)]
       );
       return result.rows;
     },
 
-    async getSchedulingSettings() {
+    async getSchedulingSettings(trainerId) {
       const result = await run(
         `SELECT group_capacity, session_duration_minutes, package_expiry_months
          FROM scheduling_settings
-         WHERE id = 1`
+         WHERE trainer_user_id = $1`,
+        [requireOwner(trainerId)]
       );
       return result.rows[0];
     },
@@ -180,17 +187,22 @@ export function createConfigurationRepository(pool = dbPool) {
       }
     },
 
-    /** Replaces the whole week in one transaction so a failure changes nothing. */
-    async replaceBusinessHours(slots) {
+    /**
+     * Replaces one trainer's whole week in one transaction so a failure
+     * changes nothing. The delete is scoped as tightly as the insert: unscoped
+     * it would clear every trainer's hours and leave only this one's.
+     */
+    async replaceBusinessHours(trainerId, slots) {
+      const owner = requireOwner(trainerId);
       const client = await pool.connect();
       try {
         await client.query("BEGIN");
-        await client.query("DELETE FROM business_hours");
+        await client.query("DELETE FROM business_hours WHERE trainer_user_id = $1", [owner]);
         for (const slot of slots) {
           await client.query(
-            `INSERT INTO business_hours (day_of_week, start_time)
-             VALUES ($1, $2::time)`,
-            [slot.dayOfWeek, slot.startTime]
+            `INSERT INTO business_hours (trainer_user_id, day_of_week, start_time)
+             VALUES ($1, $2, $3::time)`,
+            [owner, slot.dayOfWeek, slot.startTime]
           );
         }
         await client.query("COMMIT");
@@ -202,16 +214,24 @@ export function createConfigurationRepository(pool = dbPool) {
       }
     },
 
-    async updateSchedulingSettings({ groupCapacity, sessionDurationMinutes, packageExpiryMonths }) {
+    async updateSchedulingSettings(
+      trainerId,
+      { groupCapacity, sessionDurationMinutes, packageExpiryMonths }
+    ) {
       const result = await run(
         `UPDATE scheduling_settings
-         SET group_capacity = COALESCE($1, group_capacity),
-             session_duration_minutes = COALESCE($2, session_duration_minutes),
-             package_expiry_months = COALESCE($3, package_expiry_months),
+         SET group_capacity = COALESCE($2, group_capacity),
+             session_duration_minutes = COALESCE($3, session_duration_minutes),
+             package_expiry_months = COALESCE($4, package_expiry_months),
              updated_at = NOW()
-         WHERE id = 1
+         WHERE trainer_user_id = $1
          RETURNING group_capacity, session_duration_minutes, package_expiry_months`,
-        [groupCapacity ?? null, sessionDurationMinutes ?? null, packageExpiryMonths ?? null]
+        [
+          requireOwner(trainerId),
+          groupCapacity ?? null,
+          sessionDurationMinutes ?? null,
+          packageExpiryMonths ?? null
+        ]
       );
       return result.rows[0];
     }

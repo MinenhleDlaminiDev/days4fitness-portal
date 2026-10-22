@@ -1,9 +1,15 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { fetchConfiguration, getApiErrorMessage } from "../lib/api.js";
+import { useAuth } from "./AuthContext.jsx";
 
 const AppConfigurationContext = createContext(null);
 
 export function AppConfigurationProvider({ children }) {
+  const { trainer } = useAuth();
+  // Settings belong to a trainer since AUTH-05, so there is nothing to fetch
+  // until somebody is signed in, and a different trainer means a different
+  // configuration rather than a stale one.
+  const trainerId = trainer?.id ?? null;
   const [configuration, setConfiguration] = useState(null);
   const [error, setError] = useState("");
   const [requestVersion, setRequestVersion] = useState(0);
@@ -12,6 +18,11 @@ export function AppConfigurationProvider({ children }) {
     let mounted = true;
 
     setError("");
+    if (!trainerId) {
+      setConfiguration(null);
+      return undefined;
+    }
+
     fetchConfiguration()
       .then((data) => {
         if (mounted) setConfiguration(data);
@@ -25,13 +36,15 @@ export function AppConfigurationProvider({ children }) {
     return () => {
       mounted = false;
     };
-  }, [requestVersion]);
+  }, [trainerId, requestVersion]);
 
   const value = useMemo(
     () => ({
       configuration,
       error,
-      isLoading: !configuration && !error,
+      // Nobody signed in is not "still loading": the login screen needs no
+      // configuration at all.
+      isLoading: Boolean(trainerId) && !configuration && !error,
       // The settings endpoints return the full configuration, so a save can
       // refresh the app without a round trip or a loading flash.
       applyConfiguration(next) {
@@ -52,7 +65,7 @@ export function AppConfigurationProvider({ children }) {
         return configuration?.businessHours.find((item) => item.day === day)?.timeSlots ?? [];
       }
     }),
-    [configuration, error]
+    [configuration, error, trainerId]
   );
 
   return <AppConfigurationContext.Provider value={value}>{children}</AppConfigurationContext.Provider>;

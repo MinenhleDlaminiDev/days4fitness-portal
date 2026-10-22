@@ -50,8 +50,12 @@ test("records migrations and does not reapply completed files", async () => {
 });
 
 test("creates the Phase 2 scheduling schema and defaults", async () => {
+  // One row per trainer since AUTH-05, seeded with the same defaults the
+  // single row used to hold.
   const settings = await testPool.query(
-    "SELECT group_capacity, session_duration_minutes FROM scheduling_settings WHERE id = 1"
+    `SELECT group_capacity, session_duration_minutes
+     FROM scheduling_settings
+     WHERE trainer_user_id = ${OWNER_SUBQUERY}`
   );
   const sessionColumns = await testPool.query(
     `SELECT column_name

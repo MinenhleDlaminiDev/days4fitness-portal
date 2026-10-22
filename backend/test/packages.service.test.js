@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { configureSettingsLoader, DEFAULTS } from "../src/config/settingsCache.js";
 import { createPackagesService as createUnboundPackagesService } from "../src/services/packages.service.js";
 import { bindPackagesActor } from "./helpers/trainer.js";
+
+// Package sizes come from the owning trainer's settings since AUTH-05, read
+// from the database. There is none here, so every trainer gets the defaults.
+configureSettingsLoader(async () => DEFAULTS);
 
 // AUTH-03 gave every packages service method the acting trainer as its last
 // argument. These tests are about package behaviour, not authorisation, so
@@ -56,6 +61,11 @@ test("creates a configured replacement package", async () => {
     // writes. This test is not about ownership, so the client is always theirs.
     async clientExists() {
       return true;
+    },
+    // AUTH-05: and it asks who owns them, because the sizes on offer are the
+    // owner's rather than the caller's.
+    async clientOwner() {
+      return ACTOR.id;
     },
     async createForClient(clientId, input) {
       assert.equal(clientId, 20);

@@ -9,7 +9,8 @@ import {
   actorFor,
   bindPackagesActor,
   ensureTestTrainer,
-  OWNER_SUBQUERY
+  OWNER_SUBQUERY,
+  withSettings
 } from "./helpers/trainer.js";
 
 const { Pool } = pg;
@@ -33,7 +34,7 @@ const testPool = new Pool({ connectionString: env.testDatabaseUrl });
 // for them to belong to. Top-level await, so it is done before any test runs.
 await ensureTestTrainer(testPool);
 const service = bindPackagesActor(
-  createPackagesService(createPackagesRepository(testPool)),
+  createPackagesService(createPackagesRepository(testPool), withSettings(testPool)),
   actorFor(await ensureTestTrainer(testPool))
 );
 
@@ -268,7 +269,10 @@ test("packages and payments follow the client's owner", async () => {
   const bob = actorFor(
     await ensureTestTrainer(testPool, { email: "pkg-bob@days4fitness.test", role: "trainer" })
   );
-  const raw = createPackagesService(createPackagesRepository(testPool));
+  const raw = createPackagesService(
+    createPackagesRepository(testPool),
+    withSettings(testPool)
+  );
   const today = daysFromToday(0);
 
   const stamp = `${Date.now()}-${Math.random().toString(16).slice(2)}`;

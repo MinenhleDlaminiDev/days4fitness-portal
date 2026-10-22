@@ -11,7 +11,8 @@ import {
   actorFor,
   bindActor,
   bindSessionsActor,
-  ensureTestTrainer
+  ensureTestTrainer,
+  withSettings
 } from "./helpers/trainer.js";
 import { createSessionsService } from "../src/services/sessions.service.js";
 import { addDays, addMonths, daysFromToday, upcomingMonday } from "./helpers/dates.js";
@@ -34,12 +35,12 @@ const testPool = new Pool({ connectionString: env.testDatabaseUrl });
 // as it. Isolation between two trainers is tested separately, below.
 const trainer = await ensureTestTrainer(testPool);
 const service = bindActor(
-  createClientsService(createClientsRepository(testPool)),
+  createClientsService(createClientsRepository(testPool), withSettings(testPool)),
   actorFor(trainer)
 );
 const requestsService = createBookingRequestsService(createBookingRequestsRepository(testPool));
 const sessionsService = bindSessionsActor(
-  createSessionsService(createSessionsRepository(testPool)),
+  createSessionsService(createSessionsRepository(testPool), withSettings(testPool)),
   actorFor(trainer)
 );
 
@@ -383,7 +384,7 @@ test("two trainers cannot see or touch each other's clients", async () => {
   const bob = actorFor(
     await ensureTestTrainer(testPool, { email: "bob@days4fitness.test", role: "trainer" })
   );
-  const raw = createClientsService(createClientsRepository(testPool));
+  const raw = createClientsService(createClientsRepository(testPool), withSettings(testPool));
   const stamp = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
   const newClient = (name, phone, suffix) => ({
     name,

@@ -16,7 +16,9 @@ import {
   actorFor,
   bindSessionsActor,
   ensureTestTrainer,
-  OWNER_SUBQUERY
+  OWNER_SUBQUERY,
+  settingsFor,
+  withSettings
 } from "./helpers/trainer.js";
 
 const { Pool } = pg;
@@ -39,7 +41,7 @@ const owner = await ensureTestTrainer(testPool);
 // Every sessions service call takes the acting trainer since AUTH-04. Bound
 // once here so the call sites below stay about scheduling.
 const service = bindSessionsActor(
-  createSessionsService(createSessionsRepository(testPool)),
+  createSessionsService(createSessionsRepository(testPool), withSettings(testPool)),
   actorFor(owner)
 );
 const createdClientIds = [];
@@ -372,7 +374,10 @@ test("enforces session timing for cancellation, rescheduling, and outcomes", asy
   // chosen rather than inherited. See helpers/businessClock.js.
   const businessTimezone = timezoneWhereLocalHourIs();
   const timedService = bindSessionsActor(
-    createSessionsService(createSessionsRepository(testPool, { businessTimezone })),
+    createSessionsService(
+      createSessionsRepository(testPool, { businessTimezone }),
+      withSettings(testPool)
+    ),
     actorFor(owner)
   );
 
@@ -432,15 +437,20 @@ test("enforces session timing for cancellation, rescheduling, and outcomes", asy
 
 test("books at the configured session length and blocks the slot it now covers", async () => {
   const client = await createClientPackage("configured-duration");
+  // The suite trainer's own length since AUTH-05. Written straight to the
+  // table, which is where the booking transaction reads it from -- the
+  // per-trainer settings cache only serves the training-hours check.
   const original = (
     await testPool.query(
-      "SELECT session_duration_minutes FROM scheduling_settings WHERE id = 1"
+      "SELECT session_duration_minutes FROM scheduling_settings WHERE trainer_user_id = $1",
+      [owner.id]
     )
   ).rows[0].session_duration_minutes;
 
   try {
     await testPool.query(
-      "UPDATE scheduling_settings SET session_duration_minutes = 90 WHERE id = 1"
+      "UPDATE scheduling_settings SET session_duration_minutes = 90 WHERE trainer_user_id = $1",
+      [owner.id]
     );
 
     const session = await service.createManual({
@@ -480,8 +490,8 @@ test("books at the configured session length and blocks the slot it now covers",
     assert.equal(after.status, "scheduled");
   } finally {
     await testPool.query(
-      "UPDATE scheduling_settings SET session_duration_minutes = $1 WHERE id = 1",
-      [original]
+      "UPDATE scheduling_settings SET session_duration_minutes = $1 WHERE trainer_user_id = $2",
+      [original, owner.id]
     );
   }
 });
@@ -576,7 +586,10 @@ test("a day cancel rolls back entirely when one session has already started", as
   // whatever time the suite runs. See helpers/businessClock.js.
   const businessTimezone = timezoneWhereLocalHourIs();
   const timedService = bindSessionsActor(
-    createSessionsService(createSessionsRepository(testPool, { businessTimezone })),
+    createSessionsService(
+      createSessionsRepository(testPool, { businessTimezone }),
+      withSettings(testPool)
+    ),
     actorFor(owner)
   );
   const today = await businessToday(testPool, businessTimezone);
@@ -673,7 +686,7 @@ async function twoTrainers() {
     })
   );
   // Unbound, so every call has to name who is asking.
-  const raw = createSessionsService(createSessionsRepository(testPool));
+  const raw = createSessionsService(createSessionsRepository(testPool), withSettings(testPool));
   return { alice, bob, raw };
 }
 
@@ -779,4 +792,49 @@ test("a session cannot hold a client who belongs to another trainer", async () =
     ),
     (error) => error.code === "23514"
   );
+});
+
+test("a booking is checked against the owning trainer's hours, not the caller's", async () => {
+  // AUTH-05 criterion 6. Alice finishes at 10:00; Bob keeps the default week
+  // that runs to 19:00.
+  const { alice, bob, raw } = await twoTrainers();
+  const cache = settingsFor(testPool);
+  await testPool.query(
+    "DELETE FROM business_hours WHERE trainer_user_id = $1 AND start_time > '10:00'",
+    [alice.id]
+  );
+  cache.invalidateSettings(alice.id);
+
+  try {
+    const hers = await createClientPackage("alice-hours", { ownerId: alice.id });
+    const his = await createClientPackage("bob-hours", { ownerId: bob.id });
+    const late = { sessionDate: day(42), startTime: "18:00" };
+
+    await assert.rejects(
+      () => raw.createManual({ clientId: hers.clientId, ...late }, alice),
+      (error) => error.status === 400 && /outside Monday training hours/.test(error.message)
+    );
+
+    // The same slot is an ordinary afternoon for Bob.
+    const booked = await raw.createManual({ clientId: his.clientId, ...late }, bob);
+    assert.equal(booked.startTime, "18:00");
+
+    // An admin books by the owner's week, not their own: the admin still has
+    // the default hours, and 18:00 is refused for Alice's client.
+    const admin = actorFor(owner);
+    await assert.rejects(
+      () => raw.createManual({ clientId: hers.clientId, ...late }, admin),
+      (error) => error.status === 400
+    );
+    const inHours = await raw.createManual(
+      { clientId: hers.clientId, sessionDate: day(42), startTime: "09:00" },
+      admin
+    );
+    assert.equal(inHours.trainerId, Number(alice.id));
+  } finally {
+    // seed_trainer_scheduling only fills what is missing, so this puts her
+    // week back without touching anything else.
+    await testPool.query("SELECT seed_trainer_scheduling($1)", [alice.id]);
+    cache.invalidateSettings(alice.id);
+  }
 });

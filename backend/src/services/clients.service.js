@@ -4,7 +4,7 @@ import {
   sessionTypeFromDatabase,
   sessionTypeToDatabase
 } from "../config/businessRules.js";
-import { getSettings, timeSlotsForDay } from "../config/settingsCache.js";
+import { settingsCache } from "../config/settingsCache.js";
 import { conflictError, notFoundError, validationError } from "../errors/AppError.js";
 import { ownerId, ownerScope } from "../lib/ownership.js";
 import {
@@ -190,7 +190,14 @@ export function normalizePreferredSchedule(inputDays, inputSchedule, options = {
   const preferredSchedule = {};
 
   for (const day of preferredDays) {
-    const allowedSlots = timeSlotsForDay(day);
+    if (!options.businessHours) {
+      throw new Error(
+        "normalizePreferredSchedule needs the owning trainer's businessHours: the " +
+          "available slots are theirs, not the business's."
+      );
+    }
+    const allowedSlots =
+      options.businessHours.find((item) => item.day === day)?.timeSlots || [];
     if (allowedSlots.length === 0) {
       throw validationError(`${day} is not an available training day`, {
         field: "preferredDays",
@@ -219,7 +226,10 @@ export function normalizePreferredSchedule(inputDays, inputSchedule, options = {
   return { preferredDays, preferredSchedule };
 }
 
-export function createClientsService(repository = clientsRepository) {
+export function createClientsService(
+  repository = clientsRepository,
+  { settings = settingsCache } = {}
+) {
   // Every goal operation needs the client to exist first, and a missing one
   // must read as a 404 rather than an empty list. A shared helper beats
   // `this` here, because a controller may hand a method around on its own.
@@ -298,7 +308,10 @@ export function createClientsService(repository = clientsRepository) {
         "sessionType"
       );
 
-      const { packageSizes, packageExpiryMonths } = getSettings();
+      // The creating trainer owns the client, so the sizes, expiry window and
+      // training hours that apply are theirs.
+      const owned = await settings.getSettings(ownerId(actor));
+      const { packageSizes, packageExpiryMonths } = owned;
       const packageSize = Number(input.packageSize);
       if (!packageSizes.includes(packageSize)) {
         throw validationError(`packageSize must be one of: ${packageSizes.join(", ")}`, {
@@ -311,7 +324,7 @@ export function createClientsService(repository = clientsRepository) {
       const { preferredDays, preferredSchedule } = normalizePreferredSchedule(
         input.preferredDays,
         input.preferredSchedule,
-        { allowEmpty: true }
+        { allowEmpty: true, businessHours: owned.businessHours }
       );
       const programInput = cleanString(input.program);
       const paid = optionalBoolean(input.paid, "paid");
@@ -355,18 +368,17 @@ export function createClientsService(repository = clientsRepository) {
 
     async updatePreferences(clientId, input = {}, actor) {
       const id = requirePositiveInteger(clientId, "clientId");
+      const scope = ownerScope(actor);
+      const owner = await repository.clientOwner(id, scope);
+      if (!owner) throw notFoundError("Client not found");
+      const { businessHours } = await settings.getSettings(owner);
       const { preferredDays, preferredSchedule } = normalizePreferredSchedule(
         input.preferredDays,
         input.preferredSchedule,
-        { allowEmpty: true }
+        { allowEmpty: true, businessHours }
       );
       try {
-        const row = await repository.updatePreferences(
-          id,
-          preferredDays,
-          preferredSchedule,
-          ownerScope(actor)
-        );
+        const row = await repository.updatePreferences(id, preferredDays, preferredSchedule, scope);
         if (!row) throw notFoundError("Client not found");
         return toClientDto(row);
       } catch (error) {
@@ -382,11 +394,16 @@ export function createClientsService(repository = clientsRepository) {
       requireFields(input, ["name", "phone"]);
       const hasPreferences =
         input.preferredDays !== undefined || input.preferredSchedule !== undefined;
-      const preferences = hasPreferences
-        ? normalizePreferredSchedule(input.preferredDays, input.preferredSchedule, {
-            allowEmpty: true
-          })
-        : null;
+      let preferences = null;
+      if (hasPreferences) {
+        const owner = await repository.clientOwner(id, ownerScope(actor));
+        if (!owner) throw notFoundError("Client not found");
+        const { businessHours } = await settings.getSettings(owner);
+        preferences = normalizePreferredSchedule(input.preferredDays, input.preferredSchedule, {
+          allowEmpty: true,
+          businessHours
+        });
+      }
       try {
         const row = await repository.update(
           id,

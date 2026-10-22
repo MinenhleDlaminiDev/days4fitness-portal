@@ -9,7 +9,13 @@ import { createSessionsRepository } from "../src/repositories/sessions.repositor
 import { createSessionsRouter } from "../src/routes/sessions.routes.js";
 import { createSessionsService } from "../src/services/sessions.service.js";
 import { addDays, upcomingMonday } from "./helpers/dates.js";
-import { actingAs, actorFor, ensureTestTrainer, OWNER_SUBQUERY } from "./helpers/trainer.js";
+import {
+  actingAs,
+  actorFor,
+  ensureTestTrainer,
+  OWNER_SUBQUERY,
+  withSettings
+} from "./helpers/trainer.js";
 
 const { Pool } = pg;
 
@@ -26,7 +32,10 @@ const testPool = new Pool({ connectionString: env.testDatabaseUrl });
 // Fixtures own their clients since AUTH-03, so the suite needs a trainer
 // for them to belong to. Top-level await, so it is done before any test runs.
 const owner = await ensureTestTrainer(testPool);
-const service = createSessionsService(createSessionsRepository(testPool));
+const service = createSessionsService(
+  createSessionsRepository(testPool),
+  withSettings(testPool)
+);
 const controller = createSessionsController(service);
 const app = express();
 const createdClientIds = [];

@@ -1,11 +1,7 @@
 import { sessionTypeFromDatabase, sessionTypeToDatabase } from "../config/businessRules.js";
-import {
-  DAY_NAMES,
-  getSettings,
-  groupBusinessHours,
-  setSettings
-} from "../config/settingsCache.js";
+import { DAY_NAMES, DEFAULTS, groupBusinessHours, settingsCache } from "../config/settingsCache.js";
 import { conflictError, notFoundError, validationError } from "../errors/AppError.js";
+import { ownerId } from "../lib/ownership.js";
 import { configurationRepository } from "../repositories/configuration.repository.js";
 
 // The sessions table still constrains when a session may start, so a slot
@@ -62,15 +58,18 @@ function requireSlotTime(value, day) {
   return value;
 }
 
-export function createConfigurationService(repository = configurationRepository) {
-  async function loadConfiguration() {
+export function createConfigurationService(
+  repository = configurationRepository,
+  { settings = settingsCache } = {}
+) {
+  async function loadConfiguration(trainerId) {
     const [programRows, pricingRows, packageSizes, businessHourRows, schedulingSettings] =
       await Promise.all([
         repository.listPrograms(),
         repository.listPricing(),
         repository.listPackageSizes(),
-        repository.listBusinessHours(),
-        repository.getSchedulingSettings()
+        repository.listBusinessHours(trainerId),
+        repository.getSchedulingSettings(trainerId)
       ]);
 
     const configuration = {
@@ -86,13 +85,19 @@ export function createConfigurationService(repository = configurationRepository)
         price: Number(row.price)
       })),
       businessHours: groupBusinessHours(businessHourRows),
-      sessionDurationMinutes: schedulingSettings.session_duration_minutes,
-      groupCapacity: schedulingSettings.group_capacity,
-      packageExpiryMonths: schedulingSettings.package_expiry_months
+      // Migration 023 seeds a row for every trainer and a trigger keeps doing
+      // it, so a missing one should not happen. Falling back beats a crash
+      // reading a property of undefined if it ever does.
+      sessionDurationMinutes:
+        schedulingSettings?.session_duration_minutes ?? DEFAULTS.sessionDurationMinutes,
+      groupCapacity: schedulingSettings?.group_capacity ?? DEFAULTS.groupCapacity,
+      packageExpiryMonths:
+        schedulingSettings?.package_expiry_months ?? DEFAULTS.packageExpiryMonths
     };
 
-    // Keep the synchronous snapshot the booking validations read in step.
-    setSettings({
+    // This trainer's cache entry now matches what was just read, so a booking
+    // straight after a save does not go back to the database.
+    settings.setSettings(trainerId, {
       packageSizes: configuration.packageSizes,
       businessHours: configuration.businessHours,
       groupCapacity: configuration.groupCapacity,
@@ -104,15 +109,15 @@ export function createConfigurationService(repository = configurationRepository)
   }
 
   return {
-    getConfiguration: loadConfiguration,
-
-    /** Called once at boot so the cache is warm before the first request. */
-    async primeCache() {
-      await loadConfiguration();
-      return getSettings();
+    async getConfiguration(actor) {
+      return loadConfiguration(ownerId(actor));
     },
 
-    async updatePricing(payload = {}) {
+    // Prices, programs and package sizes are still one catalogue for the
+    // business; AUTH-10 makes them per trainer. The trainer here is only who
+    // the refreshed configuration is returned for.
+    async updatePricing(payload = {}, actor) {
+      const trainerId = ownerId(actor);
       const rows = requireArray(payload.pricing, "pricing");
       if (rows.length === 0) {
         throw validationError("pricing must contain at least one entry", { field: "pricing" });
@@ -146,7 +151,7 @@ export function createConfigurationService(repository = configurationRepository)
       });
 
       await repository.updatePricing(entries);
-      return loadConfiguration();
+      return loadConfiguration(trainerId);
     },
 
     /**
@@ -156,7 +161,8 @@ export function createConfigurationService(repository = configurationRepository)
      * recurring bookings hold composite keys to (program id, type) — changing
      * it would strand a program's own history.
      */
-    async updatePrograms(payload = {}) {
+    async updatePrograms(payload = {}, actor) {
+      const trainerId = ownerId(actor);
       const rows = requireArray(payload.programs, "programs");
       if (rows.length === 0) {
         throw validationError("At least one program must remain", { field: "programs" });
@@ -231,10 +237,11 @@ export function createConfigurationService(repository = configurationRepository)
         }
         throw error;
       }
-      return loadConfiguration();
+      return loadConfiguration(trainerId);
     },
 
-    async updatePackageSizes(payload = {}) {
+    async updatePackageSizes(payload = {}, actor) {
+      const trainerId = ownerId(actor);
       const sizes = requireArray(payload.packageSizes, "packageSizes");
       if (sizes.length === 0) {
         throw validationError("At least one package size must remain", {
@@ -265,10 +272,11 @@ export function createConfigurationService(repository = configurationRepository)
         }
         throw error;
       }
-      return loadConfiguration();
+      return loadConfiguration(trainerId);
     },
 
-    async updateBusinessHours(payload = {}) {
+    async updateBusinessHours(payload = {}, actor) {
+      const trainerId = ownerId(actor);
       const days = requireArray(payload.businessHours, "businessHours");
       const slots = [];
       const seenDays = new Set();
@@ -307,11 +315,12 @@ export function createConfigurationService(repository = configurationRepository)
         });
       }
 
-      await repository.replaceBusinessHours(slots);
-      return loadConfiguration();
+      await repository.replaceBusinessHours(trainerId, slots);
+      return loadConfiguration(trainerId);
     },
 
-    async updateSchedulingSettings(payload = {}) {
+    async updateSchedulingSettings(payload = {}, actor) {
+      const trainerId = ownerId(actor);
       const updates = {};
       if (payload.groupCapacity !== undefined) {
         updates.groupCapacity = requirePositiveInt(payload.groupCapacity, "groupCapacity");
@@ -334,8 +343,8 @@ export function createConfigurationService(repository = configurationRepository)
         );
       }
 
-      await repository.updateSchedulingSettings(updates);
-      return loadConfiguration();
+      await repository.updateSchedulingSettings(trainerId, updates);
+      return loadConfiguration(trainerId);
     }
   };
 }

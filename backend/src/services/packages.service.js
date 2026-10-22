@@ -7,7 +7,7 @@ import {
   requirePositiveInteger
 } from "../lib/validation.js";
 import { sessionTypeFromDatabase, sessionTypeToDatabase } from "../config/businessRules.js";
-import { getSettings } from "../config/settingsCache.js";
+import { settingsCache } from "../config/settingsCache.js";
 import { packagesRepository } from "../repositories/packages.repository.js";
 
 const PAYMENT_METHODS = ["cash", "eft", "card"];
@@ -78,7 +78,10 @@ function translateError(error) {
   throw error;
 }
 
-export function createPackagesService(repository = packagesRepository) {
+export function createPackagesService(
+  repository = packagesRepository,
+  { settings = settingsCache } = {}
+) {
   return {
     async listClientPackages(clientId, actor) {
       const id = requirePositiveInteger(clientId, "clientId");
@@ -93,16 +96,16 @@ export function createPackagesService(repository = packagesRepository) {
       const sessionType = requireOneOf(input.sessionType, ["One-on-One", "Group"], "sessionType");
       const program = cleanString(input.program);
       if (!program) throw validationError("program is required", { field: "program" });
-      const { packageSizes } = getSettings();
       const sessionsTotal = Number(input.sessionsTotal);
+      const purchaseDate = requireIsoDate(input.purchaseDate, "purchaseDate");
+      // Looked up before the write for two reasons: createForClient would
+      // otherwise happily hang a package off another trainer's client, and the
+      // sizes on offer are the owner's, not the caller's.
+      const owner = await repository.clientOwner(id, ownerScope(actor));
+      if (!owner) throw notFoundError("Client not found");
+      const { packageSizes } = await settings.getSettings(owner);
       if (!packageSizes.includes(sessionsTotal)) {
         throw validationError(`sessionsTotal must be one of: ${packageSizes.join(", ")}`);
-      }
-      const purchaseDate = requireIsoDate(input.purchaseDate, "purchaseDate");
-      // Checked before the write: createForClient would otherwise happily hang
-      // a package off another trainer's client.
-      if (!(await repository.clientExists(id, ownerScope(actor)))) {
-        throw notFoundError("Client not found");
       }
       try {
         const packageId = await repository.createForClient(id, {

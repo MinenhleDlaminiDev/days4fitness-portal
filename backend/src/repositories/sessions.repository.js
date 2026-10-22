@@ -187,15 +187,16 @@ async function findOverlaps(db, sessionDate, startTime, durationMinutes, ownerTr
   return result.rows;
 }
 
-async function configuredSessionMinutes(db) {
+async function configuredSessionMinutes(db, ownerTrainerId) {
   const result = await db.query(
-    "SELECT session_duration_minutes FROM scheduling_settings WHERE id = 1"
+    "SELECT session_duration_minutes FROM scheduling_settings WHERE trainer_user_id = $1",
+    [ownerTrainerId]
   );
   return result.rows[0]?.session_duration_minutes ?? 60;
 }
 
 async function createSessionRow(db, packageRow, sessionDate, startTime, ownerTrainerId) {
-  const durationMinutes = await configuredSessionMinutes(db);
+  const durationMinutes = await configuredSessionMinutes(db, ownerTrainerId);
   const overlaps = await findOverlaps(
     db,
     sessionDate,
@@ -222,7 +223,8 @@ async function createSessionRow(db, packageRow, sessionDate, startTime, ownerTra
   }
 
   const settingsResult = await db.query(
-    "SELECT group_capacity FROM scheduling_settings WHERE id = 1"
+    "SELECT group_capacity FROM scheduling_settings WHERE trainer_user_id = $1",
+    [ownerTrainerId]
   );
   const result = await db.query(
     `INSERT INTO sessions (
@@ -245,7 +247,7 @@ async function createSessionRow(db, packageRow, sessionDate, startTime, ownerTra
       // Persist the configured length. Leaving this to the column default meant
       // the Session length setting had no effect on anything booked.
       durationMinutes,
-      packageRow.program_type === "group" ? settingsResult.rows[0].group_capacity : 1,
+      packageRow.program_type === "group" ? settingsResult.rows[0]?.group_capacity ?? 8 : 1,
       ownerTrainerId
     ]
   );
@@ -351,6 +353,23 @@ export function createSessionsRepository(
   { businessTimezone = env.businessTimezone } = {}
 ) {
   return {
+    /** The trainer who owns a client, or null if not this caller's to see. */
+    async clientOwner(clientId, scope) {
+      const result = await dbPool.query(
+        `SELECT trainer_user_id
+         FROM clients
+         WHERE id = $1
+           AND ($2::bigint IS NULL OR trainer_user_id = $2)`,
+        [clientId, requireScope(scope)]
+      );
+      return result.rows[0]?.trainer_user_id ?? null;
+    },
+
+    /** The trainer who owns a session, or null if not this caller's to see. */
+    async sessionOwner(sessionId, scope) {
+      return findSessionOwner(dbPool, sessionId, scope);
+    },
+
     async findWeek(weekStart, scope) {
       const result = await dbPool.query(
         `${SESSION_SELECT_SQL}

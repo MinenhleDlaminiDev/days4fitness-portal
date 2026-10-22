@@ -18,11 +18,33 @@ export default function App() {
   const { error, isLoading, reload } = useAppConfiguration();
   const { isLoading: isAuthLoading, trainer } = useAuth();
 
-  if (isLoading || isAuthLoading) {
+  // Order matters: the configuration is only fetched once somebody is signed
+  // in, so the login screen has to come before any configuration gate or it
+  // would wait for something that is never coming.
+  if (isAuthLoading) {
     return (
       <main className="grid min-h-screen place-items-center bg-sunken p-4">
         <div className="surface-card w-full max-w-md text-center text-sm text-muted">
-          Loading application configuration...
+          Signing you in...
+        </div>
+      </main>
+    );
+  }
+
+  if (!trainer) {
+    return (
+      <Routes>
+        <Route path="/signup" element={<SignupPage />} />
+        <Route path="*" element={<LoginPage />} />
+      </Routes>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <main className="grid min-h-screen place-items-center bg-sunken p-4">
+        <div className="surface-card w-full max-w-md text-center text-sm text-muted">
+          Loading your settings...
         </div>
       </main>
     );
@@ -39,15 +61,6 @@ export default function App() {
           </button>
         </div>
       </main>
-    );
-  }
-
-  if (!trainer) {
-    return (
-      <Routes>
-        <Route path="/signup" element={<SignupPage />} />
-        <Route path="*" element={<LoginPage />} />
-      </Routes>
     );
   }
 

@@ -13,7 +13,8 @@ import {
   bindActor,
   bindSessionsActor,
   ensureTestTrainer,
-  OWNER_SUBQUERY
+  OWNER_SUBQUERY,
+  withSettings
 } from "./helpers/trainer.js";
 
 const { Pool } = pg;
@@ -28,12 +29,12 @@ const testPool = new Pool({ connectionString: env.testDatabaseUrl });
 // for them to belong to. Top-level await, so it is done before any test runs.
 await ensureTestTrainer(testPool);
 const clientsService = bindActor(
-  createClientsService(createClientsRepository(testPool)),
+  createClientsService(createClientsRepository(testPool), withSettings(testPool)),
   actorFor(await ensureTestTrainer(testPool))
 );
 const requestsService = createBookingRequestsService(createBookingRequestsRepository(testPool));
 const sessionsService = bindSessionsActor(
-  createSessionsService(createSessionsRepository(testPool)),
+  createSessionsService(createSessionsRepository(testPool), withSettings(testPool)),
   actorFor(await ensureTestTrainer(testPool))
 );
 const createdEmails = [];
@@ -671,7 +672,7 @@ test("starts next week when today's requested time has already passed", async ()
     options: `-c timezone=${timezone}`
   });
   const timeAwareClients = bindActor(
-    createClientsService(createClientsRepository(timeAwarePool)),
+    createClientsService(createClientsRepository(timeAwarePool), withSettings(timeAwarePool)),
     actorFor(await ensureTestTrainer(timeAwarePool))
   );
   const timeAwareRequests = createBookingRequestsService(

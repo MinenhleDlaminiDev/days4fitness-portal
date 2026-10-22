@@ -50,6 +50,17 @@ export function createPackagesRepository(dbPool = pool) {
       return result.rows[0].exists;
     },
 
+    /** The trainer who owns a client, or null if not this caller's to see. */
+    async clientOwner(clientId, scope) {
+      const result = await dbPool.query(
+        `SELECT trainer_user_id
+         FROM clients
+         WHERE id = $1 AND ($2::bigint IS NULL OR trainer_user_id = $2)`,
+        [clientId, requireScope(scope)]
+      );
+      return result.rows[0]?.trainer_user_id ?? null;
+    },
+
     async findForClient(clientId) {
       const packagesResult = await dbPool.query(
         `${PACKAGE_FINANCIAL_SELECT}

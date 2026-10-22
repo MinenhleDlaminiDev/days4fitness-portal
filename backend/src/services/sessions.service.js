@@ -1,4 +1,4 @@
-import { DAY_NAMES, getSettings } from "../config/settingsCache.js";
+import { DAY_NAMES, settingsCache } from "../config/settingsCache.js";
 import { conflictError, notFoundError, validationError } from "../errors/AppError.js";
 import { ownerScope } from "../lib/ownership.js";
 import { requireIsoDate, requirePositiveInteger } from "../lib/validation.js";
@@ -11,9 +11,14 @@ function requireTime(value) {
   return value;
 }
 
-function validateBookableSlot(sessionDate, startTime) {
+/**
+ * The hours belong to the trainer whose client this is, not to the person
+ * asking: an admin booking for a trainer gets that trainer's week.
+ */
+async function assertBookableSlot(settings, sessionDate, startTime, trainerId) {
+  const { businessHours } = await settings.getSettings(trainerId);
   const day = DAY_NAMES[new Date(`${sessionDate}T00:00:00Z`).getUTCDay()];
-  const hours = getSettings().businessHours.find((item) => item.day === day);
+  const hours = businessHours.find((item) => item.day === day);
   if (!hours) throw validationError("Sessions cannot be booked on Sunday");
   if (!hours.timeSlots.includes(startTime)) {
     throw validationError(`${startTime} is outside ${day} training hours`, {
@@ -76,14 +81,19 @@ function translateRepositoryError(error) {
   throw error;
 }
 
+// Shape first, hours second. A malformed date is still a 400 before anything
+// is looked up; only the training-hours check has to wait until the owner is
+// known.
 function parseBookingInput(input = {}) {
   const sessionDate = requireIsoDate(input.sessionDate, "sessionDate");
   const startTime = requireTime(input.startTime);
-  validateBookableSlot(sessionDate, startTime);
   return { sessionDate, startTime };
 }
 
-export function createSessionsService(repository = sessionsRepository) {
+export function createSessionsService(
+  repository = sessionsRepository,
+  { settings = settingsCache } = {}
+) {
   return {
     async listWeek(weekStartValue, actor) {
       const weekStart = requireIsoDate(weekStartValue, "weekStart");
@@ -102,13 +112,12 @@ export function createSessionsService(repository = sessionsRepository) {
     async createManual(input, actor) {
       const clientId = requirePositiveInteger(input?.clientId, "clientId");
       const { sessionDate, startTime } = parseBookingInput(input);
+      const scope = ownerScope(actor);
+      const owner = await repository.clientOwner(clientId, scope);
+      if (!owner) throw notFoundError("Client not found");
+      await assertBookableSlot(settings, sessionDate, startTime, owner);
       try {
-        const row = await repository.createManual(
-          clientId,
-          sessionDate,
-          startTime,
-          ownerScope(actor)
-        );
+        const row = await repository.createManual(clientId, sessionDate, startTime, scope);
         if (!row) throw notFoundError("Client package not found");
         return toSessionDto(row);
       } catch (error) {
@@ -130,13 +139,12 @@ export function createSessionsService(repository = sessionsRepository) {
     async createReplacement(sessionId, input, actor) {
       const id = requirePositiveInteger(sessionId, "sessionId");
       const { sessionDate, startTime } = parseBookingInput(input);
+      const scope = ownerScope(actor);
+      const owner = await repository.sessionOwner(id, scope);
+      if (!owner) throw notFoundError("Session not found");
+      await assertBookableSlot(settings, sessionDate, startTime, owner);
       try {
-        const row = await repository.createReplacement(
-          id,
-          sessionDate,
-          startTime,
-          ownerScope(actor)
-        );
+        const row = await repository.createReplacement(id, sessionDate, startTime, scope);
         if (!row) throw notFoundError("Session not found");
         return toSessionDto(row);
       } catch (error) {
@@ -147,13 +155,12 @@ export function createSessionsService(repository = sessionsRepository) {
     async reschedule(sessionId, input, actor) {
       const id = requirePositiveInteger(sessionId, "sessionId");
       const { sessionDate, startTime } = parseBookingInput(input);
+      const scope = ownerScope(actor);
+      const owner = await repository.sessionOwner(id, scope);
+      if (!owner) throw notFoundError("Session not found");
+      await assertBookableSlot(settings, sessionDate, startTime, owner);
       try {
-        const row = await repository.reschedule(
-          id,
-          sessionDate,
-          startTime,
-          ownerScope(actor)
-        );
+        const row = await repository.reschedule(id, sessionDate, startTime, scope);
         if (!row) throw notFoundError("Session not found");
         return toSessionDto(row);
       } catch (error) {

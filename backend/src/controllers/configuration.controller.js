@@ -5,7 +5,7 @@ export function createConfigurationController(service = configurationService) {
   return {
     async get(req, res, next) {
       try {
-        sendData(res, await service.getConfiguration());
+        sendData(res, await service.getConfiguration(req.auth.user));
       } catch (error) {
         next(error);
       }
@@ -13,7 +13,7 @@ export function createConfigurationController(service = configurationService) {
 
     async updatePricing(req, res, next) {
       try {
-        sendData(res, await service.updatePricing(req.body));
+        sendData(res, await service.updatePricing(req.body, req.auth.user));
       } catch (error) {
         next(error);
       }
@@ -21,7 +21,7 @@ export function createConfigurationController(service = configurationService) {
 
     async updatePrograms(req, res, next) {
       try {
-        sendData(res, await service.updatePrograms(req.body));
+        sendData(res, await service.updatePrograms(req.body, req.auth.user));
       } catch (error) {
         next(error);
       }
@@ -29,7 +29,7 @@ export function createConfigurationController(service = configurationService) {
 
     async updatePackageSizes(req, res, next) {
       try {
-        sendData(res, await service.updatePackageSizes(req.body));
+        sendData(res, await service.updatePackageSizes(req.body, req.auth.user));
       } catch (error) {
         next(error);
       }
@@ -37,7 +37,7 @@ export function createConfigurationController(service = configurationService) {
 
     async updateBusinessHours(req, res, next) {
       try {
-        sendData(res, await service.updateBusinessHours(req.body));
+        sendData(res, await service.updateBusinessHours(req.body, req.auth.user));
       } catch (error) {
         next(error);
       }
@@ -45,7 +45,7 @@ export function createConfigurationController(service = configurationService) {
 
     async updateScheduling(req, res, next) {
       try {
-        sendData(res, await service.updateSchedulingSettings(req.body));
+        sendData(res, await service.updateSchedulingSettings(req.body, req.auth.user));
       } catch (error) {
         next(error);
       }

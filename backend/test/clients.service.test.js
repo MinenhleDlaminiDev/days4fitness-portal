@@ -1,9 +1,18 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { configureSettingsLoader, DEFAULTS } from "../src/config/settingsCache.js";
 import {
   createClientsService as createUnboundClientsService,
   normalizePreferredSchedule
 } from "../src/services/clients.service.js";
+
+// Settings are read per trainer from the database since AUTH-05. There is no
+// database here, so every trainer gets the defaults.
+configureSettingsLoader(async () => DEFAULTS);
+
+// The same week, for the calls that reach normalizePreferredSchedule directly
+// rather than through a service method.
+const DEFAULT_WEEK = Object.freeze({ businessHours: DEFAULTS.businessHours });
 
 // AUTH-03 gave every service method the acting trainer as its last argument.
 // These tests are about the service's own behaviour rather than authorisation,
@@ -170,6 +179,11 @@ test("clears existing scheduling preferences", async () => {
   let updatedDays;
   let updatedSchedule;
   const service = createClientsService({
+    // The service asks who owns the client before validating a preference
+    // against their week.
+    async clientOwner() {
+      return ACTOR.id;
+    },
     async findById() {
       return clientRow();
     },
@@ -230,6 +244,11 @@ test("lists clients with normalized filters and pagination", async () => {
 test("updates client contact details", async () => {
   let capturedUpdate;
   const service = createClientsService({
+    // Preferences are in this payload, so the service looks the owner up to
+    // check the times against their week.
+    async clientOwner() {
+      return ACTOR.id;
+    },
     async update(id, client, preferences) {
       capturedUpdate = { id, client, preferences };
       return clientRow({ name: client.name, phone: client.phone, email: client.email });
@@ -277,6 +296,11 @@ test("archives a client", async () => {
 
 test("rejects preference updates for archived clients", async () => {
   const service = createClientsService({
+    // The service asks who owns the client before validating a preference
+    // against their week.
+    async clientOwner() {
+      return ACTOR.id;
+    },
     async updatePreferences() {
       const error = new Error("Archived clients cannot update preferences");
       error.code = "CLIENT_ARCHIVED";
@@ -375,14 +399,14 @@ test("rejects schedule entries for unselected days", () => {
 
 test("rejects Sunday preferences", () => {
   assert.throws(
-    () => normalizePreferredSchedule(["Sunday"], { Sunday: ["08:00"] }),
+    () => normalizePreferredSchedule(["Sunday"], { Sunday: ["08:00"] }, DEFAULT_WEEK),
     (error) => error.code === "VALIDATION_ERROR" && error.details.day === "Sunday"
   );
 });
 
 test("rejects Saturday sessions that would finish after 11:00", () => {
   assert.throws(
-    () => normalizePreferredSchedule(["Saturday"], { Saturday: ["11:00"] }),
+    () => normalizePreferredSchedule(["Saturday"], { Saturday: ["11:00"] }, DEFAULT_WEEK),
     (error) =>
       error.code === "VALIDATION_ERROR" &&
       error.details.day === "Saturday" &&
@@ -392,7 +416,7 @@ test("rejects Saturday sessions that would finish after 11:00", () => {
 
 test("requires at least one time for every preferred day", () => {
   assert.throws(
-    () => normalizePreferredSchedule(["Tuesday"], { Tuesday: [] }),
+    () => normalizePreferredSchedule(["Tuesday"], { Tuesday: [] }, DEFAULT_WEEK),
     (error) => error.code === "VALIDATION_ERROR" && error.details.day === "Tuesday"
   );
 });

@@ -324,6 +324,22 @@ export function createClientsRepository(
       return result.rows;
     },
 
+    /**
+     * The trainer who owns a client, or null when the client does not exist or
+     * is not this caller's to see. Needed wherever a decision depends on the
+     * owner's own settings rather than the caller's.
+     */
+    async clientOwner(id, scope) {
+      const result = await dbPool.query(
+        `SELECT trainer_user_id
+         FROM clients
+         WHERE id = $1
+           AND ($2::bigint IS NULL OR trainer_user_id = $2)`,
+        [id, requireScope(scope)]
+      );
+      return result.rows[0]?.trainer_user_id ?? null;
+    },
+
     async findById(id, scope, db = dbPool) {
       const result = await db.query(
         `${CLIENT_SELECT_SQL}

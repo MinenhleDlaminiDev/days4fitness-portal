@@ -431,7 +431,7 @@ export default function SettingsPage() {
       <Section
         icon={CalendarClock}
         title="Training hours"
-        description="Tap a time to offer it or take it off the schedule."
+        description="Your own week. Tap a time to offer it or take it off your schedule."
       >
         <div className="space-y-4">
           {hours.value.map((row) => (
@@ -478,7 +478,7 @@ export default function SettingsPage() {
       <Section
         icon={SettingsIcon}
         title="Scheduling rules"
-        description="Group size, session length and how long a package stays valid."
+        description="Your group size, session length and how long a package stays valid."
       >
         <div className="grid gap-4 sm:grid-cols-3">
           {[

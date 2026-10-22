@@ -60,7 +60,7 @@ export async function allocatePackageSessions(db, packageId) {
        settings.group_capacity
      FROM approved_recurring_bookings booking
      JOIN clients client ON client.id = booking.client_id
-     CROSS JOIN scheduling_settings settings
+     JOIN scheduling_settings settings ON settings.trainer_user_id = client.trainer_user_id
      CROSS JOIN LATERAL generate_series(
        booking.starts_on,
        booking.ends_on,

@@ -1,10 +1,39 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
 import { getSettings, resetSettings } from "../src/config/settingsCache.js";
-import { createConfigurationService } from "../src/services/configuration.service.js";
+import { createConfigurationService as createUnboundConfigurationService } from "../src/services/configuration.service.js";
 
-// Reading configuration refreshes the process-wide settings snapshot, so each
-// test has to put it back or it leaks into the other service suites.
+// Configuration belongs to one trainer since AUTH-05, so every call names who
+// is asking. These tests are about the service's own behaviour, so they all
+// act as the same trainer and the actor is bound here rather than repeated at
+// twenty call sites.
+const ACTOR = Object.freeze({ id: 1, role: "admin" });
+
+const ACTOR_ARITY = {
+  getConfiguration: 0,
+  updatePricing: 1,
+  updatePrograms: 1,
+  updatePackageSizes: 1,
+  updateBusinessHours: 1,
+  updateSchedulingSettings: 1
+};
+
+function createConfigurationService(...args) {
+  const service = createUnboundConfigurationService(...args);
+  const bound = { ...service };
+  for (const [name, arity] of Object.entries(ACTOR_ARITY)) {
+    if (typeof service[name] !== "function") continue;
+    bound[name] = (...callArgs) => {
+      const padded = [...callArgs];
+      while (padded.length < arity) padded.push(undefined);
+      return service[name](...padded, ACTOR);
+    };
+  }
+  return bound;
+}
+
+// Reading configuration fills that trainer's cache entry, so each test has to
+// clear it or it leaks into the other service suites.
 afterEach(() => {
   resetSettings();
 });
@@ -56,7 +85,7 @@ test("returns database programs, pricing, sizes and hours", async () => {
   assert.equal(configuration.packageExpiryMonths, 2);
 });
 
-test("reading configuration refreshes the snapshot the booking rules use", async () => {
+test("reading configuration fills that trainer's cache entry", async () => {
   const service = createConfigurationService(
     createRepository({
       async listPackageSizes() {
@@ -70,9 +99,10 @@ test("reading configuration refreshes the snapshot the booking rules use", async
 
   await service.getConfiguration();
 
-  assert.deepEqual(getSettings().packageSizes, [6]);
-  assert.equal(getSettings().groupCapacity, 12);
-  assert.equal(getSettings().packageExpiryMonths, 3);
+  const cached = await getSettings(ACTOR.id);
+  assert.deepEqual(cached.packageSizes, [6]);
+  assert.equal(cached.groupCapacity, 12);
+  assert.equal(cached.packageExpiryMonths, 3);
 });
 
 test("saves pricing and rejects bad prices, types, sizes and duplicates", async () => {
@@ -123,9 +153,12 @@ test("saves pricing and rejects bad prices, types, sizes and duplicates", async 
 
 test("saves business hours and rejects Sunday, bad times and out-of-range slots", async () => {
   let saved = null;
+  // The hours are written against the acting trainer, not a global week.
+  let savedFor = null;
   const service = createConfigurationService(
     createRepository({
-      async replaceBusinessHours(slots) {
+      async replaceBusinessHours(trainerId, slots) {
+        savedFor = trainerId;
         saved = slots;
       }
     })
@@ -134,6 +167,7 @@ test("saves business hours and rejects Sunday, bad times and out-of-range slots"
   await service.updateBusinessHours({
     businessHours: [{ day: "Monday", timeSlots: ["06:00", "07:00"] }]
   });
+  assert.equal(savedFor, ACTOR.id);
   assert.deepEqual(saved, [
     { dayOfWeek: 1, startTime: "06:00" },
     { dayOfWeek: 1, startTime: "07:00" }
@@ -166,15 +200,18 @@ test("saves business hours and rejects Sunday, bad times and out-of-range slots"
 
 test("saves scheduling settings and rejects non-positive or absent values", async () => {
   let saved = null;
+  let savedFor = null;
   const service = createConfigurationService(
     createRepository({
-      async updateSchedulingSettings(updates) {
+      async updateSchedulingSettings(trainerId, updates) {
+        savedFor = trainerId;
         saved = updates;
       }
     })
   );
 
   await service.updateSchedulingSettings({ groupCapacity: 12 });
+  assert.equal(savedFor, ACTOR.id);
   assert.deepEqual(saved, { groupCapacity: 12 });
 
   await service.updateSchedulingSettings({ sessionDurationMinutes: 45, packageExpiryMonths: 3 });

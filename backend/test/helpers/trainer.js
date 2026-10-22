@@ -7,6 +7,9 @@
 // That subquery returns NULL when no trainer exists, which then fails the NOT
 // NULL constraint, so call ensureTestTrainer() before inserting any client.
 
+import { createSettingsCache } from "../../src/config/settingsCache.js";
+import { createConfigurationRepository } from "../../src/repositories/configuration.repository.js";
+
 /** The expression fixtures use to own a client, with no extra parameter. */
 export const OWNER_SUBQUERY = "(SELECT id FROM trainer_users ORDER BY id LIMIT 1)";
 
@@ -122,4 +125,23 @@ export function actingAs(actor) {
     req.auth = { user: actor };
     next();
   };
+}
+
+// AUTH-05 made settings per trainer and read from the database. The services
+// take the cache the same way they take a repository, and a suite must hand
+// them one built on its OWN pool: the default instance reads through the
+// shared pool, which in a test is the development database, not this suite's.
+const cachesByPool = new WeakMap();
+
+/** The settings cache for a suite's pool. One per pool, so saves are seen. */
+export function settingsFor(pool) {
+  if (!cachesByPool.has(pool)) {
+    cachesByPool.set(pool, createSettingsCache(createConfigurationRepository(pool)));
+  }
+  return cachesByPool.get(pool);
+}
+
+/** Shorthand for the options every settings-reading service factory takes. */
+export function withSettings(pool) {
+  return { settings: settingsFor(pool) };
 }
