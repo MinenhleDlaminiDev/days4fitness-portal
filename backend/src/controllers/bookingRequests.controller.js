@@ -5,7 +5,7 @@ export function createBookingRequestsController(service = bookingRequestsService
   return {
     async listPending(req, res, next) {
       try {
-        sendData(res, await service.listPending());
+        sendData(res, await service.listPending(req.auth.user));
       } catch (error) {
         next(error);
       }
@@ -13,7 +13,7 @@ export function createBookingRequestsController(service = bookingRequestsService
 
     async approve(req, res, next) {
       try {
-        sendData(res, await service.approve(req.params.id));
+        sendData(res, await service.approve(req.params.id, req.auth.user));
       } catch (error) {
         next(error);
       }
@@ -21,7 +21,7 @@ export function createBookingRequestsController(service = bookingRequestsService
 
     async reject(req, res, next) {
       try {
-        sendData(res, await service.reject(req.params.id));
+        sendData(res, await service.reject(req.params.id, req.auth.user));
       } catch (error) {
         next(error);
       }

@@ -10,7 +10,13 @@ import { createClientsRepository } from "../src/repositories/clients.repository.
 import { createBookingRequestsRouter } from "../src/routes/bookingRequests.routes.js";
 import { createBookingRequestsService } from "../src/services/bookingRequests.service.js";
 import { createClientsService } from "../src/services/clients.service.js";
-import { actorFor, bindActor, ensureTestTrainer, withSettings } from "./helpers/trainer.js";
+import {
+  actingAs,
+  actorFor,
+  bindActor,
+  ensureTestTrainer,
+  withSettings
+} from "./helpers/trainer.js";
 
 const { Pool } = pg;
 
@@ -23,6 +29,7 @@ const clientsService = bindActor(
   createClientsService(createClientsRepository(testPool), withSettings(testPool)),
   actorFor(await ensureTestTrainer(testPool))
 );
+const owner = await ensureTestTrainer(testPool);
 const requestsService = createBookingRequestsService(createBookingRequestsRepository(testPool));
 const controller = createBookingRequestsController(requestsService);
 const app = express();
@@ -31,6 +38,9 @@ let server;
 let baseUrl;
 
 app.use(express.json());
+// The controllers read req.auth.user since AUTH-09, which the real app fills
+// in before any route runs.
+app.use(actingAs(actorFor(owner)));
 app.use("/api/booking-requests", createBookingRequestsRouter(controller));
 app.use(notFoundHandler);
 app.use(errorHandler);

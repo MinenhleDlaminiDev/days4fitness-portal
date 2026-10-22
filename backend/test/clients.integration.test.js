@@ -10,6 +10,7 @@ import { createClientsService } from "../src/services/clients.service.js";
 import {
   actorFor,
   bindActor,
+  bindBookingRequestsActor,
   bindSessionsActor,
   ensureTestTrainer,
   withSettings
@@ -38,7 +39,12 @@ const service = bindActor(
   createClientsService(createClientsRepository(testPool), withSettings(testPool)),
   actorFor(trainer)
 );
-const requestsService = createBookingRequestsService(createBookingRequestsRepository(testPool));
+// AUTH-09 gave every booking requests method the acting trainer as its last
+// argument, so this one is bound to the trainer that owns the fixtures.
+const requestsService = bindBookingRequestsActor(
+  createBookingRequestsService(createBookingRequestsRepository(testPool)),
+  actorFor(await ensureTestTrainer(testPool))
+);
 const sessionsService = bindSessionsActor(
   createSessionsService(createSessionsRepository(testPool), withSettings(testPool)),
   actorFor(trainer)

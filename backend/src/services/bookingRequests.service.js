@@ -1,4 +1,5 @@
 import { conflictError, notFoundError } from "../errors/AppError.js";
+import { ownerScope } from "../lib/ownership.js";
 import { requirePositiveInteger } from "../lib/validation.js";
 import { bookingRequestsRepository } from "../repositories/bookingRequests.repository.js";
 
@@ -44,14 +45,16 @@ function translateRepositoryError(error) {
 
 export function createBookingRequestsService(repository = bookingRequestsRepository) {
   return {
-    async listPending() {
-      return (await repository.findPending()).map(toRequestDto);
+    async listPending(actor) {
+      return (await repository.findPending(ownerScope(actor))).map(toRequestDto);
     },
 
-    async approve(requestId) {
+    async approve(requestId, actor) {
       const id = requirePositiveInteger(requestId, "requestId");
       try {
-        const result = await repository.approve(id);
+        // Another trainer's request is Not Found, not Forbidden: a 403 would
+        // confirm the id exists.
+        const result = await repository.approve(id, ownerScope(actor));
         if (!result) throw notFoundError("Booking request not found");
         return {
           request: { ...toRequestDto(result.request), status: "approved" },
@@ -63,10 +66,10 @@ export function createBookingRequestsService(repository = bookingRequestsReposit
       }
     },
 
-    async reject(requestId) {
+    async reject(requestId, actor) {
       const id = requirePositiveInteger(requestId, "requestId");
       try {
-        const row = await repository.reject(id);
+        const row = await repository.reject(id, ownerScope(actor));
         if (!row) throw notFoundError("Booking request not found");
         return {
           id: row.id,

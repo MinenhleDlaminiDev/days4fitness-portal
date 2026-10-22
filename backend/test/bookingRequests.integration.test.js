@@ -12,6 +12,7 @@ import {
   actorFor,
   bindActor,
   bindSessionsActor,
+  bindBookingRequestsActor,
   ensureTestTrainer,
   OWNER_SUBQUERY,
   withSettings
@@ -32,7 +33,12 @@ const clientsService = bindActor(
   createClientsService(createClientsRepository(testPool), withSettings(testPool)),
   actorFor(await ensureTestTrainer(testPool))
 );
-const requestsService = createBookingRequestsService(createBookingRequestsRepository(testPool));
+// AUTH-09 gave every booking requests method the acting trainer as its last
+// argument. Bound once here, as the clients and sessions services already are.
+const requestsService = bindBookingRequestsActor(
+  createBookingRequestsService(createBookingRequestsRepository(testPool)),
+  actorFor(await ensureTestTrainer(testPool))
+);
 const sessionsService = bindSessionsActor(
   createSessionsService(createSessionsRepository(testPool), withSettings(testPool)),
   actorFor(await ensureTestTrainer(testPool))
@@ -675,8 +681,11 @@ test("starts next week when today's requested time has already passed", async ()
     createClientsService(createClientsRepository(timeAwarePool), withSettings(timeAwarePool)),
     actorFor(await ensureTestTrainer(timeAwarePool))
   );
-  const timeAwareRequests = createBookingRequestsService(
-    createBookingRequestsRepository(timeAwarePool, { businessTimezone: timezone })
+  const timeAwareRequests = bindBookingRequestsActor(
+    createBookingRequestsService(
+      createBookingRequestsRepository(timeAwarePool, { businessTimezone: timezone })
+    ),
+    actorFor(await ensureTestTrainer(timeAwarePool))
   );
   const localNow = await timeAwarePool.query(
     `SELECT

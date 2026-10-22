@@ -1,6 +1,12 @@
 import { pool } from "../db/client.js";
 import { env } from "../config/env.js";
 import { allocatePackageSessions } from "./packageAllocation.repository.js";
+import { requireScope } from "../lib/ownership.js";
+
+// AUTH-09. A request belongs to whoever owns its client, so every query here
+// reaches the owner through the clients join that REQUEST_SELECT_SQL already
+// makes. Approving writes sessions against the client's package, so an
+// unscoped id here is a write on somebody else's data, not just a read.
 
 const DAY_NAMES = ["", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -34,23 +40,32 @@ export function createBookingRequestsRepository(
   { businessTimezone = env.businessTimezone } = {}
 ) {
   return {
-    async findPending() {
+    async findPending(scope) {
       const result = await dbPool.query(
         `${REQUEST_SELECT_SQL}
          WHERE request.status = 'pending'
-         ORDER BY request.created_at, request.id`
+           AND ($1::bigint IS NULL OR client.trainer_user_id = $1)
+         ORDER BY request.created_at, request.id`,
+        [requireScope(scope)]
       );
       return result.rows;
     },
 
-    async approve(requestId) {
+    async approve(requestId, scope) {
+      // Resolved before a connection is taken, so a caller that forgot the
+      // scope fails loudly instead of opening a transaction.
+      const owner = requireScope(scope);
       const db = await dbPool.connect();
       try {
         await db.query("BEGIN");
         await db.query("SELECT set_config('TimeZone', $1, true)", [businessTimezone]);
         const requestOwnerResult = await db.query(
-          "SELECT client_id FROM recurring_booking_requests WHERE id = $1",
-          [requestId]
+          `SELECT request.client_id
+           FROM recurring_booking_requests request
+           JOIN clients client ON client.id = request.client_id
+           WHERE request.id = $1
+             AND ($2::bigint IS NULL OR client.trainer_user_id = $2)`,
+          [requestId, owner]
         );
         if (!requestOwnerResult.rows[0]) {
           await db.query("ROLLBACK");
@@ -71,8 +86,9 @@ export function createBookingRequestsRepository(
         const requestResult = await db.query(
           `${REQUEST_SELECT_SQL}
            WHERE request.id = $1
+             AND ($2::bigint IS NULL OR client.trainer_user_id = $2)
            FOR UPDATE OF request`,
-          [requestId]
+          [requestId, owner]
         );
         const request = requestResult.rows[0];
         if (!request) {
@@ -198,15 +214,24 @@ export function createBookingRequestsRepository(
       }
     },
 
-    async reject(requestId) {
+    async reject(requestId, scope) {
+      const owner = requireScope(scope);
       const db = await dbPool.connect();
       try {
         await db.query("BEGIN");
         const requestResult = await db.query(
-          `SELECT id, client_id, source, day_of_week, start_time::text, status
-           FROM recurring_booking_requests
-           WHERE id = $1`,
-          [requestId]
+          `SELECT
+             request.id,
+             request.client_id,
+             request.source,
+             request.day_of_week,
+             request.start_time::text,
+             request.status
+           FROM recurring_booking_requests request
+           JOIN clients client ON client.id = request.client_id
+           WHERE request.id = $1
+             AND ($2::bigint IS NULL OR client.trainer_user_id = $2)`,
+          [requestId, owner]
         );
         const request = requestResult.rows[0];
         if (!request) {
@@ -231,13 +256,28 @@ export function createBookingRequestsRepository(
           clientPreferences = clientResult.rows[0];
         }
 
+        // The owner predicate is repeated on the write itself rather than
+        // resting on the read above: this is the statement that changes data.
         const rejectedResult = await db.query(
-          `UPDATE recurring_booking_requests
+          `UPDATE recurring_booking_requests AS request
            SET status = 'rejected', reviewed_at = NOW(), updated_at = NOW()
-           WHERE id = $1
-             AND status = 'pending'
-           RETURNING id, client_id, package_id, day_of_week, start_time::text, status, reviewed_at`,
-          [requestId]
+           WHERE request.id = $1
+             AND request.status = 'pending'
+             AND EXISTS (
+               SELECT 1
+               FROM clients client
+               WHERE client.id = request.client_id
+                 AND ($2::bigint IS NULL OR client.trainer_user_id = $2)
+             )
+           RETURNING
+             request.id,
+             request.client_id,
+             request.package_id,
+             request.day_of_week,
+             request.start_time::text,
+             request.status,
+             request.reviewed_at`,
+          [requestId, owner]
         );
         if (!rejectedResult.rows[0]) {
           const error = new Error("Booking request has already been reviewed");

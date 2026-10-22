@@ -115,6 +115,26 @@ export function bindSessionsActor(service, actor) {
   return bound;
 }
 
+const BOOKING_REQUESTS_SERVICE_ARITY = {
+  listPending: 0,
+  approve: 1,
+  reject: 1
+};
+
+/** The booking requests equivalent of bindActor, added for AUTH-09. */
+export function bindBookingRequestsActor(service, actor) {
+  const bound = { ...service };
+  for (const [name, arity] of Object.entries(BOOKING_REQUESTS_SERVICE_ARITY)) {
+    if (typeof service[name] !== "function") continue;
+    bound[name] = (...args) => {
+      const padded = [...args];
+      while (padded.length < arity) padded.push(undefined);
+      return service[name](...padded, actor);
+    };
+  }
+  return bound;
+}
+
 /**
  * Stands in for requireAuth in an HTTP suite that mounts one router on its
  * own. The controllers read req.auth.user, which the real app fills in before
