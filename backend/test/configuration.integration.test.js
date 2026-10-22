@@ -186,7 +186,9 @@ test("the package expiry trigger follows the configured window", async () => {
   );
   const clientId = clientResult.rows[0].id;
   const programResult = await testPool.query(
-    "SELECT id FROM programs WHERE type = 'one_on_one' ORDER BY id LIMIT 1"
+    `SELECT id FROM programs
+     WHERE type = 'one_on_one' AND trainer_user_id = (SELECT id FROM trainer_users ORDER BY id LIMIT 1)
+     ORDER BY id LIMIT 1`
   );
   const purchaseDate = daysFromToday(0);
 
@@ -239,9 +241,17 @@ test("adds a package size, prices it at zero, and protects sold sizes", async ()
     assert.equal(removed.packageSizes.includes(6), false);
     assert.equal(removed.pricing.some((row) => row.sessionsTotal === 6), false);
 
-    // A size that a package was sold at is protected by the foreign key.
+    // A size this trainer's own clients bought is protected by the
+    // package_sizes_protect_sold trigger. Another trainer selling that size is
+    // deliberately no obstacle, which is why this asks about their clients.
     const sold = await testPool.query(
-      "SELECT DISTINCT sessions_total FROM packages ORDER BY sessions_total LIMIT 1"
+      `SELECT DISTINCT package.sessions_total
+       FROM packages package
+       JOIN clients client ON client.id = package.client_id
+       WHERE client.trainer_user_id = $1
+       ORDER BY package.sessions_total
+       LIMIT 1`,
+      [owner.id]
     );
     if (sold.rows.length > 0) {
       const soldSize = sold.rows[0].sessions_total;
@@ -297,9 +307,17 @@ test("adds, renames and removes programs while protecting ones in use", async ()
       false
     );
 
-    // A program with packages on it is held down by packages_program_id_fkey.
+    // A program with this trainer's packages on it is held down by
+    // packages_program_id_fkey. Programs belong to one trainer since AUTH-10,
+    // so this has to be one of theirs to be in `keep` at all.
     const sold = await testPool.query(
-      "SELECT DISTINCT program_id FROM packages ORDER BY program_id LIMIT 1"
+      `SELECT DISTINCT package.program_id
+       FROM packages package
+       JOIN clients client ON client.id = package.client_id
+       WHERE client.trainer_user_id = $1
+       ORDER BY package.program_id
+       LIMIT 1`,
+      [owner.id]
     );
     if (sold.rows.length > 0) {
       const soldId = Number(sold.rows[0].program_id);

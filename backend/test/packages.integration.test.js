@@ -54,6 +54,7 @@ async function createClientAndPackage({ sessionsUsed = 0 } = {}) {
     `SELECT id
      FROM programs
      WHERE name = 'Weight Loss' AND type = 'one_on_one'
+       AND trainer_user_id = (SELECT id FROM trainer_users ORDER BY id LIMIT 1)
      LIMIT 1`
   );
   const packageResult = await testPool.query(
@@ -166,7 +167,9 @@ test("accepts an exact final payment after a decimal partial payment", async () 
     [`Decimal Client ${stamp}`, `decimal-${stamp}@example.com`]
   );
   const programResult = await testPool.query(
-    "SELECT id FROM programs WHERE type = 'group' ORDER BY id LIMIT 1"
+    `SELECT id FROM programs
+     WHERE type = 'group' AND trainer_user_id = (SELECT id FROM trainer_users ORDER BY id LIMIT 1)
+     ORDER BY id LIMIT 1`
   );
   const packageResult = await testPool.query(
     `INSERT INTO packages (
@@ -231,7 +234,9 @@ test("rejects packages that do not expire exactly two months after purchase", as
     [`Expiry Client ${stamp}`, `expiry-${stamp}@example.com`]
   );
   const programResult = await testPool.query(
-    "SELECT id FROM programs WHERE type = 'one_on_one' ORDER BY id LIMIT 1"
+    `SELECT id FROM programs
+     WHERE type = 'one_on_one' AND trainer_user_id = (SELECT id FROM trainer_users ORDER BY id LIMIT 1)
+     ORDER BY id LIMIT 1`
   );
 
   try {

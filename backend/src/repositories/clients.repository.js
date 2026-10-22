@@ -449,20 +449,22 @@ export function createClientsRepository(
         );
         const clientId = clientResult.rows[0].id;
 
+        // AUTH-10: the catalogue belongs to the trainer who will own this
+        // client, never to whoever happens to be signed in.
         const programResult = await db.query(
           `SELECT id
            FROM programs
-           WHERE LOWER(name) = LOWER($1) AND type = $2
+           WHERE LOWER(name) = LOWER($1) AND type = $2 AND trainer_user_id = $3
            LIMIT 1`,
-          [packageData.programName, packageData.programType]
+          [packageData.programName, packageData.programType, trainerUserId]
         );
 
         const priceResult = await db.query(
           `SELECT price
            FROM package_pricing
-           WHERE program_type = $1 AND sessions_total = $2
+           WHERE program_type = $1 AND sessions_total = $2 AND trainer_user_id = $3
            LIMIT 1`,
-          [packageData.programType, packageData.packageSize]
+          [packageData.programType, packageData.packageSize, trainerUserId]
         );
 
         if (!programResult.rows[0] || !priceResult.rows[0]) {

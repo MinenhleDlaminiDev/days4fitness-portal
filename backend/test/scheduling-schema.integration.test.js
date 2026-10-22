@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import pg from "pg";
 import { env } from "../src/config/env.js";
 import { applyMigrations } from "../src/db/migrationRunner.js";
-import { ensureTestTrainer, OWNER_SUBQUERY } from "./helpers/trainer.js";
+import { ensureTestTrainer, OWNER_SUBQUERY, programFor } from "./helpers/trainer.js";
 
 const { Pool } = pg;
 const migrationsDirectory = fileURLToPath(
@@ -93,7 +93,9 @@ test("allows multiple clients to attend one group session", async () => {
   try {
     await db.query("BEGIN");
     const program = await db.query(
-      "SELECT id FROM programs WHERE type = 'group' ORDER BY id LIMIT 1"
+      `SELECT id FROM programs
+       WHERE type = 'group' AND trainer_user_id = (SELECT id FROM trainer_users ORDER BY id LIMIT 1)
+       ORDER BY id LIMIT 1`
     );
     const clients = await db.query(
       `INSERT INTO clients (name, phone, trainer_user_id)
@@ -196,8 +198,12 @@ test("preserves legacy preferences and session attendance during migration", asy
        )
        RETURNING id`
     );
+    // Unscoped on purpose, like the client insert above: this schema stops at
+    // migration 004, so programs has no trainer_user_id column yet.
     const programResult = await db.query(
-      "SELECT id FROM programs WHERE name = 'Weight Loss' AND type = 'one_on_one'"
+      `SELECT id FROM programs
+       WHERE name = 'Weight Loss' AND type = 'one_on_one'
+       LIMIT 1`
     );
     const packageResult = await db.query(
       `INSERT INTO packages (
@@ -318,7 +324,9 @@ test("enforces training-day, status, and active-slot constraints", async () => {
 
   try {
     const program = await testPool.query(
-      "SELECT id FROM programs WHERE type = 'one_on_one' ORDER BY id LIMIT 1"
+      `SELECT id FROM programs
+       WHERE type = 'one_on_one' AND trainer_user_id = (SELECT id FROM trainer_users ORDER BY id LIMIT 1)
+       ORDER BY id LIMIT 1`
     );
 
     await assert.rejects(
@@ -457,7 +465,9 @@ test("rejects attendance that uses another client's package", async () => {
   try {
     await db.query("BEGIN");
     const program = await db.query(
-      "SELECT id FROM programs WHERE type = 'one_on_one' ORDER BY id LIMIT 1"
+      `SELECT id FROM programs
+       WHERE type = 'one_on_one' AND trainer_user_id = (SELECT id FROM trainer_users ORDER BY id LIMIT 1)
+       ORDER BY id LIMIT 1`
     );
     const clients = await db.query(
       `INSERT INTO clients (name, phone, trainer_user_id)
@@ -514,7 +524,9 @@ test("rejects an approved booking linked to another client's request", async () 
   try {
     await db.query("BEGIN");
     const program = await db.query(
-      "SELECT id FROM programs WHERE type = 'one_on_one' ORDER BY id LIMIT 1"
+      `SELECT id FROM programs
+       WHERE type = 'one_on_one' AND trainer_user_id = (SELECT id FROM trainer_users ORDER BY id LIMIT 1)
+       ORDER BY id LIMIT 1`
     );
     const clients = await db.query(
       `INSERT INTO clients (name, phone, trainer_user_id)
@@ -591,10 +603,14 @@ test("rejects attendance beyond capacity and from another program", async () => 
   try {
     await db.query("BEGIN");
     const oneOnOneProgram = await db.query(
-      "SELECT id FROM programs WHERE type = 'one_on_one' ORDER BY id LIMIT 1"
+      `SELECT id FROM programs
+       WHERE type = 'one_on_one' AND trainer_user_id = (SELECT id FROM trainer_users ORDER BY id LIMIT 1)
+       ORDER BY id LIMIT 1`
     );
     const groupProgram = await db.query(
-      "SELECT id FROM programs WHERE type = 'group' ORDER BY id LIMIT 1"
+      `SELECT id FROM programs
+       WHERE type = 'group' AND trainer_user_id = (SELECT id FROM trainer_users ORDER BY id LIMIT 1)
+       ORDER BY id LIMIT 1`
     );
     const clients = await db.query(
       `INSERT INTO clients (name, phone, trainer_user_id)
@@ -681,10 +697,14 @@ test("rejects session updates that conflict with existing attendance", async () 
   try {
     await db.query("BEGIN");
     const groupProgram = await db.query(
-      "SELECT id FROM programs WHERE type = 'group' ORDER BY id LIMIT 1"
+      `SELECT id FROM programs
+       WHERE type = 'group' AND trainer_user_id = (SELECT id FROM trainer_users ORDER BY id LIMIT 1)
+       ORDER BY id LIMIT 1`
     );
     const oneOnOneProgram = await db.query(
-      "SELECT id FROM programs WHERE type = 'one_on_one' ORDER BY id LIMIT 1"
+      `SELECT id FROM programs
+       WHERE type = 'one_on_one' AND trainer_user_id = (SELECT id FROM trainer_users ORDER BY id LIMIT 1)
+       ORDER BY id LIMIT 1`
     );
     const clients = await db.query(
       `INSERT INTO clients (name, phone, trainer_user_id)
@@ -769,7 +789,9 @@ test("rejects attendance linked to another client's recurring booking", async ()
   try {
     await db.query("BEGIN");
     const program = await db.query(
-      "SELECT id FROM programs WHERE type = 'one_on_one' ORDER BY id LIMIT 1"
+      `SELECT id FROM programs
+       WHERE type = 'one_on_one' AND trainer_user_id = (SELECT id FROM trainer_users ORDER BY id LIMIT 1)
+       ORDER BY id LIMIT 1`
     );
     const clients = await db.query(
       `INSERT INTO clients (name, phone, trainer_user_id)
@@ -876,7 +898,9 @@ test("requires an approved request for recurring bookings", async () => {
   try {
     await db.query("BEGIN");
     const program = await db.query(
-      "SELECT id FROM programs WHERE type = 'one_on_one' ORDER BY id LIMIT 1"
+      `SELECT id FROM programs
+       WHERE type = 'one_on_one' AND trainer_user_id = (SELECT id FROM trainer_users ORDER BY id LIMIT 1)
+       ORDER BY id LIMIT 1`
     );
     const client = await db.query(
       `INSERT INTO clients (name, phone, trainer_user_id)
@@ -982,7 +1006,9 @@ test("keeps attendance credit consumption consistent with status", async () => {
   try {
     await db.query("BEGIN");
     const program = await db.query(
-      "SELECT id FROM programs WHERE type = 'one_on_one' ORDER BY id LIMIT 1"
+      `SELECT id FROM programs
+       WHERE type = 'one_on_one' AND trainer_user_id = (SELECT id FROM trainer_users ORDER BY id LIMIT 1)
+       ORDER BY id LIMIT 1`
     );
     const client = await db.query(
       `INSERT INTO clients (name, phone, trainer_user_id)
@@ -1075,9 +1101,12 @@ test("the overlap rule is per trainer, not per studio", async () => {
     email: "bob-schema@days4fitness.test",
     role: "trainer"
   });
-  const program = await testPool.query(
-    "SELECT id FROM programs WHERE type = 'one_on_one' ORDER BY id LIMIT 1"
-  );
+  // AUTH-10: each trainer books their own program, because sessions_owner_program
+  // refuses a session whose program belongs to somebody else.
+  const programs = new Map([
+    [alice.id, await programFor(testPool, alice.id)],
+    [bob.id, await programFor(testPool, bob.id)]
+  ]);
   const book = (trainerId) =>
     testPool.query(
       `INSERT INTO sessions (
@@ -1091,7 +1120,7 @@ test("the overlap rule is per trainer, not per studio", async () => {
        )
        VALUES ($1, 'one_on_one', '2026-06-22', '08:00', 1, 'scheduled', $2)
        RETURNING id`,
-      [program.rows[0].id, trainerId]
+      [programs.get(trainerId), trainerId]
     );
 
   try {
@@ -1113,7 +1142,7 @@ test("the overlap rule is per trainer, not per studio", async () => {
            trainer_user_id
          )
          VALUES ($1, 'one_on_one', '2026-06-22', '08:30', 1, 'scheduled', $2)`,
-        [program.rows[0].id, alice.id]
+        [programs.get(alice.id), alice.id]
       ),
       (error) => error.code === "23P01"
     );

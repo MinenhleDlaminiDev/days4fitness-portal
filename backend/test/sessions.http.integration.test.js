@@ -87,7 +87,9 @@ async function createClientPackage() {
   const clientId = clientResult.rows[0].id;
   createdClientIds.push(clientId);
   const programResult = await testPool.query(
-    "SELECT id FROM programs WHERE type = 'one_on_one' ORDER BY id LIMIT 1"
+    `SELECT id FROM programs
+       WHERE type = 'one_on_one' AND trainer_user_id = (SELECT id FROM trainer_users ORDER BY id LIMIT 1)
+       ORDER BY id LIMIT 1`
   );
   await testPool.query(
     `INSERT INTO packages (

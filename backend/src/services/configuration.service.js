@@ -65,9 +65,9 @@ export function createConfigurationService(
   async function loadConfiguration(trainerId) {
     const [programRows, pricingRows, packageSizes, businessHourRows, schedulingSettings] =
       await Promise.all([
-        repository.listPrograms(),
-        repository.listPricing(),
-        repository.listPackageSizes(),
+        repository.listPrograms(trainerId),
+        repository.listPricing(trainerId),
+        repository.listPackageSizes(trainerId),
         repository.listBusinessHours(trainerId),
         repository.getSchedulingSettings(trainerId)
       ]);
@@ -113,9 +113,9 @@ export function createConfigurationService(
       return loadConfiguration(ownerId(actor));
     },
 
-    // Prices, programs and package sizes are still one catalogue for the
-    // business; AUTH-10 makes them per trainer. The trainer here is only who
-    // the refreshed configuration is returned for.
+    // Prices, programs and package sizes belong to the acting trainer since
+    // AUTH-10. Nothing here is shared between trainers, so the trainer is both
+    // whose catalogue is written and whose configuration comes back.
     async updatePricing(payload = {}, actor) {
       const trainerId = ownerId(actor);
       const rows = requireArray(payload.pricing, "pricing");
@@ -123,7 +123,7 @@ export function createConfigurationService(
         throw validationError("pricing must contain at least one entry", { field: "pricing" });
       }
 
-      const allowedSizes = new Set(await repository.listPackageSizes());
+      const allowedSizes = new Set(await repository.listPackageSizes(trainerId));
       const seen = new Set();
       const entries = rows.map((row) => {
         const programType = sessionTypeToDatabase(row.sessionType);
@@ -150,7 +150,7 @@ export function createConfigurationService(
         return { programType, sessionsTotal, price: requirePrice(row.price, "price") };
       });
 
-      await repository.updatePricing(entries);
+      await repository.updatePricing(trainerId, entries);
       return loadConfiguration(trainerId);
     },
 
@@ -168,7 +168,7 @@ export function createConfigurationService(
         throw validationError("At least one program must remain", { field: "programs" });
       }
 
-      const existing = await repository.listPrograms();
+      const existing = await repository.listPrograms(trainerId);
       const existingById = new Map(existing.map((row) => [Number(row.id), row]));
       const seen = new Set();
       const programs = rows.map((row) => {
@@ -219,7 +219,7 @@ export function createConfigurationService(
       });
 
       try {
-        await repository.replacePrograms(programs);
+        await repository.replacePrograms(trainerId, programs);
       } catch (error) {
         // packages_program_id_fkey: the program has already been sold.
         if (error?.code === "23503") {
@@ -262,9 +262,10 @@ export function createConfigurationService(
       parsed.sort((a, b) => a - b);
 
       try {
-        await repository.replacePackageSizes(parsed);
+        await repository.replacePackageSizes(trainerId, parsed);
       } catch (error) {
-        // packages_sessions_total_fkey: the size has already been sold.
+        // package_sizes_protect_sold (migration 024) raises 23503 just as the
+        // foreign key it replaced did: the size has already been sold.
         if (error?.code === "23503") {
           throw conflictError(
             "That package size cannot be removed because clients have already bought it."

@@ -16,7 +16,7 @@ import { env } from "../src/config/env.js";
 import { createReportsRepository } from "../src/repositories/reports.repository.js";
 import { createReportsService } from "../src/services/reports.service.js";
 import { addDays, addMonths, upcomingMonday } from "./helpers/dates.js";
-import { actorFor, ensureTestTrainer } from "./helpers/trainer.js";
+import { actorFor, ensureTestTrainer, programFor } from "./helpers/trainer.js";
 
 const { Pool } = pg;
 
@@ -72,10 +72,7 @@ async function seedClient(trainer, name, { completed = 0, noShow = 0, cancelled 
     [name, `auth06-reports-${stamp}@example.com`, trainer.id]
   );
   const clientId = clientResult.rows[0].id;
-  const programResult = await testPool.query(
-    "SELECT id FROM programs WHERE type = 'one_on_one' ORDER BY id LIMIT 1"
-  );
-  const programId = programResult.rows[0].id;
+  const programId = await programFor(testPool, trainer.id);
   const packageResult = await testPool.query(
     `INSERT INTO packages (client_id, program_id, sessions_total, price, purchase_date, expiry_date)
      VALUES ($1, $2, 16, 5600, $3::date, $4::date)

@@ -45,7 +45,9 @@ async function seedClient(name, { completed = 0, noShow = 0, cancelled = 0, paid
   createdClientIds.push(clientId);
 
   const programResult = await testPool.query(
-    "SELECT id FROM programs WHERE type = 'one_on_one' ORDER BY id LIMIT 1"
+    `SELECT id FROM programs
+     WHERE type = 'one_on_one' AND trainer_user_id = (SELECT id FROM trainer_users ORDER BY id LIMIT 1)
+     ORDER BY id LIMIT 1`
   );
   const programId = programResult.rows[0].id;
   const purchaseDate = daysFromToday(0);

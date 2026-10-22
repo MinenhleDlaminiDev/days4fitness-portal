@@ -5,29 +5,39 @@ export function createConfigurationRepository(pool = dbPool) {
   const run = (text, values) => pool.query(text, values);
 
   return {
-    async listPrograms() {
+    // AUTH-10 made the catalogue per trainer as well, so every method here
+    // takes the trainer whose configuration it is. requireOwner rejects null,
+    // because null is an admin's *read scope* and there is no such thing as
+    // "all trainers' prices" to serve or to write.
+    async listPrograms(trainerId) {
       const result = await run(
         `SELECT id, name, type
          FROM programs
-         ORDER BY name, type`
+         WHERE trainer_user_id = $1
+         ORDER BY name, type`,
+        [requireOwner(trainerId)]
       );
       return result.rows;
     },
 
-    async listPricing() {
+    async listPricing(trainerId) {
       const result = await run(
         `SELECT program_type, sessions_total, price
          FROM package_pricing
-         ORDER BY program_type, sessions_total`
+         WHERE trainer_user_id = $1
+         ORDER BY program_type, sessions_total`,
+        [requireOwner(trainerId)]
       );
       return result.rows;
     },
 
-    async listPackageSizes() {
+    async listPackageSizes(trainerId) {
       const result = await run(
         `SELECT sessions_total
          FROM package_sizes
-         ORDER BY sessions_total`
+         WHERE trainer_user_id = $1
+         ORDER BY sessions_total`,
+        [requireOwner(trainerId)]
       );
       return result.rows.map((row) => row.sessions_total);
     },
@@ -57,7 +67,8 @@ export function createConfigurationRepository(pool = dbPool) {
     },
 
     /** Replaces the price of each (sessionType, sessionsTotal) pair given. */
-    async updatePricing(entries) {
+    async updatePricing(trainerId, entries) {
+      const owner = requireOwner(trainerId);
       const client = await pool.connect();
       try {
         await client.query("BEGIN");
@@ -65,14 +76,14 @@ export function createConfigurationRepository(pool = dbPool) {
           const result = await client.query(
             `UPDATE package_pricing
              SET price = $3
-             WHERE program_type = $1 AND sessions_total = $2`,
-            [entry.programType, entry.sessionsTotal, entry.price]
+             WHERE program_type = $1 AND sessions_total = $2 AND trainer_user_id = $4`,
+            [entry.programType, entry.sessionsTotal, entry.price, owner]
           );
           if (result.rowCount === 0) {
             await client.query(
-              `INSERT INTO package_pricing (program_type, sessions_total, price)
-               VALUES ($1, $2, $3)`,
-              [entry.programType, entry.sessionsTotal, entry.price]
+              `INSERT INTO package_pricing (program_type, sessions_total, price, trainer_user_id)
+               VALUES ($1, $2, $3, $4)`,
+              [entry.programType, entry.sessionsTotal, entry.price, owner]
             );
           }
         }
@@ -86,34 +97,51 @@ export function createConfigurationRepository(pool = dbPool) {
     },
 
     /**
-     * Applies the catalogue of package sizes in one transaction. Adding a size
-     * also seeds a price row for each session type so it is immediately
-     * sellable; removing one clears its prices first. A size that packages were
-     * sold at is protected by packages_sessions_total_fkey and surfaces as a
-     * foreign-key violation for the service to translate.
+     * Applies one trainer's catalogue of package sizes in one transaction.
+     * Adding a size also seeds a price row for each session type so it is
+     * immediately sellable; removing one clears its prices first. A size that
+     * packages were sold at is protected by the package_sizes_protect_sold
+     * trigger from migration 024, which raises 23503 like the foreign key it
+     * replaced, so the service's translation is unchanged.
+     *
+     * Every statement is scoped. Unscoped, one trainer saving their sizes
+     * would delete every other trainer's.
      */
-    async replacePackageSizes(sizes) {
+    async replacePackageSizes(trainerId, sizes) {
+      const owner = requireOwner(trainerId);
       const client = await pool.connect();
       try {
         await client.query("BEGIN");
         const existing = (
-          await client.query("SELECT sessions_total FROM package_sizes")
+          await client.query(
+            "SELECT sessions_total FROM package_sizes WHERE trainer_user_id = $1",
+            [owner]
+          )
         ).rows.map((row) => row.sessions_total);
 
         const removed = existing.filter((size) => !sizes.includes(size));
         const added = sizes.filter((size) => !existing.includes(size));
 
         for (const size of removed) {
-          await client.query("DELETE FROM package_pricing WHERE sessions_total = $1", [size]);
-          await client.query("DELETE FROM package_sizes WHERE sessions_total = $1", [size]);
+          await client.query(
+            "DELETE FROM package_pricing WHERE sessions_total = $1 AND trainer_user_id = $2",
+            [size, owner]
+          );
+          await client.query(
+            "DELETE FROM package_sizes WHERE sessions_total = $1 AND trainer_user_id = $2",
+            [size, owner]
+          );
         }
         for (const size of added) {
-          await client.query("INSERT INTO package_sizes (sessions_total) VALUES ($1)", [size]);
           await client.query(
-            `INSERT INTO package_pricing (program_type, sessions_total, price)
-             VALUES ('one_on_one', $1, 0), ('group', $1, 0)
-             ON CONFLICT (program_type, sessions_total) DO NOTHING`,
-            [size]
+            "INSERT INTO package_sizes (sessions_total, trainer_user_id) VALUES ($1, $2)",
+            [size, owner]
+          );
+          await client.query(
+            `INSERT INTO package_pricing (program_type, sessions_total, price, trainer_user_id)
+             VALUES ('one_on_one', $1, 0, $2), ('group', $1, 0, $2)
+             ON CONFLICT (trainer_user_id, program_type, sessions_total) DO NOTHING`,
+            [size, owner]
           );
         }
         await client.query("COMMIT");
@@ -134,11 +162,16 @@ export function createConfigurationRepository(pool = dbPool) {
      * program that has been sold, and the name of that program is attached to
      * the error for the service to put in its message.
      */
-    async replacePrograms(programs) {
+    async replacePrograms(trainerId, programs) {
+      const owner = requireOwner(trainerId);
       const client = await pool.connect();
       try {
         await client.query("BEGIN");
-        const existing = (await client.query("SELECT id, name, type FROM programs")).rows;
+        const existing = (
+          await client.query("SELECT id, name, type FROM programs WHERE trainer_user_id = $1", [
+            owner
+          ])
+        ).rows;
         const keptIds = new Set(
           programs.filter((program) => program.id !== undefined).map((program) => program.id)
         );
@@ -146,18 +179,24 @@ export function createConfigurationRepository(pool = dbPool) {
         const removed = existing.filter((program) => !keptIds.has(Number(program.id)));
         for (const program of removed) {
           try {
-            await client.query("DELETE FROM programs WHERE id = $1", [program.id]);
+            await client.query("DELETE FROM programs WHERE id = $1 AND trainer_user_id = $2", [
+              program.id,
+              owner
+            ]);
           } catch (error) {
             error.programName = program.name;
             throw error;
           }
         }
 
+        // The owner predicate on the rename matters as much as on the delete:
+        // without it an id from another trainer's catalogue would be accepted
+        // and silently renamed.
         const renamed = [];
         for (const program of programs.filter((entry) => entry.id !== undefined)) {
           const result = await client.query(
-            "UPDATE programs SET name = $2 WHERE id = $1 RETURNING name",
-            [program.id, program.name]
+            "UPDATE programs SET name = $2 WHERE id = $1 AND trainer_user_id = $3 RETURNING name",
+            [program.id, program.name, owner]
           );
           if (result.rowCount === 0) {
             const error = new Error("Program not found");
@@ -171,8 +210,8 @@ export function createConfigurationRepository(pool = dbPool) {
         const added = [];
         for (const program of programs.filter((entry) => entry.id === undefined)) {
           const result = await client.query(
-            "INSERT INTO programs (name, type) VALUES ($1, $2) RETURNING name",
-            [program.name, program.type]
+            "INSERT INTO programs (name, type, trainer_user_id) VALUES ($1, $2, $3) RETURNING name",
+            [program.name, program.type, owner]
           );
           added.push(result.rows[0].name);
         }

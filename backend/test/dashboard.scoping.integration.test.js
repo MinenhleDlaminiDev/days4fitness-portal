@@ -15,7 +15,7 @@ import pg from "pg";
 import { env } from "../src/config/env.js";
 import { createDashboardRepository } from "../src/repositories/dashboard.repository.js";
 import { createDashboardService } from "../src/services/dashboard.service.js";
-import { actorFor, ensureTestTrainer } from "./helpers/trainer.js";
+import { actorFor, ensureTestTrainer, programFor } from "./helpers/trainer.js";
 
 const { Pool } = pg;
 
@@ -73,9 +73,7 @@ async function seedClient(trainer, label, { sessionsTotal, sessionsUsed, price, 
      RETURNING id`,
     [label, `auth06-${stamp}@example.com`, trainer.id]
   );
-  const programResult = await testPool.query(
-    "SELECT id FROM programs WHERE type = 'one_on_one' ORDER BY id LIMIT 1"
-  );
+  const programId = await programFor(testPool, trainer.id);
   // Dates are computed in SQL, not in JavaScript: the expiry trigger measures
   // the window from the business clock, and the test machine's clock may be
   // on another date.
@@ -97,7 +95,7 @@ async function seedClient(trainer, label, { sessionsTotal, sessionsUsed, price, 
      RETURNING id`,
     [
       clientResult.rows[0].id,
-      programResult.rows[0].id,
+      programId,
       sessionsTotal,
       sessionsUsed,
       price,
@@ -114,7 +112,7 @@ async function seedClient(trainer, label, { sessionsTotal, sessionsUsed, price, 
   return {
     clientId: clientResult.rows[0].id,
     packageId: packageResult.rows[0].id,
-    programId: programResult.rows[0].id
+    programId
   };
 }
 

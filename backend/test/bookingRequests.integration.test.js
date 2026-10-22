@@ -96,7 +96,9 @@ async function createManualRequest({ suffix, dayOfWeek, startTime }) {
   const email = `phase3-${suffix}-${Date.now()}@example.com`;
   createdEmails.push(email);
   const program = await testPool.query(
-    "SELECT id FROM programs WHERE name = 'Weight Loss' AND type = 'one_on_one'"
+    `SELECT id FROM programs
+       WHERE name = 'Weight Loss' AND type = 'one_on_one' AND trainer_user_id = (SELECT id FROM trainer_users ORDER BY id LIMIT 1)
+       LIMIT 1`
   );
   const client = await testPool.query(
     `INSERT INTO clients (name, phone, email, trainer_user_id)
@@ -415,7 +417,9 @@ test("does not let expired recurring bookings block a weekly slot", async () => 
   const expiredEmail = `phase3-expired-${Date.now()}@example.com`;
   createdEmails.push(expiredEmail);
   const program = await testPool.query(
-    "SELECT id FROM programs WHERE name = 'Weight Loss' AND type = 'one_on_one'"
+    `SELECT id FROM programs
+       WHERE name = 'Weight Loss' AND type = 'one_on_one' AND trainer_user_id = (SELECT id FROM trainer_users ORDER BY id LIMIT 1)
+       LIMIT 1`
   );
   const expiredClient = await testPool.query(
     `INSERT INTO clients (name, phone, email, trainer_user_id)
@@ -492,7 +496,9 @@ test("allows the same weekly slot when recurring date ranges do not overlap", as
   const futureEmail = `phase3-future-${Date.now()}@example.com`;
   createdEmails.push(futureEmail);
   const program = await testPool.query(
-    "SELECT id FROM programs WHERE name = 'Weight Loss' AND type = 'one_on_one'"
+    `SELECT id FROM programs
+       WHERE name = 'Weight Loss' AND type = 'one_on_one' AND trainer_user_id = (SELECT id FROM trainer_users ORDER BY id LIMIT 1)
+       LIMIT 1`
   );
   const futureClient = await testPool.query(
     `INSERT INTO clients (name, phone, email, trainer_user_id)
@@ -610,7 +616,9 @@ test("rejects approval when the package has already expired", async () => {
   const email = `phase3-expired-request-${Date.now()}@example.com`;
   createdEmails.push(email);
   const program = await testPool.query(
-    "SELECT id FROM programs WHERE name = 'Weight Loss' AND type = 'one_on_one'"
+    `SELECT id FROM programs
+       WHERE name = 'Weight Loss' AND type = 'one_on_one' AND trainer_user_id = (SELECT id FROM trainer_users ORDER BY id LIMIT 1)
+       LIMIT 1`
   );
   const client = await testPool.query(
     `INSERT INTO clients (name, phone, email, preferred_days, preferred_schedule, trainer_user_id)

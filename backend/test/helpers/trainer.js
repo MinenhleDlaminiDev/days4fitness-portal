@@ -36,6 +36,42 @@ export function actorFor(trainer) {
   return { id: trainer.id, role: trainer.role };
 }
 
+// AUTH-10 made the catalogue per trainer, so a fixture can no longer grab the
+// first program of a type and hang it on any trainer: the packages and
+// sessions triggers from migration 024 reject a program the owner does not
+// have. Every trainer is seeded with the same starting list, so asking for
+// their own copy is all this takes.
+
+/** The id of `trainerId`'s own program of `type`, by name if one is given. */
+export async function programFor(db, trainerId, type = "one_on_one", name = null) {
+  const result = await db.query(
+    `SELECT id
+     FROM programs
+     WHERE trainer_user_id = $1
+       AND type = $2
+       AND ($3::text IS NULL OR name = $3)
+     ORDER BY id
+     LIMIT 1`,
+    [trainerId, type, name]
+  );
+  if (!result.rows[0]) {
+    throw new Error(
+      `Trainer ${trainerId} has no ${name ? `"${name}" ` : ""}${type} program. ` +
+        "seed_trainer_catalogue should have created one."
+    );
+  }
+  return result.rows[0].id;
+}
+
+/** The same, for the trainer OWNER_SUBQUERY points at. */
+export async function ownerProgram(db, type = "one_on_one", name = null) {
+  const owner = await db.query(`SELECT id FROM trainer_users ORDER BY id LIMIT 1`);
+  if (!owner.rows[0]) {
+    throw new Error("No trainer_users row. Call ensureTestTrainer() first.");
+  }
+  return programFor(db, owner.rows[0].id, type, name);
+}
+
 // AUTH-03 gave every clients service method the acting trainer as its last
 // argument. Binding it once here beats repeating it at every call site, and
 // the arity map matters: a call that omits an optional middle argument would

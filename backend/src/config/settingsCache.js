@@ -78,14 +78,14 @@ export function createSettingsCache(repository = configurationRepository) {
 
   async function loadFromDatabase(trainerId) {
     const [packageSizes, businessHourRows, schedulingSettings] = await Promise.all([
-      repository.listPackageSizes(),
+      repository.listPackageSizes(trainerId),
       repository.listBusinessHours(trainerId),
       repository.getSchedulingSettings(trainerId)
     ]);
     const businessHours = groupBusinessHours(businessHourRows);
     return {
-      // Package sizes are still one catalogue for the business; AUTH-10 makes
-      // the sizes each trainer offers their own.
+      // Per trainer since AUTH-10, like everything else here. Nothing in this
+      // snapshot is shared between trainers.
       packageSizes: packageSizes.length > 0 ? packageSizes : DEFAULTS.packageSizes,
       businessHours: businessHours.length > 0 ? businessHours : DEFAULTS.businessHours,
       groupCapacity: schedulingSettings?.group_capacity ?? DEFAULTS.groupCapacity,

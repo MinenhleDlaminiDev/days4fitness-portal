@@ -106,7 +106,7 @@ export function createPackagesRepository(dbPool = pool) {
       try {
         await db.query("BEGIN");
         const clientResult = await db.query(
-          "SELECT id, preferred_schedule FROM clients WHERE id = $1 FOR UPDATE",
+          "SELECT id, preferred_schedule, trainer_user_id FROM clients WHERE id = $1 FOR UPDATE",
           [clientId]
         );
         if (!clientResult.rows[0]) {
@@ -134,19 +134,23 @@ export function createPackagesRepository(dbPool = pool) {
           error.code = "PACKAGE_STILL_ACTIVE";
           throw error;
         }
+        // AUTH-10: read off the client row already locked above, so a renewal
+        // takes the owning trainer's program and price rather than anyone
+        // else's. The same rule as the session length and the expiry window.
+        const ownerTrainerId = clientResult.rows[0].trainer_user_id;
         const programResult = await db.query(
           `SELECT id
            FROM programs
-           WHERE LOWER(name) = LOWER($1) AND type = $2
+           WHERE LOWER(name) = LOWER($1) AND type = $2 AND trainer_user_id = $3
            LIMIT 1`,
-          [packageData.programName, packageData.programType]
+          [packageData.programName, packageData.programType, ownerTrainerId]
         );
         const priceResult = await db.query(
           `SELECT price
            FROM package_pricing
-           WHERE program_type = $1 AND sessions_total = $2
+           WHERE program_type = $1 AND sessions_total = $2 AND trainer_user_id = $3
            LIMIT 1`,
-          [packageData.programType, packageData.sessionsTotal]
+          [packageData.programType, packageData.sessionsTotal, ownerTrainerId]
         );
         if (!programResult.rows[0] || !priceResult.rows[0]) {
           const error = new Error("Package configuration is missing");

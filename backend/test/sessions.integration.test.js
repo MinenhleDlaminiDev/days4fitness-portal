@@ -63,9 +63,14 @@ async function createClientPackage(suffix, options = {}) {
   createdClientIds.push(clientId);
   // Bought today, so the two-month window covers every fixture date below.
   const purchaseDate = options.purchaseDate || daysFromToday(0);
+  // The program has to be the owning trainer's own since AUTH-10, which for
+  // the two-trainer tests is options.ownerId rather than the suite's trainer.
   const programResult = await testPool.query(
-    "SELECT id FROM programs WHERE type = $1 ORDER BY id LIMIT 1",
-    [options.sessionType || "one_on_one"]
+    `SELECT id FROM programs
+     WHERE type = $1
+       AND trainer_user_id = COALESCE($2::bigint, (SELECT id FROM trainer_users ORDER BY id LIMIT 1))
+     ORDER BY id LIMIT 1`,
+    [options.sessionType || "one_on_one", options.ownerId || null]
   );
   const packageResult = await testPool.query(
     `INSERT INTO packages (

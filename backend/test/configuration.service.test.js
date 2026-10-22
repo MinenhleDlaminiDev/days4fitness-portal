@@ -109,7 +109,8 @@ test("saves pricing and rejects bad prices, types, sizes and duplicates", async 
   const saved = [];
   const service = createConfigurationService(
     createRepository({
-      async updatePricing(entries) {
+      async updatePricing(trainerId, entries) {
+        assert.equal(trainerId, ACTOR.id, "prices are saved against the acting trainer");
         saved.push(...entries);
       }
     })
@@ -236,7 +237,8 @@ test("saves package sizes and rejects empties, duplicates and non-positive value
   let saved = null;
   const service = createConfigurationService(
     createRepository({
-      async replacePackageSizes(sizes) {
+      async replacePackageSizes(trainerId, sizes) {
+        assert.equal(trainerId, ACTOR.id, "sizes are saved against the acting trainer");
         saved = sizes;
       }
     })
@@ -295,7 +297,8 @@ test("saves the program catalogue as renames, additions and removals", async () 
   let received = null;
   const service = createConfigurationService(
     programRepository({
-      async replacePrograms(programs) {
+      async replacePrograms(trainerId, programs) {
+        assert.equal(trainerId, ACTOR.id, "programs are saved against the acting trainer");
         received = programs;
       }
     })

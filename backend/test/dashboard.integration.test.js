@@ -39,7 +39,9 @@ async function createDashboardClient(
     [`Dashboard ${suffix}`, `dashboard-${suffix}-${stamp}@example.com`]
   );
   const programResult = await testPool.query(
-    "SELECT id FROM programs WHERE type = $1 ORDER BY id LIMIT 1",
+    `SELECT id FROM programs
+     WHERE type = $1 AND trainer_user_id = (SELECT id FROM trainer_users ORDER BY id LIMIT 1)
+     ORDER BY id LIMIT 1`,
     [programType]
   );
   const packageResult = await testPool.query(
