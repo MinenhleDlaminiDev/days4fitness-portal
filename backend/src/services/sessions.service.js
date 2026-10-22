@@ -1,5 +1,6 @@
 import { DAY_NAMES, getSettings } from "../config/settingsCache.js";
 import { conflictError, notFoundError, validationError } from "../errors/AppError.js";
+import { ownerScope } from "../lib/ownership.js";
 import { requireIsoDate, requirePositiveInteger } from "../lib/validation.js";
 import { sessionsRepository } from "../repositories/sessions.repository.js";
 
@@ -35,6 +36,10 @@ function toSessionDto(row) {
     status: row.status,
     hasStarted: row.has_started,
     hasEnded: row.has_ended,
+    // A number, not the string pg hands back for a bigint, so callers can
+    // compare it without remembering which it is.
+    trainerId: row.trainer_user_id == null ? null : Number(row.trainer_user_id),
+    trainerName: row.trainer_name,
     rescheduledFromSessionId: row.rescheduled_from_session_id,
     replacementSessionId: row.replacement_session_id,
     attendees: (row.attendees || []).map((attendee) => ({
@@ -80,25 +85,30 @@ function parseBookingInput(input = {}) {
 
 export function createSessionsService(repository = sessionsRepository) {
   return {
-    async listWeek(weekStartValue) {
+    async listWeek(weekStartValue, actor) {
       const weekStart = requireIsoDate(weekStartValue, "weekStart");
       const day = new Date(`${weekStart}T00:00:00Z`).getUTCDay();
       if (day !== 1) throw validationError("weekStart must be a Monday");
-      return (await repository.findWeek(weekStart)).map(toSessionDto);
+      return (await repository.findWeek(weekStart, ownerScope(actor))).map(toSessionDto);
     },
 
-    async getSession(sessionId) {
+    async getSession(sessionId, actor) {
       const id = requirePositiveInteger(sessionId, "sessionId");
-      const row = await repository.findById(id);
+      const row = await repository.findById(id, ownerScope(actor));
       if (!row) throw notFoundError("Session not found");
       return toSessionDto(row);
     },
 
-    async createManual(input) {
+    async createManual(input, actor) {
       const clientId = requirePositiveInteger(input?.clientId, "clientId");
       const { sessionDate, startTime } = parseBookingInput(input);
       try {
-        const row = await repository.createManual(clientId, sessionDate, startTime);
+        const row = await repository.createManual(
+          clientId,
+          sessionDate,
+          startTime,
+          ownerScope(actor)
+        );
         if (!row) throw notFoundError("Client package not found");
         return toSessionDto(row);
       } catch (error) {
@@ -106,10 +116,10 @@ export function createSessionsService(repository = sessionsRepository) {
       }
     },
 
-    async cancel(sessionId) {
+    async cancel(sessionId, actor) {
       const id = requirePositiveInteger(sessionId, "sessionId");
       try {
-        const row = await repository.cancel(id);
+        const row = await repository.cancel(id, ownerScope(actor));
         if (!row) throw notFoundError("Session not found");
         return toSessionDto(row);
       } catch (error) {
@@ -117,23 +127,16 @@ export function createSessionsService(repository = sessionsRepository) {
       }
     },
 
-    async createReplacement(sessionId, input) {
-      const id = requirePositiveInteger(sessionId, "sessionId");
-      const { sessionDate, startTime } = parseBookingInput(input);
-      try {
-        const row = await repository.createReplacement(id, sessionDate, startTime);
-        if (!row) throw notFoundError("Session not found");
-        return toSessionDto(row);
-      } catch (error) {
-        translateRepositoryError(error);
-      }
-    },
-
-    async reschedule(sessionId, input) {
+    async createReplacement(sessionId, input, actor) {
       const id = requirePositiveInteger(sessionId, "sessionId");
       const { sessionDate, startTime } = parseBookingInput(input);
       try {
-        const row = await repository.reschedule(id, sessionDate, startTime);
+        const row = await repository.createReplacement(
+          id,
+          sessionDate,
+          startTime,
+          ownerScope(actor)
+        );
         if (!row) throw notFoundError("Session not found");
         return toSessionDto(row);
       } catch (error) {
@@ -141,17 +144,34 @@ export function createSessionsService(repository = sessionsRepository) {
       }
     },
 
-    async cancelDay(input = {}) {
+    async reschedule(sessionId, input, actor) {
+      const id = requirePositiveInteger(sessionId, "sessionId");
+      const { sessionDate, startTime } = parseBookingInput(input);
+      try {
+        const row = await repository.reschedule(
+          id,
+          sessionDate,
+          startTime,
+          ownerScope(actor)
+        );
+        if (!row) throw notFoundError("Session not found");
+        return toSessionDto(row);
+      } catch (error) {
+        translateRepositoryError(error);
+      }
+    },
+
+    async cancelDay(input = {}, actor) {
       const sessionDate = requireIsoDate(input.sessionDate, "sessionDate");
       try {
-        const cancelledIds = await repository.cancelDay(sessionDate);
+        const cancelledIds = await repository.cancelDay(sessionDate, ownerScope(actor));
         return { sessionDate, cancelled: cancelledIds.length, sessionIds: cancelledIds };
       } catch (error) {
         translateRepositoryError(error);
       }
     },
 
-    async recordOutcome(sessionId, input, outcome) {
+    async recordOutcome(sessionId, input, outcome, actor) {
       const id = requirePositiveInteger(sessionId, "sessionId");
       // applyToAll is the explicit opt-in for marking a whole group at once.
       const applyToAll = input?.applyToAll === true;
@@ -160,7 +180,13 @@ export function createSessionsService(repository = sessionsRepository) {
           ? null
           : requirePositiveInteger(input.clientId, "clientId");
       try {
-        const row = await repository.recordOutcome(id, clientId, outcome, { applyToAll });
+        const row = await repository.recordOutcome(
+          id,
+          clientId,
+          outcome,
+          { applyToAll },
+          ownerScope(actor)
+        );
         if (!row) throw notFoundError("Session not found");
         return toSessionDto(row);
       } catch (error) {

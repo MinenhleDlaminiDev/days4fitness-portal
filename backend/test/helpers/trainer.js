@@ -86,3 +86,40 @@ export function bindPackagesActor(service, actor) {
   }
   return bound;
 }
+
+const SESSIONS_SERVICE_ARITY = {
+  listWeek: 1,
+  getSession: 1,
+  createManual: 1,
+  cancel: 1,
+  createReplacement: 2,
+  reschedule: 2,
+  cancelDay: 1,
+  recordOutcome: 3
+};
+
+/** The sessions equivalent of bindActor. */
+export function bindSessionsActor(service, actor) {
+  const bound = { ...service };
+  for (const [name, arity] of Object.entries(SESSIONS_SERVICE_ARITY)) {
+    if (typeof service[name] !== "function") continue;
+    bound[name] = (...args) => {
+      const padded = [...args];
+      while (padded.length < arity) padded.push(undefined);
+      return service[name](...padded, actor);
+    };
+  }
+  return bound;
+}
+
+/**
+ * Stands in for requireAuth in an HTTP suite that mounts one router on its
+ * own. The controllers read req.auth.user, which the real app fills in before
+ * any route runs.
+ */
+export function actingAs(actor) {
+  return function stubAuth(req, res, next) {
+    req.auth = { user: actor };
+    next();
+  };
+}

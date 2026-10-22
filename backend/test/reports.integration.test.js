@@ -69,8 +69,10 @@ async function seedClient(name, { completed = 0, noShow = 0, cancelled = 0, paid
     const startTime = `${String(5 + (nextSlot % 14)).padStart(2, "0")}:00`;
     nextSlot += 1;
     const sessionResult = await testPool.query(
-      `INSERT INTO sessions (program_id, session_type, session_date, start_time, capacity, status)
-       VALUES ($1, 'one_on_one', $2::date, $3::time, 1, $4) RETURNING id`,
+      `INSERT INTO sessions (
+         program_id, session_type, session_date, start_time, capacity, status, trainer_user_id
+       )
+       VALUES ($1, 'one_on_one', $2::date, $3::time, 1, $4, ${OWNER_SUBQUERY}) RETURNING id`,
       [programId, sessionDate, startTime, status === "cancelled" ? "cancelled" : status]
     );
     await testPool.query(

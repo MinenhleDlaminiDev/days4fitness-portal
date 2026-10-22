@@ -9,7 +9,7 @@ import { createSessionsRepository } from "../src/repositories/sessions.repositor
 import { createSessionsRouter } from "../src/routes/sessions.routes.js";
 import { createSessionsService } from "../src/services/sessions.service.js";
 import { addDays, upcomingMonday } from "./helpers/dates.js";
-import { ensureTestTrainer, OWNER_SUBQUERY } from "./helpers/trainer.js";
+import { actingAs, actorFor, ensureTestTrainer, OWNER_SUBQUERY } from "./helpers/trainer.js";
 
 const { Pool } = pg;
 
@@ -25,7 +25,7 @@ const testPool = new Pool({ connectionString: env.testDatabaseUrl });
 
 // Fixtures own their clients since AUTH-03, so the suite needs a trainer
 // for them to belong to. Top-level await, so it is done before any test runs.
-await ensureTestTrainer(testPool);
+const owner = await ensureTestTrainer(testPool);
 const service = createSessionsService(createSessionsRepository(testPool));
 const controller = createSessionsController(service);
 const app = express();
@@ -34,6 +34,9 @@ let server;
 let baseUrl;
 
 app.use(express.json());
+// The real app runs requireAuth before every session route, and the
+// controllers read the trainer off req.auth.
+app.use(actingAs(actorFor(owner)));
 app.use("/api/sessions", createSessionsRouter(controller));
 app.use(notFoundHandler);
 app.use(errorHandler);

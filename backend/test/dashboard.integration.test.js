@@ -195,9 +195,10 @@ test("returns dashboard reporting summaries from real PostgreSQL data", async ()
          session_date,
          start_time,
          capacity,
-         status
+         status,
+         trainer_user_id
        )
-       VALUES ($1, $2, ${activeSessionDate}, $3::time, 1, 'scheduled')
+       VALUES ($1, $2, ${activeSessionDate}, $3::time, 1, 'scheduled', ${OWNER_SUBQUERY})
        RETURNING id`,
       [expiring.programId, expiring.programType, activeSessionTime]
     );
@@ -216,9 +217,10 @@ test("returns dashboard reporting summaries from real PostgreSQL data", async ()
          session_date,
          start_time,
          capacity,
-         status
+         status,
+         trainer_user_id
        )
-       VALUES ($1, $2, ${completedDate}, $3::time, 1, 'completed')
+       VALUES ($1, $2, ${completedDate}, $3::time, 1, 'completed', ${OWNER_SUBQUERY})
        RETURNING id`,
       [expiring.programId, expiring.programType, completedTime]
     );

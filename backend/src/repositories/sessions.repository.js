@@ -1,5 +1,6 @@
 import { pool } from "../db/client.js";
 import { env } from "../config/env.js";
+import { requireScope } from "../lib/ownership.js";
 
 const SESSION_SELECT_SQL = `
   SELECT
@@ -11,6 +12,8 @@ const SESSION_SELECT_SQL = `
     session.duration_minutes,
     session.capacity,
     session.status,
+    session.trainer_user_id,
+    trainer.name AS trainer_name,
     (session.session_date + session.start_time)
       <= (CURRENT_TIMESTAMP AT TIME ZONE $2) AS has_started,
     (
@@ -43,6 +46,7 @@ const SESSION_SELECT_SQL = `
     ) AS attendees
   FROM sessions session
   JOIN programs program ON program.id = session.program_id
+  JOIN trainer_users trainer ON trainer.id = session.trainer_user_id
   LEFT JOIN LATERAL (
     SELECT
       CASE
@@ -82,15 +86,32 @@ const SESSION_SELECT_SQL = `
   ) payment_totals ON true
 `;
 
-async function findSession(db, sessionId, lock = false) {
+async function findSession(db, sessionId, lock = false, scope) {
   const result = await db.query(
     `SELECT session.*
      FROM sessions session
      WHERE session.id = $1
+       AND ($2::bigint IS NULL OR session.trainer_user_id = $2)
      ${lock ? "FOR UPDATE" : ""}`,
-    [sessionId]
+    [sessionId, requireScope(scope)]
   );
   return result.rows[0] || null;
+}
+
+/**
+ * The trainer a session belongs to, read without locking because ownership
+ * never changes. Lets a caller take the date lock before the session row,
+ * which is the order every other path uses.
+ */
+async function findSessionOwner(db, sessionId, scope) {
+  const result = await db.query(
+    `SELECT trainer_user_id
+     FROM sessions
+     WHERE id = $1
+       AND ($2::bigint IS NULL OR trainer_user_id = $2)`,
+    [sessionId, requireScope(scope)]
+  );
+  return result.rows[0]?.trainer_user_id ?? null;
 }
 
 async function lockPackages(db, packageIds) {
@@ -133,24 +154,35 @@ async function lockActiveClients(db, clientIds) {
   }
 }
 
-async function lockTargetDate(db, sessionDate) {
-  await db.query("SELECT pg_advisory_xact_lock($1, hashtext($2))", [44032, sessionDate]);
+// Keyed by trainer as well as date since AUTH-04: two trainers booking the
+// same day no longer have to queue behind one another. Every path that takes
+// this lock must build the key the same way, packageAllocation included.
+async function lockTargetDate(db, sessionDate, ownerTrainerId) {
+  await db.query("SELECT pg_advisory_xact_lock($1, hashtext($2::text || ':' || $3::text))", [
+    44032,
+    ownerTrainerId,
+    sessionDate
+  ]);
 }
 
-async function findOverlaps(db, sessionDate, startTime, durationMinutes) {
+async function findOverlaps(db, sessionDate, startTime, durationMinutes, ownerTrainerId) {
   // Both sides of the comparison use real durations: each existing row its own
   // stored duration_minutes, and the booking the currently configured length.
   // A fixed 60 minutes here silently missed every clash once the trainer could
   // change session length.
+  // Only this trainer's own day: another trainer running at the same time is
+  // not a clash, and merging into their group session would hand them a client
+  // who is not theirs.
   const result = await db.query(
     `SELECT id, program_id, session_type, start_time::text, capacity
      FROM sessions
      WHERE session_date = $1::date
        AND status <> 'cancelled'
+       AND trainer_user_id = $4
        AND start_time < ($2::time + make_interval(mins => $3::int))
        AND (start_time + make_interval(mins => duration_minutes)) > $2::time
      FOR UPDATE`,
-    [sessionDate, startTime, durationMinutes]
+    [sessionDate, startTime, durationMinutes, ownerTrainerId]
   );
   return result.rows;
 }
@@ -162,9 +194,15 @@ async function configuredSessionMinutes(db) {
   return result.rows[0]?.session_duration_minutes ?? 60;
 }
 
-async function createSessionRow(db, packageRow, sessionDate, startTime) {
+async function createSessionRow(db, packageRow, sessionDate, startTime, ownerTrainerId) {
   const durationMinutes = await configuredSessionMinutes(db);
-  const overlaps = await findOverlaps(db, sessionDate, startTime, durationMinutes);
+  const overlaps = await findOverlaps(
+    db,
+    sessionDate,
+    startTime,
+    durationMinutes,
+    ownerTrainerId
+  );
   const compatibleGroup = overlaps.find(
     (session) =>
       packageRow.program_type === "group" &&
@@ -194,9 +232,10 @@ async function createSessionRow(db, packageRow, sessionDate, startTime) {
        start_time,
        duration_minutes,
        capacity,
-       status
+       status,
+       trainer_user_id
      )
-     VALUES ($1, $2, $3::date, $4::time, $5, $6, 'scheduled')
+     VALUES ($1, $2, $3::date, $4::time, $5, $6, 'scheduled', $7)
      RETURNING id`,
     [
       packageRow.program_id,
@@ -206,7 +245,8 @@ async function createSessionRow(db, packageRow, sessionDate, startTime) {
       // Persist the configured length. Leaving this to the column default meant
       // the Session length setting had no effect on anything booked.
       durationMinutes,
-      packageRow.program_type === "group" ? settingsResult.rows[0].group_capacity : 1
+      packageRow.program_type === "group" ? settingsResult.rows[0].group_capacity : 1,
+      ownerTrainerId
     ]
   );
   return result.rows[0].id;
@@ -311,46 +351,51 @@ export function createSessionsRepository(
   { businessTimezone = env.businessTimezone } = {}
 ) {
   return {
-    async findWeek(weekStart) {
+    async findWeek(weekStart, scope) {
       const result = await dbPool.query(
         `${SESSION_SELECT_SQL}
          WHERE session.session_date BETWEEN $1::date AND ($1::date + 6)
+           AND ($3::bigint IS NULL OR session.trainer_user_id = $3)
          GROUP BY
            session.id,
            program.name,
+           trainer.name,
            origin_link.rescheduled_from_session_id,
            replacement_link.replacement_session_id
          ORDER BY session.session_date, session.start_time, session.id`,
-        [weekStart, businessTimezone]
+        [weekStart, businessTimezone, requireScope(scope)]
       );
       return result.rows;
     },
 
-    async findById(sessionId, db = dbPool) {
+    async findById(sessionId, scope, db = dbPool) {
       const result = await db.query(
         `${SESSION_SELECT_SQL}
          WHERE session.id = $1
+           AND ($3::bigint IS NULL OR session.trainer_user_id = $3)
          GROUP BY
            session.id,
            program.name,
+           trainer.name,
            origin_link.rescheduled_from_session_id,
            replacement_link.replacement_session_id`,
-        [sessionId, businessTimezone]
+        [sessionId, businessTimezone, requireScope(scope)]
       );
       return result.rows[0] || null;
     },
 
-    async createManual(clientId, sessionDate, startTime) {
+    async createManual(clientId, sessionDate, startTime, scope) {
       const db = await dbPool.connect();
       try {
         await db.query("BEGIN");
         await db.query("SELECT set_config('TimeZone', $1, true)", [businessTimezone]);
         const clientResult = await db.query(
-          `SELECT id, is_active
+          `SELECT id, is_active, trainer_user_id
            FROM clients
            WHERE id = $1
+             AND ($2::bigint IS NULL OR trainer_user_id = $2)
            FOR UPDATE`,
-          [clientId]
+          [clientId, requireScope(scope)]
         );
         if (!clientResult.rows[0]) {
           await db.query("ROLLBACK");
@@ -361,7 +406,11 @@ export function createSessionsRepository(
           error.code = "CLIENT_ARCHIVED";
           throw error;
         }
-        await lockTargetDate(db, sessionDate);
+        // The session belongs to whoever owns the client, not to whoever is
+        // asking: an admin booking for a trainer's client creates that
+        // trainer's session.
+        const ownerTrainerId = clientResult.rows[0].trainer_user_id;
+        await lockTargetDate(db, sessionDate, ownerTrainerId);
         const packageResult = await db.query(
           `SELECT
              package.*,
@@ -382,12 +431,18 @@ export function createSessionsRepository(
           return null;
         }
         await assertPackageCanBook(db, packageRow, sessionDate);
-        const sessionId = await createSessionRow(db, packageRow, sessionDate, startTime);
+        const sessionId = await createSessionRow(
+          db,
+          packageRow,
+          sessionDate,
+          startTime,
+          ownerTrainerId
+        );
         await insertAttendance(db, sessionId, {
           client_id: clientId,
           package_id: packageRow.id
         });
-        const saved = await this.findById(sessionId, db);
+        const saved = await this.findById(sessionId, scope, db);
         await db.query("COMMIT");
         return saved;
       } catch (error) {
@@ -398,12 +453,12 @@ export function createSessionsRepository(
       }
     },
 
-    async cancel(sessionId) {
+    async cancel(sessionId, scope) {
       const db = await dbPool.connect();
       try {
         await db.query("BEGIN");
         await db.query("SELECT set_config('TimeZone', $1, true)", [businessTimezone]);
-        const session = await findSession(db, sessionId, true);
+        const session = await findSession(db, sessionId, true, scope);
         if (!session) {
           await db.query("ROLLBACK");
           return null;
@@ -422,7 +477,7 @@ export function createSessionsRepository(
              AND status = 'scheduled'`,
           [sessionId]
         );
-        const saved = await this.findById(sessionId, db);
+        const saved = await this.findById(sessionId, scope, db);
         await db.query("COMMIT");
         return saved;
       } catch (error) {
@@ -438,8 +493,11 @@ export function createSessionsRepository(
      * session that cannot be cancelled (one that has already started) rolls the
      * whole day back rather than leaving it half done. Sessions already
      * completed, cancelled or marked no-show are skipped, not re-processed.
+     *
+     * Scoped since AUTH-04: a trainer clearing their own day must not touch
+     * anyone else's. An admin still clears the whole business, as everywhere.
      */
-    async cancelDay(sessionDate) {
+    async cancelDay(sessionDate, scope) {
       const db = await dbPool.connect();
       try {
         await db.query("BEGIN");
@@ -449,14 +507,15 @@ export function createSessionsRepository(
            FROM sessions
            WHERE session_date = $1::date
              AND status = 'scheduled'
+             AND ($2::bigint IS NULL OR trainer_user_id = $2)
            ORDER BY start_time, id
            FOR UPDATE`,
-          [sessionDate]
+          [sessionDate, requireScope(scope)]
         );
 
         const cancelledIds = [];
         for (const row of targets.rows) {
-          const session = await findSession(db, row.id, true);
+          const session = await findSession(db, row.id, true, scope);
           await assertSessionTiming(db, session, "before_start");
           await db.query("UPDATE sessions SET status = 'cancelled' WHERE id = $1", [row.id]);
           await db.query(
@@ -479,11 +538,18 @@ export function createSessionsRepository(
       }
     },
 
-    async createReplacement(sessionId, sessionDate, startTime) {
+    async createReplacement(sessionId, sessionDate, startTime, scope) {
       const db = await dbPool.connect();
       try {
         await db.query("BEGIN");
         await db.query("SELECT set_config('TimeZone', $1, true)", [businessTimezone]);
+        // Read the owner before taking any lock: the date lock needs it, and
+        // every path takes the date lock before locking session rows.
+        const ownerTrainerId = await findSessionOwner(db, sessionId, scope);
+        if (ownerTrainerId === null) {
+          await db.query("ROLLBACK");
+          return null;
+        }
         const clientIdsResult = await db.query(
           "SELECT client_id FROM session_attendance WHERE session_id = $1 ORDER BY client_id",
           [sessionId]
@@ -492,8 +558,8 @@ export function createSessionsRepository(
           db,
           clientIdsResult.rows.map((row) => row.client_id)
         );
-        await lockTargetDate(db, sessionDate);
-        const original = await findSession(db, sessionId, true);
+        await lockTargetDate(db, sessionDate, ownerTrainerId);
+        const original = await findSession(db, sessionId, true, scope);
         if (!original) {
           await db.query("ROLLBACK");
           return null;
@@ -537,11 +603,17 @@ export function createSessionsRepository(
           await assertPackageCanBook(db, packageRow, sessionDate, true);
         }
         const packageRow = packages[0];
-        const replacementId = await createSessionRow(db, packageRow, sessionDate, startTime);
+        const replacementId = await createSessionRow(
+          db,
+          packageRow,
+          sessionDate,
+          startTime,
+          ownerTrainerId
+        );
         for (const attendee of attendanceResult.rows) {
           await insertAttendance(db, replacementId, attendee);
         }
-        const saved = await this.findById(replacementId, db);
+        const saved = await this.findById(replacementId, scope, db);
         await db.query("COMMIT");
         return saved;
       } catch (error) {
@@ -552,11 +624,16 @@ export function createSessionsRepository(
       }
     },
 
-    async reschedule(sessionId, sessionDate, startTime) {
+    async reschedule(sessionId, sessionDate, startTime, scope) {
       const db = await dbPool.connect();
       try {
         await db.query("BEGIN");
         await db.query("SELECT set_config('TimeZone', $1, true)", [businessTimezone]);
+        const ownerTrainerId = await findSessionOwner(db, sessionId, scope);
+        if (ownerTrainerId === null) {
+          await db.query("ROLLBACK");
+          return null;
+        }
         const clientIdsResult = await db.query(
           "SELECT client_id FROM session_attendance WHERE session_id = $1 ORDER BY client_id",
           [sessionId]
@@ -565,8 +642,8 @@ export function createSessionsRepository(
           db,
           clientIdsResult.rows.map((row) => row.client_id)
         );
-        await lockTargetDate(db, sessionDate);
-        const original = await findSession(db, sessionId, true);
+        await lockTargetDate(db, sessionDate, ownerTrainerId);
+        const original = await findSession(db, sessionId, true, scope);
         if (!original) {
           await db.query("ROLLBACK");
           return null;
@@ -604,11 +681,17 @@ export function createSessionsRepository(
              AND status = 'scheduled'`,
           [sessionId]
         );
-        const replacementId = await createSessionRow(db, packages[0], sessionDate, startTime);
+        const replacementId = await createSessionRow(
+          db,
+          packages[0],
+          sessionDate,
+          startTime,
+          ownerTrainerId
+        );
         for (const attendee of attendanceResult.rows) {
           await insertAttendance(db, replacementId, attendee);
         }
-        const saved = await this.findById(replacementId, db);
+        const saved = await this.findById(replacementId, scope, db);
         await db.query("COMMIT");
         return saved;
       } catch (error) {
@@ -619,12 +702,12 @@ export function createSessionsRepository(
       }
     },
 
-    async recordOutcome(sessionId, clientId, outcome, { applyToAll = false } = {}) {
+    async recordOutcome(sessionId, clientId, outcome, { applyToAll = false } = {}, scope) {
       const db = await dbPool.connect();
       try {
         await db.query("BEGIN");
         await db.query("SELECT set_config('TimeZone', $1, true)", [businessTimezone]);
-        const session = await findSession(db, sessionId, true);
+        const session = await findSession(db, sessionId, true, scope);
         if (!session) {
           await db.query("ROLLBACK");
           return null;
@@ -710,7 +793,7 @@ export function createSessionsRepository(
             ]
           );
         }
-        const saved = await this.findById(sessionId, db);
+        const saved = await this.findById(sessionId, scope, db);
         await db.query("COMMIT");
         return saved;
       } catch (error) {

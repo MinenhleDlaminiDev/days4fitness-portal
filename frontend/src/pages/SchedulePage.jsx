@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import SuccessToast from "../components/SuccessToast.jsx";
 import { useAppConfiguration } from "../context/AppConfigurationContext.jsx";
+import { useAuth } from "../context/AuthContext.jsx";
 import {
   cancelScheduleDay,
   cancelSession,
@@ -229,7 +230,9 @@ function SessionModal({
   onOutcome
 }) {
   const [isClosing, dismiss] = useDismissable(onClose);
+  const { trainer } = useAuth();
   if (!session) return null;
+  const showTrainer = trainer?.role === "admin" && Boolean(session.trainerName);
   const hasStarted = session.hasStarted;
   const hasEnded = session.hasEnded;
 
@@ -250,6 +253,9 @@ function SessionModal({
               {session.status.replace("_", " ")}
             </p>
             <h2 className="text-2xl font-bold">{session.program}</h2>
+            {showTrainer && (
+              <p className="mt-1 text-sm text-emerald-100">with {session.trainerName}</p>
+            )}
           </div>
           <button
             type="button"
@@ -435,6 +441,10 @@ function SessionModal({
 
 export default function SchedulePage() {
   const { configuration } = useAppConfiguration();
+  const { trainer } = useAuth();
+  // The week is already scoped to whoever is asking, so a trainer sees only
+  // their own sessions and naming them would say nothing.
+  const showTrainerNames = trainer?.role === "admin";
   const [searchParams, setSearchParams] = useSearchParams();
   const [weekStart, setWeekStart] = useState(() => safeWeekStart(searchParams.get("weekStart")));
   const [sessions, setSessions] = useState([]);
@@ -747,6 +757,9 @@ export default function SchedulePage() {
                         </p>
                         <p className="text-xs opacity-75">
                           {session.program}
+                          {showTrainerNames && session.trainerName
+                            ? ` · ${session.trainerName}`
+                            : ""}
                           {session.status === "cancelled" && " · Cancelled"}
                         </p>
                       </div>
@@ -807,6 +820,9 @@ export default function SchedulePage() {
                                   </p>
                                   <p className="truncate text-xs opacity-75">
                                     {session.program}
+                                    {showTrainerNames && session.trainerName
+                                      ? ` · ${session.trainerName}`
+                                      : ""}
                                     {session.status === "cancelled" && " · Cancelled"}
                                   </p>
                                 </button>

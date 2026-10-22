@@ -56,8 +56,10 @@ export async function allocatePackageSessions(db, packageId) {
        booking.session_type,
        booking.start_time::text,
        candidate_date::date::text AS session_date,
+       client.trainer_user_id,
        settings.group_capacity
      FROM approved_recurring_bookings booking
+     JOIN clients client ON client.id = booking.client_id
      CROSS JOIN scheduling_settings settings
      CROSS JOIN LATERAL generate_series(
        booking.starts_on,
@@ -80,8 +82,9 @@ export async function allocatePackageSessions(db, packageId) {
   );
 
   for (const candidate of candidatesResult.rows) {
-    await db.query("SELECT pg_advisory_xact_lock($1, hashtext($2))", [
+    await db.query("SELECT pg_advisory_xact_lock($1, hashtext($2::text || ':' || $3::text))", [
       44032,
+      candidate.trainer_user_id,
       candidate.session_date
     ]);
     const overlappingSessions = await db.query(
@@ -89,10 +92,11 @@ export async function allocatePackageSessions(db, packageId) {
        FROM sessions
        WHERE session_date = $1::date
          AND status <> 'cancelled'
+         AND trainer_user_id = $3
          AND start_time < ($2::time + INTERVAL '60 minutes')
          AND (start_time + INTERVAL '60 minutes') > $2::time
        FOR UPDATE`,
-      [candidate.session_date, candidate.start_time]
+      [candidate.session_date, candidate.start_time, candidate.trainer_user_id]
     );
     const compatibleGroupSession = overlappingSessions.rows.find(
       (session) =>
@@ -125,7 +129,8 @@ export async function allocatePackageSessions(db, packageId) {
            session_date,
            start_time,
            capacity,
-           status
+           status,
+           trainer_user_id
          )
          VALUES (
            $1,
@@ -133,7 +138,8 @@ export async function allocatePackageSessions(db, packageId) {
            $3::date,
            $4::time,
            $5,
-           'scheduled'
+           'scheduled',
+           $6
          )
          RETURNING id`,
         [
@@ -141,7 +147,8 @@ export async function allocatePackageSessions(db, packageId) {
           candidate.session_type,
           candidate.session_date,
           candidate.start_time,
-          candidate.session_type === "group" ? candidate.group_capacity : 1
+          candidate.session_type === "group" ? candidate.group_capacity : 1,
+          candidate.trainer_user_id
         ]
       );
       sessionId = sessionResult.rows[0].id;

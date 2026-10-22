@@ -7,7 +7,12 @@ import { createClientsRepository } from "../src/repositories/clients.repository.
 import { createSessionsRepository } from "../src/repositories/sessions.repository.js";
 import { createBookingRequestsService } from "../src/services/bookingRequests.service.js";
 import { createClientsService } from "../src/services/clients.service.js";
-import { actorFor, bindActor, ensureTestTrainer } from "./helpers/trainer.js";
+import {
+  actorFor,
+  bindActor,
+  bindSessionsActor,
+  ensureTestTrainer
+} from "./helpers/trainer.js";
 import { createSessionsService } from "../src/services/sessions.service.js";
 import { addDays, addMonths, daysFromToday, upcomingMonday } from "./helpers/dates.js";
 
@@ -33,7 +38,10 @@ const service = bindActor(
   actorFor(trainer)
 );
 const requestsService = createBookingRequestsService(createBookingRequestsRepository(testPool));
-const sessionsService = createSessionsService(createSessionsRepository(testPool));
+const sessionsService = bindSessionsActor(
+  createSessionsService(createSessionsRepository(testPool)),
+  actorFor(trainer)
+);
 
 after(async () => {
   await testPool.end();

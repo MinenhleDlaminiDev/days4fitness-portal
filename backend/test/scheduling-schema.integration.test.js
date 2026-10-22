@@ -131,9 +131,10 @@ test("allows multiple clients to attend one group session", async () => {
          session_date,
          start_time,
          capacity,
-         status
+         status,
+         trainer_user_id
        )
-       VALUES ($1, 'group', '2026-06-17', '09:00', 8, 'scheduled')
+       VALUES ($1, 'group', '2026-06-17', '09:00', 8, 'scheduled', ${OWNER_SUBQUERY})
        RETURNING id`,
       [program.rows[0].id]
     );
@@ -324,9 +325,10 @@ test("enforces training-day, status, and active-slot constraints", async () => {
            session_date,
            start_time,
            capacity,
-           status
+           status,
+           trainer_user_id
          )
-         VALUES ($1, 'one_on_one', '2026-06-14', '08:00', 1, 'scheduled')`,
+         VALUES ($1, 'one_on_one', '2026-06-14', '08:00', 1, 'scheduled', ${OWNER_SUBQUERY})`,
         [program.rows[0].id]
       ),
       (error) => error.code === "23514"
@@ -339,9 +341,10 @@ test("enforces training-day, status, and active-slot constraints", async () => {
          session_date,
          start_time,
          capacity,
-         status
+         status,
+         trainer_user_id
        )
-       VALUES ($1, 'one_on_one', '2026-06-15', '08:00', 1, 'scheduled')
+       VALUES ($1, 'one_on_one', '2026-06-15', '08:00', 1, 'scheduled', ${OWNER_SUBQUERY})
        RETURNING id`,
       [program.rows[0].id]
     );
@@ -356,9 +359,10 @@ test("enforces training-day, status, and active-slot constraints", async () => {
            session_date,
            start_time,
            capacity,
-           status
+           status,
+           trainer_user_id
          )
-         VALUES ($1, 'one_on_one', '2026-06-15', '08:00', 1, 'scheduled')`,
+         VALUES ($1, 'one_on_one', '2026-06-15', '08:00', 1, 'scheduled', ${OWNER_SUBQUERY})`,
         [program.rows[0].id]
       ),
       (error) => error.code === "23P01"
@@ -374,9 +378,10 @@ test("enforces training-day, status, and active-slot constraints", async () => {
            session_date,
            start_time,
            capacity,
-           status
+           status,
+           trainer_user_id
          )
-         VALUES ($1, 'one_on_one', '2026-06-15', '08:30', 1, 'scheduled')`,
+         VALUES ($1, 'one_on_one', '2026-06-15', '08:30', 1, 'scheduled', ${OWNER_SUBQUERY})`,
         [program.rows[0].id]
       ),
       (error) => error.code === "23P01"
@@ -392,9 +397,10 @@ test("enforces training-day, status, and active-slot constraints", async () => {
            start_time,
            duration_minutes,
            capacity,
-           status
+           status,
+           trainer_user_id
          )
-         VALUES ($1, 'one_on_one', '2026-06-15', '07:00', 90, 1, 'scheduled')`,
+         VALUES ($1, 'one_on_one', '2026-06-15', '07:00', 90, 1, 'scheduled', ${OWNER_SUBQUERY})`,
         [program.rows[0].id]
       ),
       (error) => error.code === "23P01"
@@ -408,9 +414,10 @@ test("enforces training-day, status, and active-slot constraints", async () => {
          session_date,
          start_time,
          capacity,
-         status
+         status,
+         trainer_user_id
        )
-       VALUES ($1, 'one_on_one', '2026-06-15', '09:00', 1, 'scheduled')
+       VALUES ($1, 'one_on_one', '2026-06-15', '09:00', 1, 'scheduled', ${OWNER_SUBQUERY})
        RETURNING id`,
       [program.rows[0].id]
     );
@@ -426,9 +433,10 @@ test("enforces training-day, status, and active-slot constraints", async () => {
          session_date,
          start_time,
          capacity,
-         status
+         status,
+         trainer_user_id
        )
-       VALUES ($1, 'one_on_one', '2026-06-16', '08:00', 1, 'scheduled')`,
+       VALUES ($1, 'one_on_one', '2026-06-16', '08:00', 1, 'scheduled', ${OWNER_SUBQUERY})`,
        [program.rows[0].id]
      );
   } finally {
@@ -474,9 +482,10 @@ test("rejects attendance that uses another client's package", async () => {
          session_date,
          start_time,
          capacity,
-         status
+         status,
+         trainer_user_id
        )
-       VALUES ($1, 'one_on_one', '2026-06-18', '09:00', 1, 'scheduled')
+       VALUES ($1, 'one_on_one', '2026-06-18', '09:00', 1, 'scheduled', ${OWNER_SUBQUERY})
        RETURNING id`,
       [program.rows[0].id]
     );
@@ -619,9 +628,10 @@ test("rejects attendance beyond capacity and from another program", async () => 
          session_date,
          start_time,
          capacity,
-         status
+         status,
+         trainer_user_id
        )
-       VALUES ($1, 'one_on_one', '2026-06-19', '08:00', 1, 'scheduled')
+       VALUES ($1, 'one_on_one', '2026-06-19', '08:00', 1, 'scheduled', ${OWNER_SUBQUERY})
        RETURNING id`,
       [oneOnOneProgram.rows[0].id]
     );
@@ -705,9 +715,10 @@ test("rejects session updates that conflict with existing attendance", async () 
          session_date,
          start_time,
          capacity,
-         status
+         status,
+         trainer_user_id
        )
-       VALUES ($1, 'group', '2026-06-20', '08:00', 8, 'scheduled')
+       VALUES ($1, 'group', '2026-06-20', '08:00', 8, 'scheduled', ${OWNER_SUBQUERY})
        RETURNING id`,
       [groupProgram.rows[0].id]
     );
@@ -823,9 +834,10 @@ test("rejects attendance linked to another client's recurring booking", async ()
          session_date,
          start_time,
          capacity,
-         status
+         status,
+         trainer_user_id
        )
-       VALUES ($1, 'one_on_one', '2026-06-22', '08:00', 1, 'scheduled')
+       VALUES ($1, 'one_on_one', '2026-06-22', '08:00', 1, 'scheduled', ${OWNER_SUBQUERY})
        RETURNING id`,
       [program.rows[0].id]
     );
@@ -993,9 +1005,10 @@ test("keeps attendance credit consumption consistent with status", async () => {
          session_date,
          start_time,
          capacity,
-         status
+         status,
+         trainer_user_id
        )
-       VALUES ($1, 'one_on_one', '2026-06-24', '08:00', 1, 'scheduled')
+       VALUES ($1, 'one_on_one', '2026-06-24', '08:00', 1, 'scheduled', ${OWNER_SUBQUERY})
        RETURNING id`,
       [program.rows[0].id]
     );
@@ -1044,5 +1057,70 @@ test("keeps attendance credit consumption consistent with status", async () => {
   } finally {
     await db.query("ROLLBACK");
     db.release();
+  }
+});
+
+test("the overlap rule is per trainer, not per studio", async () => {
+  // AUTH-04. sessions_no_overlap used to reject any two overlapping sessions
+  // whatever, which made two trainers working at the same time impossible.
+  const alice = await ensureTestTrainer(testPool, {
+    email: "alice-schema@days4fitness.test",
+    role: "trainer"
+  });
+  const bob = await ensureTestTrainer(testPool, {
+    email: "bob-schema@days4fitness.test",
+    role: "trainer"
+  });
+  const program = await testPool.query(
+    "SELECT id FROM programs WHERE type = 'one_on_one' ORDER BY id LIMIT 1"
+  );
+  const book = (trainerId) =>
+    testPool.query(
+      `INSERT INTO sessions (
+         program_id,
+         session_type,
+         session_date,
+         start_time,
+         capacity,
+         status,
+         trainer_user_id
+       )
+       VALUES ($1, 'one_on_one', '2026-06-22', '08:00', 1, 'scheduled', $2)
+       RETURNING id`,
+      [program.rows[0].id, trainerId]
+    );
+
+  try {
+    const hers = await book(alice.id);
+    const his = await book(bob.id);
+    assert.notEqual(hers.rows[0].id, his.rows[0].id, "both trainers may run at 08:00");
+
+    // The same trainer twice is still a clash, and a partial overlap too.
+    await assert.rejects(book(alice.id), (error) => error.code === "23P01");
+    await assert.rejects(
+      testPool.query(
+        `INSERT INTO sessions (
+           program_id,
+           session_type,
+           session_date,
+           start_time,
+           capacity,
+           status,
+           trainer_user_id
+         )
+         VALUES ($1, 'one_on_one', '2026-06-22', '08:30', 1, 'scheduled', $2)`,
+        [program.rows[0].id, alice.id]
+      ),
+      (error) => error.code === "23P01"
+    );
+
+    // Cancelling still frees the slot, for the trainer who cancelled.
+    await testPool.query("UPDATE sessions SET status = 'cancelled' WHERE id = $1", [
+      hers.rows[0].id
+    ]);
+    const again = await book(alice.id);
+    assert.ok(again.rows[0].id);
+  } finally {
+    await testPool.query("DELETE FROM sessions WHERE session_date = '2026-06-22'");
   }
 });

@@ -8,7 +8,13 @@ import { createSessionsRepository } from "../src/repositories/sessions.repositor
 import { createBookingRequestsService } from "../src/services/bookingRequests.service.js";
 import { createClientsService } from "../src/services/clients.service.js";
 import { createSessionsService } from "../src/services/sessions.service.js";
-import { actorFor, bindActor, ensureTestTrainer, OWNER_SUBQUERY } from "./helpers/trainer.js";
+import {
+  actorFor,
+  bindActor,
+  bindSessionsActor,
+  ensureTestTrainer,
+  OWNER_SUBQUERY
+} from "./helpers/trainer.js";
 
 const { Pool } = pg;
 
@@ -26,7 +32,10 @@ const clientsService = bindActor(
   actorFor(await ensureTestTrainer(testPool))
 );
 const requestsService = createBookingRequestsService(createBookingRequestsRepository(testPool));
-const sessionsService = createSessionsService(createSessionsRepository(testPool));
+const sessionsService = bindSessionsActor(
+  createSessionsService(createSessionsRepository(testPool)),
+  actorFor(await ensureTestTrainer(testPool))
+);
 const createdEmails = [];
 const DAY_NAMES = ["", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -266,7 +275,8 @@ test("rejects recurrence generation that overlaps an existing date-specific sess
        session_date,
        start_time,
        capacity,
-       status
+       status,
+       trainer_user_id
      )
      VALUES (
        $1,
@@ -279,7 +289,8 @@ test("rejects recurrence generation that overlaps an existing date-specific sess
            END,
        '08:00',
        1,
-       'scheduled'
+       'scheduled',
+       ${OWNER_SUBQUERY}
      )
      RETURNING id`,
     [requestDetails.rows[0].program_id]
@@ -842,7 +853,8 @@ test("preserves manual future sessions while rebalancing recurring allocations",
        session_date,
        start_time,
        capacity,
-       status
+       status,
+       trainer_user_id
      )
      VALUES (
        $1,
@@ -852,7 +864,8 @@ test("preserves manual future sessions while rebalancing recurring allocations",
          + 7,
        '19:00',
        1,
-       'scheduled'
+       'scheduled',
+       ${OWNER_SUBQUERY}
      )
      RETURNING id`,
     [packageResult.rows[0].program_id]

@@ -12,7 +12,12 @@ import {
   upcomingMonday
 } from "./helpers/dates.js";
 import { businessToday, timezoneWhereLocalHourIs } from "./helpers/businessClock.js";
-import { ensureTestTrainer, OWNER_SUBQUERY } from "./helpers/trainer.js";
+import {
+  actorFor,
+  bindSessionsActor,
+  ensureTestTrainer,
+  OWNER_SUBQUERY
+} from "./helpers/trainer.js";
 
 const { Pool } = pg;
 
@@ -30,18 +35,26 @@ const testPool = new Pool({ connectionString: env.testDatabaseUrl });
 
 // Fixtures own their clients since AUTH-03, so the suite needs a trainer
 // for them to belong to. Top-level await, so it is done before any test runs.
-await ensureTestTrainer(testPool);
-const service = createSessionsService(createSessionsRepository(testPool));
+const owner = await ensureTestTrainer(testPool);
+// Every sessions service call takes the acting trainer since AUTH-04. Bound
+// once here so the call sites below stay about scheduling.
+const service = bindSessionsActor(
+  createSessionsService(createSessionsRepository(testPool)),
+  actorFor(owner)
+);
 const createdClientIds = [];
 
 async function createClientPackage(suffix, options = {}) {
   const clientResult = await testPool.query(
+    // options.ownerId is for the two-trainer tests; everything else belongs
+    // to the suite's own trainer.
     `INSERT INTO clients (name, phone, email, trainer_user_id)
-     VALUES ($1, '+27 82 444 9000', $2, ${OWNER_SUBQUERY})
+     VALUES ($1, '+27 82 444 9000', $2, COALESCE($3::bigint, ${OWNER_SUBQUERY}))
      RETURNING id`,
     [
       `Phase 4 ${suffix}`,
-      `phase4-${suffix}-${Date.now()}-${Math.random().toString(16).slice(2)}@example.com`
+      `phase4-${suffix}-${Date.now()}-${Math.random().toString(16).slice(2)}@example.com`,
+      options.ownerId || null
     ]
   );
   const clientId = clientResult.rows[0].id;
@@ -358,8 +371,9 @@ test("enforces session timing for cancellation, rescheduling, and outcomes", asy
   // the 05:00 floor if the suite runs before 05:30, so the business timezone is
   // chosen rather than inherited. See helpers/businessClock.js.
   const businessTimezone = timezoneWhereLocalHourIs();
-  const timedService = createSessionsService(
-    createSessionsRepository(testPool, { businessTimezone })
+  const timedService = bindSessionsActor(
+    createSessionsService(createSessionsRepository(testPool, { businessTimezone })),
+    actorFor(owner)
   );
 
   if (isTrainingDay(await businessToday(testPool, businessTimezone))) {
@@ -561,8 +575,9 @@ test("a day cancel rolls back entirely when one session has already started", as
   // evening. The business timezone is chosen so both land inside the window
   // whatever time the suite runs. See helpers/businessClock.js.
   const businessTimezone = timezoneWhereLocalHourIs();
-  const timedService = createSessionsService(
-    createSessionsRepository(testPool, { businessTimezone })
+  const timedService = bindSessionsActor(
+    createSessionsService(createSessionsRepository(testPool, { businessTimezone })),
+    actorFor(owner)
   );
   const today = await businessToday(testPool, businessTimezone);
   if (!isTrainingDay(today)) return;
@@ -639,4 +654,129 @@ test("an attendee carries the newest goal they have not achieved yet", async () 
   const afterAchieving = await service.listWeek(day(0));
   const refreshed = afterAchieving.find((session) => session.id === created.id);
   assert.equal(refreshed.attendees[0].goal, null);
+});
+
+// AUTH-04. Both plain trainers on purpose: an admin sees everything, so using
+// one here would make these pass for the wrong reason. The week is anchored
+// past day(28), the furthest any other test in this file reaches.
+async function twoTrainers() {
+  const alice = actorFor(
+    await ensureTestTrainer(testPool, {
+      email: "alice-sessions@days4fitness.test",
+      role: "trainer"
+    })
+  );
+  const bob = actorFor(
+    await ensureTestTrainer(testPool, {
+      email: "bob-sessions@days4fitness.test",
+      role: "trainer"
+    })
+  );
+  // Unbound, so every call has to name who is asking.
+  const raw = createSessionsService(createSessionsRepository(testPool));
+  return { alice, bob, raw };
+}
+
+test("two trainers can work the same hour but cannot touch each other's sessions", async () => {
+  const { alice, bob, raw } = await twoTrainers();
+  const hers = await createClientPackage("alice-slot", { ownerId: alice.id });
+  const his = await createClientPackage("bob-slot", { ownerId: bob.id });
+  const herOther = await createClientPackage("alice-double", { ownerId: alice.id });
+  const slot = { sessionDate: day(35), startTime: "09:00" };
+
+  // The whole point of the ticket: 09:00 for both of them is a normal day.
+  const herSession = await raw.createManual({ clientId: hers.clientId, ...slot }, alice);
+  const hisSession = await raw.createManual({ clientId: his.clientId, ...slot }, bob);
+  assert.notEqual(herSession.id, hisSession.id);
+  assert.equal(herSession.trainerId, Number(alice.id));
+  assert.equal(hisSession.trainerId, Number(bob.id));
+
+  // One trainer twice in the same hour is still a clash.
+  await assert.rejects(
+    () => raw.createManual({ clientId: herOther.clientId, ...slot }, alice),
+    (error) => error.status === 409
+  );
+
+  // The schedule shows each of them only their own.
+  const herWeek = await raw.listWeek(day(35), alice);
+  assert.ok(herWeek.some((session) => session.id === herSession.id));
+  assert.ok(
+    !herWeek.some((session) => session.id === hisSession.id),
+    "Alice must not see Bob's session in her week"
+  );
+
+  // Every id-addressed way in has to refuse, and as missing rather than
+  // forbidden: a 403 would confirm the session exists.
+  await assert.rejects(() => raw.getSession(hisSession.id, alice), { status: 404 });
+  await assert.rejects(() => raw.cancel(hisSession.id, alice), { status: 404 });
+  await assert.rejects(
+    () => raw.reschedule(hisSession.id, { sessionDate: day(36), startTime: "09:00" }, alice),
+    { status: 404 }
+  );
+  await assert.rejects(
+    () =>
+      raw.createReplacement(
+        hisSession.id,
+        { sessionDate: day(36), startTime: "09:00" },
+        alice
+      ),
+    { status: 404 }
+  );
+  await assert.rejects(() => raw.recordOutcome(hisSession.id, {}, "completed", alice), {
+    status: 404
+  });
+  // Booking for somebody else's client reads as a missing client.
+  await assert.rejects(
+    () =>
+      raw.createManual(
+        { clientId: his.clientId, sessionDate: day(36), startTime: "10:00" },
+        alice
+      ),
+    { status: 404 }
+  );
+
+  // None of that changed anything.
+  const stillHis = await raw.getSession(hisSession.id, bob);
+  assert.equal(stillHis.status, "scheduled");
+  assert.equal(stillHis.startTime, "09:00");
+  assert.equal(stillHis.attendees.length, 1);
+});
+
+test("a trainer clearing their own day leaves the other trainer's day alone", async () => {
+  const { alice, bob, raw } = await twoTrainers();
+  const hers = await createClientPackage("alice-day", { ownerId: alice.id });
+  const his = await createClientPackage("bob-day", { ownerId: bob.id });
+  const slot = { sessionDate: day(37), startTime: "11:00" };
+
+  const herSession = await raw.createManual({ clientId: hers.clientId, ...slot }, alice);
+  const hisSession = await raw.createManual({ clientId: his.clientId, ...slot }, bob);
+
+  const cleared = await raw.cancelDay({ sessionDate: day(37) }, alice);
+
+  assert.deepEqual(cleared.sessionIds, [herSession.id]);
+  assert.equal(cleared.cancelled, 1);
+  assert.equal((await raw.getSession(herSession.id, alice)).status, "cancelled");
+  assert.equal((await raw.getSession(hisSession.id, bob)).status, "scheduled");
+});
+
+test("a session cannot hold a client who belongs to another trainer", async () => {
+  // The database backstop. The service checks ownership before every write,
+  // but the session's trainer is derived from its people, so the two must not
+  // be able to drift apart whatever reaches the table.
+  const { alice, bob, raw } = await twoTrainers();
+  const hers = await createClientPackage("alice-trigger", { ownerId: alice.id });
+  const his = await createClientPackage("bob-trigger", { ownerId: bob.id });
+  const herSession = await raw.createManual(
+    { clientId: hers.clientId, sessionDate: day(37), startTime: "14:00" },
+    alice
+  );
+
+  await assert.rejects(
+    testPool.query(
+      `INSERT INTO session_attendance (session_id, client_id, package_id)
+       VALUES ($1, $2, $3)`,
+      [herSession.id, his.clientId, his.packageId]
+    ),
+    (error) => error.code === "23514"
+  );
 });
