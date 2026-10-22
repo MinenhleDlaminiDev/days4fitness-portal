@@ -1,4 +1,5 @@
 import { validationError } from "../errors/AppError.js";
+import { ownerScope } from "../lib/ownership.js";
 import { requireIsoDate } from "../lib/validation.js";
 import { reportsRepository } from "../repositories/reports.repository.js";
 
@@ -31,11 +32,15 @@ function requireRange(query = {}) {
 
 export function createReportsService(repository = reportsRepository) {
   return {
-    async getReport(query = {}) {
+    async getReport(query = {}, actor) {
       const range = requireRange(query);
+      // Every rate below divides one scoped figure by another. A scoped
+      // numerator over an unscoped denominator is still a wrong percentage,
+      // so the denominator has to come out of the same scoped query.
+      const scope = ownerScope(actor);
       const [summary, clientRows] = await Promise.all([
-        repository.getSummary(range),
-        repository.getClientBreakdown(range)
+        repository.getSummary(range, scope),
+        repository.getClientBreakdown(range, scope)
       ]);
 
       const attendancesTotal = summary.attendances_total ?? 0;

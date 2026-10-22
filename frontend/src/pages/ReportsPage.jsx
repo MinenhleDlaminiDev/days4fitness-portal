@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { BarChart3, CalendarRange, RefreshCw, TrendingUp, UserRound } from "lucide-react";
 import { fetchReport, getApiErrorMessage } from "../lib/api.js";
 import { localDateInputValue } from "../lib/date.js";
+import { useAuth } from "../context/AuthContext.jsx";
 
 function money(value) {
   return `R${Number(value || 0).toFixed(2)}`;
@@ -34,6 +35,10 @@ function Tile({ icon: Icon, label, value, hint }) {
 }
 
 export default function ReportsPage() {
+  // AUTH-06. A trainer sees their own numbers; an admin sees every trainer's
+  // added together, and a combined total has to be labelled as one.
+  const { trainer } = useAuth();
+  const seesEveryTrainer = trainer?.role === "admin";
   const [preset, setPreset] = useState("this-month");
   const [range, setRange] = useState(() => monthRange(0));
   const [report, setReport] = useState(null);
@@ -80,7 +85,11 @@ export default function ReportsPage() {
           Trainer workspace
         </p>
         <h1 className="page-title">Reports</h1>
-        <p className="page-subtitle">Revenue, attendance and per-client totals</p>
+        <p className="page-subtitle">
+          {seesEveryTrainer
+            ? "Revenue, attendance and per-client totals — every trainer combined"
+            : "Revenue, attendance and per-client totals"}
+        </p>
       </header>
 
       <div className="surface-card space-y-3">
@@ -155,7 +164,16 @@ export default function ReportsPage() {
       {!isLoading && !error && report && !isEmpty && (
         <>
           <div className="grid gap-3 sm:grid-cols-3">
-            <Tile icon={TrendingUp} label="Revenue" value={money(report.revenue)} hint="Payments received in this period" />
+            <Tile
+              icon={TrendingUp}
+              label="Revenue"
+              value={money(report.revenue)}
+              hint={
+                seesEveryTrainer
+                  ? "Payments received in this period, all trainers"
+                  : "Payments received in this period"
+              }
+            />
             <Tile
               icon={BarChart3}
               label="Sessions completed"

@@ -1,4 +1,5 @@
 import { sessionTypeFromDatabase } from "../config/businessRules.js";
+import { ownerScope } from "../lib/ownership.js";
 import { dashboardRepository } from "../repositories/dashboard.repository.js";
 
 function money(value) {
@@ -58,18 +59,24 @@ function toSummaryDto(row) {
   };
 }
 
+// How many rows each dashboard list shows. Named so the scope cannot slide
+// into the limit position when a call site forgets one.
+const LIST_LIMIT = 5;
+
 export function createDashboardService(repository = dashboardRepository) {
   return {
-    async getTodaySessions() {
-      return (await repository.findTodaySessions()).map(toTodaySessionDto);
+    async getTodaySessions(actor) {
+      const scope = ownerScope(actor);
+      return (await repository.findTodaySessions(scope)).map(toTodaySessionDto);
     },
 
-    async getOverview() {
+    async getOverview(actor) {
+      const scope = ownerScope(actor);
       const [sessions, summaryRow, unpaidPackages, expiringPackages] = await Promise.all([
-        repository.findTodaySessions(),
-        repository.getSummary(),
-        repository.findUnpaidPackages(),
-        repository.findExpiringPackages()
+        repository.findTodaySessions(scope),
+        repository.getSummary(scope),
+        repository.findUnpaidPackages(LIST_LIMIT, scope),
+        repository.findExpiringPackages(LIST_LIMIT, scope)
       ]);
       const todaySessions = sessions.map(toTodaySessionDto);
       return {

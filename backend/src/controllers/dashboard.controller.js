@@ -5,7 +5,7 @@ export function createDashboardController(service = dashboardService) {
   return {
     async overview(req, res, next) {
       try {
-        sendData(res, await service.getOverview());
+        sendData(res, await service.getOverview(req.auth.user));
       } catch (error) {
         next(error);
       }
@@ -13,7 +13,7 @@ export function createDashboardController(service = dashboardService) {
 
     async todaySessions(req, res, next) {
       try {
-        sendData(res, await service.getTodaySessions());
+        sendData(res, await service.getTodaySessions(req.auth.user));
       } catch (error) {
         next(error);
       }

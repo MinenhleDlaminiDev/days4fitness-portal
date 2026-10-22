@@ -4,7 +4,7 @@ import pg from "pg";
 import { env } from "../src/config/env.js";
 import { createDashboardRepository } from "../src/repositories/dashboard.repository.js";
 import { createDashboardService } from "../src/services/dashboard.service.js";
-import { ensureTestTrainer, OWNER_SUBQUERY } from "./helpers/trainer.js";
+import { actorFor, ensureTestTrainer, OWNER_SUBQUERY } from "./helpers/trainer.js";
 
 const { Pool } = pg;
 
@@ -16,7 +16,11 @@ const testPool = new Pool({ connectionString: env.testDatabaseUrl });
 
 // Fixtures own their clients since AUTH-03, so the suite needs a trainer
 // for them to belong to. Top-level await, so it is done before any test runs.
-await ensureTestTrainer(testPool);
+// AUTH-06 scopes every figure to whoever asks. This suite asks as the admin
+// that owns its fixtures, so its before-and-after deltas stay business-wide.
+// Per-trainer scoping is its own suite, dashboard.scoping.integration.test.js.
+const admin = await ensureTestTrainer(testPool);
+const actor = actorFor(admin);
 const service = createDashboardService(createDashboardRepository(testPool));
 
 after(async () => {
@@ -101,7 +105,7 @@ function currentOrNextTrainingDateSql() {
 }
 
 async function snapshot() {
-  const overview = await service.getOverview();
+  const overview = await service.getOverview(actor);
   return overview.summary;
 }
 
@@ -237,7 +241,7 @@ test("returns dashboard reporting summaries from real PostgreSQL data", async ()
       [completedSession.rows[0].id, expiring.clientId, expiring.packageId]
     );
 
-    const overview = await service.getOverview();
+    const overview = await service.getOverview(actor);
     const after = overview.summary;
 
     assert.equal(after.todaySessions, before.todaySessions + (canCreateTodaySession ? 1 : 0));
@@ -262,7 +266,7 @@ test("returns dashboard reporting summaries from real PostgreSQL data", async ()
     assert.equal(expiringRow.clientPhone, "+27 82 555 0700");
     assert.ok(expiringRow.clientEmail.includes("@example.com"));
 
-    const todaySessions = await service.getTodaySessions();
+    const todaySessions = await service.getTodaySessions(actor);
     if (canCreateTodaySession) {
       assert.ok(todaySessions.some((session) => session.id === activeSession.rows[0].id));
     }

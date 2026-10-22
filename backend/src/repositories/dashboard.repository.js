@@ -1,14 +1,24 @@
 import { env } from "../config/env.js";
 import { pool } from "../db/client.js";
+import { requireScope } from "../lib/ownership.js";
 
 const TODAY_SQL = "(CURRENT_TIMESTAMP AT TIME ZONE $1)::date";
+
+// AUTH-06. Every aggregate below is filtered by owner, because a total looks
+// plausible whatever it contains: a missed join here does not throw, it
+// quietly reports another trainer's money. Before this change the revenue
+// rollup read package_payments with no path to a client at all.
+//
+// Sessions carry trainer_user_id directly since AUTH-04. Packages and
+// payments reach their owner through the client, so the rollups that read
+// them join clients even when they need no column from it.
 
 export function createDashboardRepository(
   dbPool = pool,
   { businessTimezone = env.businessTimezone } = {}
 ) {
   return {
-    async findTodaySessions() {
+    async findTodaySessions(scope) {
       const result = await dbPool.query(
         `SELECT
            session.id,
@@ -42,14 +52,15 @@ export function createDashboardRepository(
          ) payment_totals ON true
          WHERE session.session_date = ${TODAY_SQL}
            AND session.status <> 'cancelled'
+           AND ($2::bigint IS NULL OR session.trainer_user_id = $2)
          GROUP BY session.id, program.name
          ORDER BY session.start_time, session.id`,
-        [businessTimezone]
+        [businessTimezone, requireScope(scope)]
       );
       return result.rows;
     },
 
-    async getSummary() {
+    async getSummary(scope) {
       const result = await dbPool.query(
         `WITH latest_packages AS (
            SELECT DISTINCT ON (package.client_id)
@@ -68,6 +79,7 @@ export function createDashboardRepository(
              WHERE payment.package_id = package.id
            ) payment_totals ON true
            WHERE client.is_active = true
+             AND ($2::bigint IS NULL OR client.trainer_user_id = $2)
            ORDER BY package.client_id, package.created_at DESC, package.id DESC
          ),
          package_rollup AS (
@@ -92,16 +104,20 @@ export function createDashboardRepository(
            JOIN clients client ON client.id = attendance.client_id
            WHERE client.is_active = true
              AND attendance.status = 'completed'
+             AND ($2::bigint IS NULL OR client.trainer_user_id = $2)
          ),
          revenue_rollup AS (
            SELECT
-             COALESCE(SUM(amount) FILTER (
-               WHERE date_trunc('month', payment_date::timestamp)
+             COALESCE(SUM(payment.amount) FILTER (
+               WHERE date_trunc('month', payment.payment_date::timestamp)
                    = date_trunc('month', ${TODAY_SQL}::timestamp)
-                 AND payment_date <= ${TODAY_SQL}
+                 AND payment.payment_date <= ${TODAY_SQL}
              ), 0)::numeric(10,2) AS month_revenue,
-             COALESCE(SUM(amount), 0)::numeric(10,2) AS net_revenue
-           FROM package_payments
+             COALESCE(SUM(payment.amount), 0)::numeric(10,2) AS net_revenue
+           FROM package_payments payment
+           JOIN packages package ON package.id = payment.package_id
+           JOIN clients client ON client.id = package.client_id
+           WHERE ($2::bigint IS NULL OR client.trainer_user_id = $2)
          )
          SELECT
            attendance_rollup.completed_sessions,
@@ -111,12 +127,12 @@ export function createDashboardRepository(
          FROM package_rollup
          CROSS JOIN attendance_rollup
          CROSS JOIN revenue_rollup`,
-        [businessTimezone]
+        [businessTimezone, requireScope(scope)]
       );
       return result.rows[0];
     },
 
-    async findUnpaidPackages(limit = 5) {
+    async findUnpaidPackages(limit = 5, scope) {
       const result = await dbPool.query(
         `SELECT *
          FROM (
@@ -145,17 +161,18 @@ export function createDashboardRepository(
              WHERE payment.package_id = package.id
            ) payment_totals ON true
            WHERE client.is_active = true
+             AND ($2::bigint IS NULL OR client.trainer_user_id = $2)
            ORDER BY package.client_id, package.created_at DESC, package.id DESC
          ) latest_package
          WHERE paid_amount < price
          ORDER BY outstanding_balance DESC, expiry_date, id
          LIMIT $1`,
-        [limit]
+        [limit, requireScope(scope)]
       );
       return result.rows;
     },
 
-    async findExpiringPackages(limit = 5) {
+    async findExpiringPackages(limit = 5, scope) {
       const result = await dbPool.query(
         `SELECT *
          FROM (
@@ -176,6 +193,7 @@ export function createDashboardRepository(
            JOIN clients client ON client.id = package.client_id
            JOIN programs program ON program.id = package.program_id
            WHERE client.is_active = true
+             AND ($3::bigint IS NULL OR client.trainer_user_id = $3)
            ORDER BY package.client_id, package.created_at DESC, package.id DESC
          ) latest_package
          WHERE expiry_date::date >= ${TODAY_SQL}
@@ -183,7 +201,7 @@ export function createDashboardRepository(
            AND sessions_used < sessions_total
          ORDER BY expiry_date::date, id
          LIMIT $2`,
-        [businessTimezone, limit]
+        [businessTimezone, limit, requireScope(scope)]
       );
       return result.rows;
     }

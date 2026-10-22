@@ -5,7 +5,7 @@ import { env } from "../src/config/env.js";
 import { createReportsRepository } from "../src/repositories/reports.repository.js";
 import { createReportsService } from "../src/services/reports.service.js";
 import { addDays, addMonths, daysFromToday, upcomingMonday } from "./helpers/dates.js";
-import { ensureTestTrainer, OWNER_SUBQUERY } from "./helpers/trainer.js";
+import { actorFor, ensureTestTrainer, OWNER_SUBQUERY } from "./helpers/trainer.js";
 
 const { Pool } = pg;
 
@@ -17,7 +17,11 @@ const testPool = new Pool({ connectionString: env.testDatabaseUrl });
 
 // Fixtures own their clients since AUTH-03, so the suite needs a trainer
 // for them to belong to. Top-level await, so it is done before any test runs.
-await ensureTestTrainer(testPool);
+// AUTH-06 scopes every figure to whoever asks. This suite asks as the admin
+// that owns its fixtures, so it still sees the business-wide totals it
+// asserts. Per-trainer scoping is reports.scoping.integration.test.js.
+const admin = await ensureTestTrainer(testPool);
+const actor = actorFor(admin);
 const service = createReportsService(createReportsRepository(testPool));
 
 // A private window, so the assertions are exact rather than "greater than
@@ -106,7 +110,7 @@ test("aggregates revenue, session outcomes and per-client totals for a range", a
   await seedClient("Reports Busy", { completed: 4, noShow: 1, cancelled: 2, paid: 3000 });
   await seedClient("Reports Quiet", { completed: 1, noShow: 0, cancelled: 0, paid: 500 });
 
-  const report = await service.getReport({ from: day(0), to: day(6) });
+  const report = await service.getReport({ from: day(0), to: day(6) }, actor);
 
   assert.equal(report.revenue, 3500, "revenue sums payments in the range");
   assert.equal(report.sessions.completed, 5);
@@ -132,7 +136,7 @@ test("aggregates revenue, session outcomes and per-client totals for a range", a
 });
 
 test("a range before the data returns zeroes and no clients", async () => {
-  const report = await service.getReport({ from: day(-21), to: day(-15) });
+  const report = await service.getReport({ from: day(-21), to: day(-15) }, actor);
 
   assert.equal(report.revenue, 0);
   assert.equal(report.sessions.total, 0);

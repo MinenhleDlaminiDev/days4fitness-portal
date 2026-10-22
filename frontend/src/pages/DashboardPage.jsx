@@ -16,6 +16,7 @@ import {
   outstandingPaymentMessage
 } from "../lib/contact.js";
 import ContactActions from "../components/ContactActions.jsx";
+import { useAuth } from "../context/AuthContext.jsx";
 
 const emptyDashboard = {
   summary: {
@@ -57,6 +58,11 @@ function sessionStatusLabel(session) {
 }
 
 export default function DashboardPage() {
+  // AUTH-06. The API scopes every figure below to whoever is asking, so an
+  // admin's tiles are the whole business added together. That has to say so
+  // on screen: "Unpaid 7" means something different to each of them.
+  const { trainer } = useAuth();
+  const seesEveryTrainer = trainer?.role === "admin";
   const [dashboard, setDashboard] = useState(emptyDashboard);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -98,7 +104,11 @@ export default function DashboardPage() {
         <div className="flex items-start justify-between gap-3">
           <div>
             <h1 className="page-title">Dashboard</h1>
-            <p className="page-subtitle">Trainer management overview</p>
+            <p className="page-subtitle">
+              {seesEveryTrainer
+                ? "Every trainer's figures combined"
+                : "Trainer management overview"}
+            </p>
           </div>
         </div>
         <div className="mt-3 flex flex-wrap gap-2">
