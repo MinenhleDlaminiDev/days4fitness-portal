@@ -48,3 +48,26 @@ export async function applyMigrations(db, log = console.log) {
     }
   }
 }
+
+// A rolling deploy starts several instances at once, so the run is serialised
+// on an advisory lock rather than left to race on schema_migrations: the first
+// instance applies, the rest wait and then find nothing to do. The lock is
+// session-scoped, so it is held on one dedicated connection for the whole run.
+// lock_timeout stops a stuck holder from blocking boot forever -- the wait ends
+// in an error, the container exits, and the platform retries.
+const MIGRATION_LOCK_KEY = 8472013;
+
+export async function applyMigrationsWithLock(pool, log = console.log, waitMs = 60000) {
+  const client = await pool.connect();
+
+  try {
+    await client.query(`SET lock_timeout = ${Number(waitMs)}`);
+    await client.query("SELECT pg_advisory_lock($1)", [MIGRATION_LOCK_KEY]);
+    await applyMigrations(pool, log);
+  } finally {
+    await client
+      .query("SELECT pg_advisory_unlock($1)", [MIGRATION_LOCK_KEY])
+      .catch(() => {});
+    client.release();
+  }
+}
