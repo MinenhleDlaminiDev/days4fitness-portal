@@ -381,6 +381,97 @@ test("a goal given at signup is saved with the client, and a bad one saves nothi
   }
 });
 
+// SCH-04. The symptom was that "updates, filters, archives, and restores a
+// client" failed only between 00:00 and 02:00 SAST, because Postgres runs in
+// UTC and a bare CURRENT_DATE in a plain pool query is the UTC day. Waiting
+// for midnight is not a test, so the clock is pinned instead: the pool's
+// connections sit 26 hours behind the business zone, so the server's day and
+// the business day ALWAYS disagree, at any hour the suite is run.
+//
+// Pacific/Kiritimati is UTC+14 and Etc/GMT+12 is UTC-12. 26 hours apart is
+// more than a day, so the business date is never the server's date -- which is
+// the production situation (UTC server, SAST business) held open permanently
+// rather than for two hours a night.
+const PINNED_BUSINESS_ZONE = "Pacific/Kiritimati";
+const PINNED_SERVER_ZONE = "Etc/GMT+12";
+
+function todayIn(timeZone) {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).format(new Date());
+}
+
+test("package filters read today from the business clock, not the server's", async () => {
+  const pinnedPool = new Pool({
+    connectionString: env.testDatabaseUrl,
+    options: `-c timezone=${PINNED_SERVER_ZONE}`
+  });
+  const pinnedService = bindActor(
+    createClientsService(
+      createClientsRepository(pinnedPool, { businessTimezone: PINNED_BUSINESS_ZONE }),
+      withSettings(pinnedPool)
+    ),
+    actorFor(trainer)
+  );
+
+  const businessToday = todayIn(PINNED_BUSINESS_ZONE);
+  const email = `clock-${Date.now()}@example.com`;
+  let created = null;
+
+  try {
+    // The pin is only meaningful if the two clocks actually disagree. Assert
+    // that first, so this test can never pass by quietly becoming vacuous.
+    const serverDay = await pinnedPool.query("SELECT CURRENT_DATE::text AS today");
+    assert.notEqual(
+      serverDay.rows[0].today,
+      businessToday,
+      "the pinned pool must see a different day from the business zone"
+    );
+
+    created = await pinnedService.createClient({
+      name: "Clock Client",
+      phone: "+27 82 999 0100",
+      email,
+      program: "Weight Loss",
+      sessionType: "One-on-One",
+      packageSize: 4,
+      purchaseDate: businessToday,
+      paid: false
+    });
+
+    // Bought today on the business clock, so it is active. Against the
+    // server's earlier day the purchase looks like a future one and the
+    // client drops out of the filter entirely -- the original defect.
+    const active = await pinnedService.listClients({
+      search: email,
+      status: "active",
+      packageStatus: "active",
+      page: 1,
+      pageSize: 10
+    });
+    assert.equal(active.pagination.total, 1);
+    assert.equal(active.items[0].id, created.id);
+
+    // And it is not expired: the same two dates read the other way.
+    const expired = await pinnedService.listClients({
+      search: email,
+      status: "active",
+      packageStatus: "expired",
+      page: 1,
+      pageSize: 10
+    });
+    assert.equal(expired.pagination.total, 0);
+  } finally {
+    if (created) {
+      await pinnedPool.query("DELETE FROM clients WHERE id = $1", [created.id]);
+    }
+    await pinnedPool.end();
+  }
+});
+
 test("two trainers cannot see or touch each other's clients", async () => {
   // Both plain trainers on purpose: an admin sees everything, so using one
   // here would make the test pass for the wrong reason.

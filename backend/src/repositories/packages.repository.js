@@ -1,7 +1,10 @@
 import { pool } from "../db/client.js";
+import { env } from "../config/env.js";
 import { requireScope } from "../lib/ownership.js";
 
-const PACKAGE_FINANCIAL_SELECT = `
+// SCH-04: read off the pool, so the connection carries the server's zone.
+// The business day comes from the timestamp instead, with the zone passed in.
+const packageFinancialSelect = (today) => `
   SELECT
     package.id,
     package.client_id,
@@ -23,9 +26,9 @@ const PACKAGE_FINANCIAL_SELECT = `
       ELSE 'unpaid'
     END AS payment_status,
     CASE
-      WHEN CURRENT_DATE > package.expiry_date THEN 'expired'
+      WHEN ${today} > package.expiry_date THEN 'expired'
       WHEN package.sessions_used >= package.sessions_total THEN 'exhausted'
-      WHEN CURRENT_DATE < package.purchase_date THEN 'upcoming'
+      WHEN ${today} < package.purchase_date THEN 'upcoming'
       ELSE 'active'
     END AS package_status
   FROM packages package
@@ -37,7 +40,10 @@ const PACKAGE_FINANCIAL_SELECT = `
   ) payment_totals ON true
 `;
 
-export function createPackagesRepository(dbPool = pool) {
+export function createPackagesRepository(
+  dbPool = pool,
+  { businessTimezone = env.businessTimezone } = {}
+) {
   return {
     async clientExists(clientId, scope) {
       const result = await dbPool.query(
@@ -63,10 +69,10 @@ export function createPackagesRepository(dbPool = pool) {
 
     async findForClient(clientId) {
       const packagesResult = await dbPool.query(
-        `${PACKAGE_FINANCIAL_SELECT}
+        `${packageFinancialSelect("(CURRENT_TIMESTAMP AT TIME ZONE $2)::date")}
          WHERE package.client_id = $1
          ORDER BY package.created_at DESC, package.id DESC`,
-        [clientId]
+        [clientId, businessTimezone]
       );
       const packageIds = packagesResult.rows.map((row) => row.id);
       const paymentsResult =
@@ -105,6 +111,11 @@ export function createPackagesRepository(dbPool = pool) {
       const db = await dbPool.connect();
       try {
         await db.query("BEGIN");
+        // SCH-04: the renewal check below compares against CURRENT_DATE. On
+        // the server's UTC day a package that expired today still read as
+        // unexpired, so the renewal was refused outright with
+        // PACKAGE_STILL_ACTIVE. SET-05 only changed the expiry written.
+        await db.query("SELECT set_config('TimeZone', $1, true)", [businessTimezone]);
         const clientResult = await db.query(
           "SELECT id, preferred_schedule, trainer_user_id FROM clients WHERE id = $1 FOR UPDATE",
           [clientId]

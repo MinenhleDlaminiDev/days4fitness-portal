@@ -244,15 +244,23 @@ export function createClientsRepository(
       }
       if (status === "active") conditions.push("c.is_active = true");
       if (status === "archived") conditions.push("c.is_active = false");
-      if (packageStatus === "active") {
-        conditions.push(
-          "latest_package.purchase_date <= CURRENT_DATE",
-          "latest_package.expiry_date >= CURRENT_DATE",
-          "latest_package.sessions_used < latest_package.sessions_total"
-        );
-      }
-      if (packageStatus === "expired") {
-        conditions.push("latest_package.expiry_date < CURRENT_DATE");
+      // SCH-04: this is a plain pool query, so the connection carries the
+      // server's zone rather than the business one. A bare CURRENT_DATE here
+      // is the UTC day, which for the first two hours of every South African
+      // day is yesterday: a package bought that morning read as a future
+      // purchase and its client dropped out of the active filter. The day has
+      // to come from the timestamp, the form dashboard.repository already uses.
+      if (packageStatus === "active" || packageStatus === "expired") {
+        const today = `(CURRENT_TIMESTAMP AT TIME ZONE ${addValue(businessTimezone)})::date`;
+        if (packageStatus === "active") {
+          conditions.push(
+            `latest_package.purchase_date <= ${today}`,
+            `latest_package.expiry_date >= ${today}`,
+            "latest_package.sessions_used < latest_package.sessions_total"
+          );
+        } else {
+          conditions.push(`latest_package.expiry_date < ${today}`);
+        }
       }
 
       const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
@@ -432,6 +440,10 @@ export function createClientsRepository(
       const db = await dbPool.connect();
       try {
         await db.query("BEGIN");
+        // SCH-04: syncPreferenceRequests and the allocation it calls compare
+        // against LOCALTIMESTAMP, so the zone has to be the business one
+        // before either runs. update() already does this; this path did not.
+        await db.query("SELECT set_config('TimeZone', $1, true)", [businessTimezone]);
 
         const clientResult = await db.query(
           `INSERT INTO clients
@@ -770,6 +782,9 @@ export function createClientsRepository(
       const db = await dbPool.connect();
       try {
         await db.query("BEGIN");
+        // SCH-04: same reason as createWithPackage -- this reaches
+        // syncPreferenceRequests and the allocation below it.
+        await db.query("SELECT set_config('TimeZone', $1, true)", [businessTimezone]);
         const clientResult = await db.query(
           `SELECT id, is_active
            FROM clients

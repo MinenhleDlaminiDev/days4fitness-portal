@@ -3,20 +3,40 @@
 // until the wall clock moves past it, then fails forever. Everything here is
 // derived from today instead, so the suite keeps passing as time goes on.
 
+import { env } from "../../src/config/env.js";
+
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 function iso(date) {
   return date.toISOString().slice(0, 10);
 }
 
-function todayUtcMidnight() {
-  const now = new Date();
-  return new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+/**
+ * Today on the business clock, as a UTC-midnight Date so the arithmetic below
+ * stays zone-free.
+ *
+ * SCH-04: this used to read the machine's local calendar components. The
+ * queries read the day from the business timezone, so between midnight and
+ * 02:00 SAST a fixture built here and the query it was written for could
+ * disagree about what day it was -- which is how that defect surfaced as a
+ * test failure rather than a support ticket. Both sides now read one clock.
+ */
+function todayInBusinessZone() {
+  const [year, month, day] = new Intl.DateTimeFormat("en-CA", {
+    timeZone: env.businessTimezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  })
+    .format(new Date())
+    .split("-")
+    .map(Number);
+  return new Date(Date.UTC(year, month - 1, day));
 }
 
 /** An ISO date `offset` days from today. Negative values are in the past. */
 export function daysFromToday(offset) {
-  return iso(new Date(todayUtcMidnight().getTime() + offset * DAY_MS));
+  return iso(new Date(todayInBusinessZone().getTime() + offset * DAY_MS));
 }
 
 /**
@@ -25,7 +45,7 @@ export function daysFromToday(offset) {
  * Monday to Saturday, so an anchor that drifts across weekdays breaks them.
  */
 export function upcomingMonday(minDaysAhead = 7) {
-  const date = new Date(todayUtcMidnight().getTime() + minDaysAhead * DAY_MS);
+  const date = new Date(todayInBusinessZone().getTime() + minDaysAhead * DAY_MS);
   while (date.getUTCDay() !== 1) {
     date.setUTCDate(date.getUTCDate() + 1);
   }

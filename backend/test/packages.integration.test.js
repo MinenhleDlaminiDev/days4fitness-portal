@@ -343,6 +343,56 @@ test("packages and payments follow the client's owner", async () => {
   }
 });
 
+// SCH-04. package_status is computed in PACKAGE_FINANCIAL_SELECT, which runs
+// off the pool, so a bare CURRENT_DATE there is the server's day. The clock is
+// pinned the same way the clients suite pins it: Pacific/Kiritimati (UTC+14)
+// and Etc/GMT+12 (UTC-12) are 26 hours apart, more than a day, so the business
+// date is never the server's date whatever hour the suite runs.
+const PINNED_BUSINESS_ZONE = "Pacific/Kiritimati";
+const PINNED_SERVER_ZONE = "Etc/GMT+12";
+
+test("package_status reads today from the business clock, not the server's", async () => {
+  const pinnedPool = new Pool({
+    connectionString: env.testDatabaseUrl,
+    options: `-c timezone=${PINNED_SERVER_ZONE}`
+  });
+  const pinnedRepository = createPackagesRepository(pinnedPool, {
+    businessTimezone: PINNED_BUSINESS_ZONE
+  });
+
+  const businessToday = new Intl.DateTimeFormat("en-CA", {
+    timeZone: PINNED_BUSINESS_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).format(new Date());
+  const { clientId, packageId } = await createClientAndPackage();
+
+  try {
+    const serverDay = await pinnedPool.query("SELECT CURRENT_DATE::text AS today");
+    assert.notEqual(
+      serverDay.rows[0].today,
+      businessToday,
+      "the pinned pool must see a different day from the business zone"
+    );
+
+    // Bought on the business day and expiring two months later, so it is
+    // active. Read against the server's earlier day the purchase is still in
+    // the future and the status comes back "upcoming" instead.
+    await pinnedPool.query(
+      "UPDATE packages SET purchase_date = $2::date, expiry_date = $3::date WHERE id = $1",
+      [packageId, businessToday, addMonths(businessToday, 2)]
+    );
+
+    const packages = await pinnedRepository.findForClient(clientId);
+    const renewed = packages.find((row) => String(row.id) === String(packageId));
+    assert.equal(renewed.package_status, "active");
+  } finally {
+    await pinnedPool.query("DELETE FROM clients WHERE id = $1", [clientId]);
+    await pinnedPool.end();
+  }
+});
+
 test("a renewal expires on the owning trainer's window, not a hardcoded two months", async () => {
   // Two plain trainers with two different windows, neither of them 2. One
   // window would pass by accident if the code still read a single setting;
