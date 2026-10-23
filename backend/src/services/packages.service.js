@@ -75,6 +75,15 @@ function translateError(error) {
   if (error.code === "PACKAGE_CONFIGURATION_MISSING") {
     throw validationError("Selected package configuration is not available");
   }
+  // SET-05: packages_enforce_configured_expiry raises a plain check violation.
+  // Nothing mapped it, so a trainer whose expiry window was not 2 months got a
+  // 500 with no indication that a setting was involved. Matched on the trigger's
+  // own label so the table's other check constraints still surface as faults.
+  if (error.code === "23514" && String(error.message).includes("packages_configured_expiry_check")) {
+    throw conflictError(
+      "The package expiry date does not match the configured expiry window. Reload the page and try again."
+    );
+  }
   throw error;
 }
 

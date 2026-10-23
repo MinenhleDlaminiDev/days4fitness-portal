@@ -403,7 +403,7 @@ export default function ClientFormPage() {
               <p className="text-sm text-muted">Package Expires</p>
               <p className="text-lg font-semibold text-warn-text sm:text-xl">{expiryDate}</p>
               <p className="text-sm text-subtle">
-                {expiryMonths} months from purchase date
+                {expiryMonths} {expiryMonths === 1 ? "month" : "months"} from purchase date
               </p>
             </div>}
           </div>

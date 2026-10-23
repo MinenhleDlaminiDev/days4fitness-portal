@@ -18,7 +18,7 @@ import {
   UserX,
   X
 } from "lucide-react";
-import { daysUntil, formatShortDate, localDateInputValue } from "../lib/date.js";
+import { addMonths, daysUntil, formatShortDate, localDateInputValue } from "../lib/date.js";
 import {
   addPackagePayment,
   archiveClient,
@@ -75,7 +75,9 @@ export default function ClientProfilePage() {
   const [packageForm, setPackageForm] = useState({
     program: "",
     sessionType: "One-on-One",
-    sessionsTotal: 4,
+    // Filled from the trainer's own package sizes once the configuration
+    // arrives; see the effect below. Never a literal (SET-06).
+    sessionsTotal: "",
     purchaseDate: localDateInputValue()
   });
   const [paymentForm, setPaymentForm] = useState({
@@ -143,6 +145,21 @@ export default function ClientProfilePage() {
     return () => window.clearTimeout(timeout);
   }, [notice]);
 
+  // SET-06: the sizes on offer are this trainer's own since AUTH-10, so the
+  // renewal form cannot start on a literal. Snap to the first size the trainer
+  // actually sells whenever the held value is not one of them: on first load,
+  // and again if they change their sizes in /settings. Returning `current`
+  // unchanged when it is already valid keeps this from looping.
+  const packageSizes = configuration?.packageSizes;
+  useEffect(() => {
+    if (!packageSizes?.length) return;
+    setPackageForm((current) =>
+      packageSizes.includes(Number(current.sessionsTotal))
+        ? current
+        : { ...current, sessionsTotal: packageSizes[0] }
+    );
+  }, [packageSizes]);
+
   // Declared before the early returns below so the hook order stays stable.
   const closeArchiveConfirmation = useCallback(() => setShowArchiveConfirmation(false), []);
   const [isArchiveClosing, dismissArchiveConfirmation] = useDismissable(closeArchiveConfirmation);
@@ -194,6 +211,13 @@ export default function ClientProfilePage() {
   const availablePrograms = (configuration?.programs || []).filter(
     (program) => program.sessionType === packageForm.sessionType
   );
+  // SET-05: the expiry window is this trainer's own setting, and a renewal uses
+  // it. The signup form shows the date it will produce; this one showed nothing,
+  // so the screen where the window used to break gave no sign of it at all.
+  const renewalExpiryMonths = configuration?.packageExpiryMonths ?? 0;
+  const renewalExpiryDate = renewalExpiryMonths
+    ? addMonths(packageForm.purchaseDate, renewalExpiryMonths)
+    : "";
   // The draft message follows whatever most needs saying: money owed first,
   // then a package about to lapse, otherwise an opening line to type into.
   const expiresInDays = client.expiryDate ? daysUntil(client.expiryDate) : null;
@@ -844,7 +868,9 @@ export default function ClientProfilePage() {
                 className="h-11 rounded-xl border border-line-strong bg-surface px-3"
               >
                 {(configuration?.packageSizes || []).map((size) => (
-                  <option key={size} value={size}>{size} sessions</option>
+                  <option key={size} value={size}>
+                    {size} {size === 1 ? "session" : "sessions"}
+                  </option>
                 ))}
               </select>
             </div>
@@ -860,11 +886,27 @@ export default function ClientProfilePage() {
               }
               className="h-11 w-full rounded-xl border border-line-strong bg-surface px-3"
             />
+            {renewalExpiryDate && (
+              <div className="rounded-xl border-l-4 border-warn-border bg-warn-soft p-3">
+                <p className="text-sm text-muted">Package Expires</p>
+                <p className="text-lg font-semibold text-warn-text">{renewalExpiryDate}</p>
+                <p className="text-sm text-subtle">
+                  {renewalExpiryMonths} {renewalExpiryMonths === 1 ? "month" : "months"} from
+                  purchase date
+                </p>
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-2">
               <button type="button" onClick={() => setShowPackageForm(false)} className="action-btn action-btn-secondary">
                 Cancel
               </button>
-              <button type="submit" disabled={Boolean(packageAction)} className="action-btn action-btn-primary">
+              <button
+                type="submit"
+                // No size means the configuration has not arrived yet, so there
+                // is nothing to sell and nothing valid to submit (SET-06).
+                disabled={Boolean(packageAction) || !packageForm.sessionsTotal}
+                className="action-btn action-btn-primary"
+              >
                 {packageAction === "package" ? "Creating..." : "Create Package"}
               </button>
             </div>

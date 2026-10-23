@@ -342,3 +342,72 @@ test("packages and payments follow the client's owner", async () => {
     await testPool.query("DELETE FROM clients WHERE id = $1", [clientId]);
   }
 });
+
+test("a renewal expires on the owning trainer's window, not a hardcoded two months", async () => {
+  // Two plain trainers with two different windows, neither of them 2. One
+  // window would pass by accident if the code still read a single setting;
+  // two different ones cannot both pass unless each package follows its own
+  // client's owner.
+  const nia = actorFor(
+    await ensureTestTrainer(testPool, { email: "pkg-expiry-nia@days4fitness.test", role: "trainer" })
+  );
+  const theo = actorFor(
+    await ensureTestTrainer(testPool, { email: "pkg-expiry-theo@days4fitness.test", role: "trainer" })
+  );
+  await testPool.query(
+    "UPDATE scheduling_settings SET package_expiry_months = 3 WHERE trainer_user_id = $1",
+    [nia.id]
+  );
+  await testPool.query(
+    "UPDATE scheduling_settings SET package_expiry_months = 5 WHERE trainer_user_id = $1",
+    [theo.id]
+  );
+
+  const raw = createPackagesService(
+    createPackagesRepository(testPool),
+    withSettings(testPool)
+  );
+  // Yesterday, so the expiry is comfortably in the future for both windows.
+  const purchaseDate = daysFromToday(-1);
+  const stamp = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const clients = await testPool.query(
+    `INSERT INTO clients (name, phone, email, trainer_user_id)
+     VALUES ('Nia Expiry Client', '+27 82 910 0101', $1, $3),
+            ('Theo Expiry Client', '+27 82 910 0102', $2, $4)
+     RETURNING id, trainer_user_id`,
+    [
+      `expiry-nia-${stamp}@example.com`,
+      `expiry-theo-${stamp}@example.com`,
+      nia.id,
+      theo.id
+    ]
+  );
+  const niaClientId = clients.rows.find((row) => String(row.trainer_user_id) === String(nia.id)).id;
+  const theoClientId = clients.rows.find((row) => String(row.trainer_user_id) === String(theo.id)).id;
+  const renewal = {
+    program: "Weight Loss",
+    sessionType: "One-on-One",
+    sessionsTotal: 4,
+    purchaseDate
+  };
+
+  try {
+    // Before SET-05 both of these threw: the insert hardcoded two months and
+    // packages_enforce_configured_expiry rejected it as a check violation,
+    // which reached the caller as an unhandled 500.
+    const hers = await raw.createClientPackage(niaClientId, renewal, nia);
+    const theirs = await raw.createClientPackage(theoClientId, renewal, theo);
+
+    assert.equal(hers.expiryDate, addMonths(purchaseDate, 3));
+    assert.equal(theirs.expiryDate, addMonths(purchaseDate, 5));
+    assert.notEqual(
+      hers.expiryDate,
+      addMonths(purchaseDate, 2),
+      "two months is the value this ticket removed; it must not reappear"
+    );
+  } finally {
+    await testPool.query("DELETE FROM clients WHERE id = ANY($1::bigint[])", [
+      [niaClientId, theoClientId]
+    ]);
+  }
+});

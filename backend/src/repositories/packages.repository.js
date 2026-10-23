@@ -157,6 +157,11 @@ export function createPackagesRepository(dbPool = pool) {
           error.code = "PACKAGE_CONFIGURATION_MISSING";
           throw error;
         }
+        // SET-05: the expiry window is the owning trainer's, read in the same
+        // statement that does the insert. packages_enforce_configured_expiry
+        // reads the same row from the same snapshot, so the date written and
+        // the date demanded cannot disagree. Passing a number in from the
+        // service's settings cache would leave a window where they do.
         const result = await db.query(
           `INSERT INTO packages (
              client_id,
@@ -167,15 +172,18 @@ export function createPackagesRepository(dbPool = pool) {
              purchase_date,
              expiry_date
            )
-           VALUES (
-             $1,
-             $2,
-             $3,
-             $4,
+           SELECT
+             $1::bigint,
+             $2::bigint,
+             $3::int,
+             $4::numeric,
              false,
              $5::date,
-             ($5::date + INTERVAL '2 months')::date
-           )
+             ($5::date + make_interval(months => settings.package_expiry_months))::date
+           FROM clients client
+           JOIN scheduling_settings settings
+             ON settings.trainer_user_id = client.trainer_user_id
+           WHERE client.id = $1
            RETURNING id`,
           [
             clientId,
@@ -185,6 +193,15 @@ export function createPackagesRepository(dbPool = pool) {
             packageData.purchaseDate
           ]
         );
+        if (!result.rows[0]) {
+          // The join found no settings row for the owning trainer, so the
+          // insert matched nothing and wrote nothing. The trigger would have
+          // raised for the same reason had a row been written; say so here
+          // rather than returning a package id that does not exist.
+          const error = new Error("Package configuration is missing");
+          error.code = "PACKAGE_CONFIGURATION_MISSING";
+          throw error;
+        }
         const packageId = result.rows[0].id;
         const preferredSchedule = clientResult.rows[0].preferred_schedule || {};
         for (const [day, slots] of Object.entries(preferredSchedule)) {
