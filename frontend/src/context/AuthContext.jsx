@@ -7,6 +7,7 @@ import {
   loginTrainer,
   loginTrainerWithGoogle,
   logoutTrainer,
+  signupTrainer,
   signupTrainerWithGoogle,
   storeAuthToken
 } from "../lib/api.js";
@@ -77,6 +78,18 @@ export function AuthProvider({ children }) {
           return true;
         } catch (requestError) {
           setError(getApiErrorMessage(requestError, "Unable to sign in with Google."));
+          return false;
+        }
+      },
+      async signup(details) {
+        setError("");
+        try {
+          const result = await signupTrainer(details);
+          storeAuthToken(result.token);
+          setTrainer(result.user);
+          return true;
+        } catch (requestError) {
+          setError(getApiErrorMessage(requestError, "Unable to create the account."));
           return false;
         }
       },

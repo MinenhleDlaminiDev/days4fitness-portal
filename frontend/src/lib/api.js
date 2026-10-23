@@ -195,6 +195,11 @@ export async function loginTrainerWithGoogle(payload) {
   return responseData(response);
 }
 
+export async function signupTrainer(payload) {
+  const response = await api.post("/auth/signup", payload);
+  return responseData(response);
+}
+
 export async function signupTrainerWithGoogle(payload) {
   const response = await api.post("/auth/google/signup", payload);
   return responseData(response);

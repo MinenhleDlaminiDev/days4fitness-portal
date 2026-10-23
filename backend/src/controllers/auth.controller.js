@@ -12,6 +12,14 @@ export function createAuthController(service = authService) {
       }
     },
 
+    async signup(req, res, next) {
+      try {
+        sendData(res, await service.signup(req.body), { status: 201 });
+      } catch (error) {
+        next(error);
+      }
+    },
+
     async google(req, res, next) {
       try {
         sendData(res, await service.googleLogin(req.body));

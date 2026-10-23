@@ -14,9 +14,12 @@ function fakeRepository() {
       return state.users.length;
     },
     async createTrainerUser(user) {
+      // Mirrors ON CONFLICT (email) DO NOTHING ... RETURNING: null when taken.
+      const email = user.email.toLowerCase();
+      if (state.users.some((item) => item.email === email)) return null;
       const row = {
         id: state.users.length + 1,
-        email: user.email.toLowerCase(),
+        email,
         name: user.name,
         role: user.role,
         password_hash: user.passwordHash,
@@ -329,4 +332,122 @@ test("an inactive trainer is refused on both Google paths", async () => {
   await assert.rejects(() => service.googleSignup({ credential: "token" }), {
     code: "TRAINER_ACCOUNT_INACTIVE"
   });
+});
+
+// AUTH-07 ------------------------------------------------------------------
+
+const SIGNUP_OPTIONS = { allowedEmails: ["new-trainer@example.com"] };
+
+test("sign-up creates exactly one account, which can then sign in", async () => {
+  const repository = fakeRepository();
+  const service = createAuthService(repository, SIGNUP_OPTIONS);
+
+  const session = await service.signup({
+    email: "New-Trainer@example.com",
+    password: "CorrectHorse9",
+    name: "New Trainer"
+  });
+
+  assert.equal(repository.state.users.length, 1);
+  assert.equal(repository.state.users[0].email, "new-trainer@example.com");
+  assert.equal(repository.state.users[0].role, "trainer");
+  assert.equal(session.user.email, "new-trainer@example.com");
+  assert.ok(session.token);
+
+  // The hash must never travel back to the caller.
+  assert.equal(JSON.stringify(session).includes("password"), false);
+
+  // Criterion 1: the account works from then on, through the normal login.
+  const signedIn = await service.login({
+    email: "new-trainer@example.com",
+    password: "CorrectHorse9"
+  });
+  assert.equal(signedIn.user.email, "new-trainer@example.com");
+});
+
+test("sign-up refuses a taken email and creates nothing", async () => {
+  const repository = fakeRepository();
+  const service = createAuthService(repository, SIGNUP_OPTIONS);
+
+  await service.signup({ email: "new-trainer@example.com", password: "CorrectHorse9" });
+  assert.equal(repository.state.users.length, 1);
+
+  // Decided on the ticket: this is a plain refusal, so it does disclose that
+  // the address is registered. The property worth holding is that no second
+  // account appears and the first one's password is untouched.
+  await assert.rejects(
+    service.signup({ email: "new-trainer@example.com", password: "DifferentPass8" }),
+    (error) => error.status === 409 && error.code === "EMAIL_UNAVAILABLE"
+  );
+  assert.equal(repository.state.users.length, 1);
+
+  const stillTheirs = await service.login({
+    email: "new-trainer@example.com",
+    password: "CorrectHorse9"
+  });
+  assert.equal(stillTheirs.user.email, "new-trainer@example.com");
+});
+
+test("a password sign-up cannot take over an account created through Google", async () => {
+  const repository = fakeRepository();
+  const service = createAuthService(repository, {
+    allowedEmails: ["via-google@gmail.com"],
+    googleVerifier: async () => ({
+      email: "via-google@gmail.com",
+      name: "Via Google",
+      emailVerified: true
+    })
+  });
+
+  await service.googleSignup({ credential: "token" });
+  const originalHash = repository.state.users[0].password_hash;
+
+  await assert.rejects(
+    service.signup({ email: "via-google@gmail.com", password: "TakeOver123" }),
+    (error) => error.code === "EMAIL_UNAVAILABLE"
+  );
+
+  assert.equal(repository.state.users.length, 1);
+  assert.equal(repository.state.users[0].password_hash, originalHash);
+  // And the password the attacker chose does not work.
+  await assert.rejects(
+    service.login({ email: "via-google@gmail.com", password: "TakeOver123" }),
+    (error) => error.code === "INVALID_CREDENTIALS"
+  );
+});
+
+test("sign-up rejects weak passwords and bad emails without creating anything", async () => {
+  const repository = fakeRepository();
+  const service = createAuthService(repository, SIGNUP_OPTIONS);
+
+  const rejected = [
+    { email: "new-trainer@example.com", password: "short1" },        // too short
+    { email: "new-trainer@example.com", password: "allletterspass" }, // no digit
+    { email: "new-trainer@example.com", password: "1234567890" },     // no letter
+    { email: "not-an-email", password: "CorrectHorse9" }
+  ];
+
+  for (const input of rejected) {
+    await assert.rejects(service.signup(input), (error) => error.status === 400);
+  }
+  assert.equal(repository.state.users.length, 0);
+});
+
+test("sign-up is still gated on the allowlist until AUTH-08 opens it", async () => {
+  const repository = fakeRepository();
+  const service = createAuthService(repository, { allowedEmails: [] });
+
+  await assert.rejects(
+    service.signup({ email: "stranger@example.com", password: "CorrectHorse9" }),
+    (error) => error.status === 403 && error.code === "TRAINER_NOT_INVITED"
+  );
+  assert.equal(repository.state.users.length, 0);
+});
+
+test("sign-up names the account from the email when no name is given", async () => {
+  const repository = fakeRepository();
+  const service = createAuthService(repository, SIGNUP_OPTIONS);
+
+  await service.signup({ email: "new-trainer@example.com", password: "CorrectHorse9" });
+  assert.equal(repository.state.users[0].name, "new-trainer");
 });

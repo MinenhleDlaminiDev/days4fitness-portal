@@ -27,6 +27,30 @@ function requireCredentials(input = {}) {
   return { email, password };
 }
 
+// AUTH-07. The rule is stated on the sign-up form too, before anything is
+// submitted, so it is only restated here rather than first discovered here.
+export const PASSWORD_MIN_LENGTH = 10;
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function requireNewCredentials(input = {}) {
+  const { email, password } = requireCredentials(input);
+  if (!EMAIL_PATTERN.test(email)) {
+    throw validationError("Enter a valid email address");
+  }
+  if (password.length < PASSWORD_MIN_LENGTH) {
+    throw validationError(`Password must be at least ${PASSWORD_MIN_LENGTH} characters`);
+  }
+  if (!/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
+    throw validationError("Password must contain a letter and a number");
+  }
+  // trainer_users.name is NOT NULL and the name is what the portal header
+  // shows. Falling back to the local part keeps the field optional at the API
+  // without ever writing an empty one.
+  const name = String(input.name || "").trim() || email.split("@")[0];
+  return { email, password, name };
+}
+
 export function createAuthService(
   repository = authRepository,
   { googleVerifier = verifyGoogleCredential, allowedEmails = env.trainerAllowedEmails } = {}
@@ -162,6 +186,55 @@ export function createAuthService(
     return createAuthenticatedSession(requireActive(user));
   }
 
+  // AUTH-07. The only path that creates a password account. Sign-IN still
+  // never inserts, which is the separation AUTH-02 drew and this does not
+  // cross: login verifies, signup creates, and nothing does both.
+  //
+  // Still gated on the allowlist, like googleSignup above. AUTH-02 closed
+  // registration deliberately; AUTH-08 is the ticket that opens it, for this
+  // path and the Google one together. Adding an ungated route here would open
+  // it early and quietly.
+  async function signup(input = {}) {
+    const { email, password, name } = requireNewCredentials(input);
+
+    if (!allowedEmails.includes(email)) {
+      throw new AppError(
+        403,
+        "TRAINER_NOT_INVITED",
+        "This account is not approved for trainer access. Ask an admin to add it."
+      );
+    }
+
+    // Decided on the ticket, 2026-10-23: a taken email is refused plainly, so
+    // sign-up does reveal whether an address is registered. Answering
+    // identically either way cannot return a session -- that would hand over
+    // somebody else's account -- so it needs email verification to be usable
+    // at all, and no email provider exists yet.
+    //
+    // The same refusal is what protects an account created through Google:
+    // those carry a random password hash, so writing a chosen password over
+    // one would be a takeover rather than a sign-up.
+    if (await repository.findUserByEmail(email)) {
+      throw new AppError(409, "EMAIL_UNAVAILABLE", "That email cannot be used");
+    }
+
+    const created = await repository.createTrainerUser({
+      email,
+      name,
+      role: "trainer",
+      passwordHash: hashPassword(password)
+    });
+
+    // createTrainerUser does nothing on conflict and returns null, so this is
+    // the same email taken between the check above and the insert. Same
+    // answer, so losing the race does not produce a different message.
+    if (!created) {
+      throw new AppError(409, "EMAIL_UNAVAILABLE", "That email cannot be used");
+    }
+
+    return createAuthenticatedSession(created);
+  }
+
   async function authenticateToken(token) {
     if (!token) {
       throw new AppError(401, "AUTHENTICATION_REQUIRED", "Authentication is required");
@@ -178,8 +251,8 @@ export function createAuthService(
 
   return {
     login,
+    signup,
     googleLogin,
-
     googleSignup,
     authenticateToken,
 
