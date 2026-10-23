@@ -53,7 +53,7 @@ function requireNewCredentials(input = {}) {
 
 export function createAuthService(
   repository = authRepository,
-  { googleVerifier = verifyGoogleCredential, allowedEmails = env.trainerAllowedEmails } = {}
+  { googleVerifier = verifyGoogleCredential } = {}
 ) {
   let bootstrapPromise = null;
 
@@ -159,21 +159,15 @@ export function createAuthService(
     return createAuthenticatedSession(requireActive(user));
   }
 
-  // Creating an account is the only path that may insert, and it is gated on
-  // the configured allowlist. An unset allowlist closes signup entirely rather
-  // than leaving it open.
+  // Creating an account is the only path that may insert. AUTH-08 opened it to
+  // anyone: the TRAINER_ALLOWED_EMAILS allowlist was a lock on the door while
+  // the building had no internal walls, and AUTH-03 to AUTH-06 built the walls.
+  // A stranger who signs up gets their own empty workspace and can see nothing
+  // of anyone else's.
   async function googleSignup(input = {}) {
     const googleUser = await verifiedGoogleUser(input);
     const existing = await repository.findUserByEmail(googleUser.email);
     if (existing) return createAuthenticatedSession(requireActive(existing));
-
-    if (!allowedEmails.includes(googleUser.email.toLowerCase())) {
-      throw new AppError(
-        403,
-        "TRAINER_NOT_INVITED",
-        "This account is not approved for trainer access. Ask an admin to add it."
-      );
-    }
 
     const created = await repository.createTrainerUser({
       email: googleUser.email,
@@ -190,20 +184,10 @@ export function createAuthService(
   // never inserts, which is the separation AUTH-02 drew and this does not
   // cross: login verifies, signup creates, and nothing does both.
   //
-  // Still gated on the allowlist, like googleSignup above. AUTH-02 closed
-  // registration deliberately; AUTH-08 is the ticket that opens it, for this
-  // path and the Google one together. Adding an ungated route here would open
-  // it early and quietly.
+  // AUTH-08 removed the allowlist from here and from googleSignup together,
+  // so registration is open on both paths or neither.
   async function signup(input = {}) {
     const { email, password, name } = requireNewCredentials(input);
-
-    if (!allowedEmails.includes(email)) {
-      throw new AppError(
-        403,
-        "TRAINER_NOT_INVITED",
-        "This account is not approved for trainer access. Ask an admin to add it."
-      );
-    }
 
     // Decided on the ticket, 2026-10-23: a taken email is refused plainly, so
     // sign-up does reveal whether an address is registered. Answering

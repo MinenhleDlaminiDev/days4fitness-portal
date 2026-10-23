@@ -12,7 +12,6 @@ CORS_ORIGINS=https://your-trainer-portal-domain.com
 DATABASE_URL=postgresql://...
 DATABASE_SSL=true
 GOOGLE_CLIENT_ID=...
-TRAINER_ALLOWED_EMAILS=
 AUTH_SESSION_HOURS=12
 REQUEST_BODY_LIMIT=100kb
 RATE_LIMIT_WINDOW_MS=900000
@@ -35,12 +34,24 @@ decision to any `sslmode` already in `DATABASE_URL`.
 `CORS_ORIGINS` must list the exact frontend origin, with no trailing slash and no
 `localhost` entry — the server refuses to start in production if it finds one.
 
-`TRAINER_ALLOWED_EMAILS` is the only way a new trainer account can be created.
-Signing in with Google never creates one, so **leaving this empty closes signup
-completely**, which is the right setting most of the time. Add an address only
-while that person is signing up, then take it out again: anyone listed gets full
-access to every client the moment they sign in. Until AUTH-03 lands, that means
-*all* clients.
+**Sign-up is open.** Anyone can create an account, with an email and password or
+with a Gmail address, and gets their own empty workspace: their own clients,
+schedule, hours and prices. A new account can see nothing belonging to anyone
+else — ownership lives on the data itself, not on who is allowed through the
+door.
+
+`TRAINER_ALLOWED_EMAILS` was the allowlist that kept the door shut while the
+data was still shared. It no longer exists in the code. **Remove it from the
+Northflank service**, where it is set by hand and will otherwise sit there
+looking meaningful.
+
+Signing in still never creates an account. That separation is deliberate: a
+sign-in by an unknown address is refused, and the frontend turns the refusal
+into an offer to sign up rather than a dead end.
+
+Account creation is covered by the tighter `/api/auth` rate limiter
+(`AUTH_RATE_LIMIT_MAX`, 30 per window by default), which matters more now that
+registration is open than it did behind the allowlist.
 
 ## Test Environment: Northflank And Netlify
 

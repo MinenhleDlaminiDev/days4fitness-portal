@@ -50,8 +50,8 @@ export default function SignupPage() {
               <LogoLockup size={19} className="text-white" />
               <h1 className="mt-2 text-3xl font-bold">Set up account</h1>
               <p className="mt-2 text-sm text-emerald-100">
-                Trainer access is by invitation. Use the email address an admin
-                has approved.
+                Create your own workspace. Your clients, schedule and prices are
+                yours alone.
               </p>
             </div>
             <ThemeToggle />

@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import {
   clearStoredAuthToken,
   fetchCurrentTrainer,
+  getApiErrorCode,
   getApiErrorMessage,
   getStoredAuthToken,
   loginTrainer,
@@ -18,6 +19,20 @@ export function AuthProvider({ children }) {
   const [trainer, setTrainer] = useState(null);
   const [isLoading, setIsLoading] = useState(() => Boolean(getStoredAuthToken()));
   const [error, setError] = useState("");
+  // AUTH-08: the page needs the code as well as the text, so a sign-in that
+  // failed because there is no account can offer sign-up instead of an error.
+  const [errorCode, setErrorCode] = useState("");
+
+  const fail = (requestError, fallback) => {
+    setError(getApiErrorMessage(requestError, fallback));
+    setErrorCode(getApiErrorCode(requestError));
+    return false;
+  };
+
+  const clearError = () => {
+    setError("");
+    setErrorCode("");
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -57,52 +72,49 @@ export function AuthProvider({ children }) {
       trainer,
       isLoading,
       error,
+      errorCode,
       async login(credentials) {
-        setError("");
+        clearError();
         try {
           const result = await loginTrainer(credentials);
           storeAuthToken(result.token);
           setTrainer(result.user);
           return true;
         } catch (requestError) {
-          setError(getApiErrorMessage(requestError, "Unable to sign in."));
-          return false;
+          return fail(requestError, "Unable to sign in.");
         }
       },
       async loginWithGoogle(credential) {
-        setError("");
+        clearError();
         try {
           const result = await loginTrainerWithGoogle({ credential });
           storeAuthToken(result.token);
           setTrainer(result.user);
           return true;
         } catch (requestError) {
-          setError(getApiErrorMessage(requestError, "Unable to sign in with Google."));
-          return false;
+          return fail(requestError, "Unable to sign in with Google.");
         }
       },
       async signup(details) {
-        setError("");
+        clearError();
         try {
           const result = await signupTrainer(details);
           storeAuthToken(result.token);
           setTrainer(result.user);
           return true;
         } catch (requestError) {
-          setError(getApiErrorMessage(requestError, "Unable to create the account."));
-          return false;
+          return fail(requestError, "Unable to create the account.");
         }
       },
       async signupWithGoogle(credential) {
-        setError("");
+        clearError();
         try {
           const result = await signupTrainerWithGoogle({ credential });
           storeAuthToken(result.token);
           setTrainer(result.user);
           return true;
         } catch (requestError) {
-          setError(getApiErrorMessage(requestError, "Unable to sign up with Google."));
-          return false;
+          return fail(requestError, "Unable to sign up with Google.");
         }
       },
       async logout() {
@@ -115,7 +127,7 @@ export function AuthProvider({ children }) {
         setTrainer(null);
       }
     }),
-    [trainer, isLoading, error]
+    [trainer, isLoading, error, errorCode]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -6,8 +6,22 @@ import ThemeToggle from "../components/ThemeToggle.jsx";
 import { LogoLockup } from "../components/Logo.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 
+// AUTH-08. A sign-in that fails because there is no account used to be a dead
+// end: "This account does not have trainer access", with nowhere to go. Sign-in
+// still refuses to create anything - that separation is AUTH-02's and is not
+// being undone - so the offer belongs here, on the page.
+//
+// INVALID_CREDENTIALS covers an unknown email AND a wrong password, and the
+// server deliberately does not distinguish them. The wording must not either,
+// so it says "if you do not have an account yet" rather than anything that
+// confirms the address is or is not registered.
+const SIGNUP_OFFER = {
+  TRAINER_NOT_REGISTERED: "There is no trainer account for that Google address yet.",
+  INVALID_CREDENTIALS: "If you do not have an account yet, you can create one."
+};
+
 export default function LoginPage() {
-  const { error, login, loginWithGoogle } = useAuth();
+  const { error, errorCode, login, loginWithGoogle } = useAuth();
   const [email, setEmail] = useState(import.meta.env.DEV ? "trainer@days4fitness.local" : "");
   const [password, setPassword] = useState(import.meta.env.DEV ? "ChangeMe123!" : "");
   const [isSaving, setIsSaving] = useState(false);
@@ -96,9 +110,17 @@ export default function LoginPage() {
           </label>
 
           {error && (
-            <p className="rounded-xl border border-danger-border bg-danger-soft p-3 text-sm font-semibold text-danger-strong">
-              {error}
-            </p>
+            <div className="space-y-2 rounded-xl border border-danger-border bg-danger-soft p-3">
+              <p className="text-sm font-semibold text-danger-strong">{error}</p>
+              {SIGNUP_OFFER[errorCode] && (
+                <p className="text-sm text-danger-strong">
+                  {SIGNUP_OFFER[errorCode]}{" "}
+                  <Link to="/signup" className="font-bold underline">
+                    Create an account
+                  </Link>
+                </p>
+              )}
+            </div>
           )}
 
           <button
@@ -116,9 +138,9 @@ export default function LoginPage() {
           )}
 
           <p className="text-center text-sm text-muted">
-            Been invited?{" "}
+            New here?{" "}
             <Link to="/signup" className="font-bold text-accent hover:text-accent">
-              Set up your account
+              Create an account
             </Link>
           </p>
         </form>

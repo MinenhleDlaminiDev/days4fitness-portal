@@ -53,6 +53,13 @@ export function getApiErrorMessage(error, fallback) {
   return error?.response?.data?.error?.message || error?.message || fallback;
 }
 
+// AUTH-08. The login screen has to tell a refusal it can act on from one it
+// cannot, and the message alone cannot carry that. TRAINER_NOT_REGISTERED and
+// INVALID_CREDENTIALS both become an offer to sign up rather than a dead end.
+export function getApiErrorCode(error) {
+  return error?.response?.data?.error?.code || "";
+}
+
 export async function fetchClients(params = {}) {
   const response = await api.get("/clients", { params });
   return responseData(response);

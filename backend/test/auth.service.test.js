@@ -132,15 +132,14 @@ test("signs an existing trainer in with Google", async () => {
   assert.equal(repository.state.users.length, 1);
 });
 
-test("allows verified Gmail Google sign-up during testing mode", async () => {
+test("creates an account for any verified Gmail address on Google sign-up", async () => {
   const repository = fakeRepository();
   const service = createAuthService(repository, {
     googleVerifier: async () => ({
       email: "signuptrainer@gmail.com",
       name: "Signup Trainer",
       emailVerified: true
-    }),
-    allowedEmails: ["signuptrainer@gmail.com"]
+    })
   });
 
   const signedUp = await service.googleSignup({ credential: "fake-google-token" });
@@ -157,8 +156,7 @@ test("auth helper methods are safe when called without service binding", async (
       email: "unboundtrainer@gmail.com",
       name: "Unbound Trainer",
       emailVerified: true
-    }),
-    allowedEmails: ["unboundtrainer@gmail.com"]
+    })
   });
   const { googleSignup, me } = service;
 
@@ -277,32 +275,26 @@ test("Google sign-in does not create an account for an unknown address", async (
   assert.equal(repository.state.users.length, 0);
 });
 
-test("Google sign-up refuses an address that is not on the allowlist", async () => {
-  const { repository, service } = googleServiceFor("stranger@gmail.com", {
-    allowedEmails: ["someone.else@gmail.com"]
-  });
+// AUTH-08 opened registration. A stranger signing up is now the expected
+// case, not a refusal: ownership since AUTH-03 means they see nothing of
+// anyone else's. The paired test below is the one that still has to hold -
+// signing IN must never create the account.
+test("a stranger can sign up with Google, and signing in still cannot", async () => {
+  const { repository, service } = googleServiceFor("stranger@gmail.com");
 
-  await assert.rejects(() => service.googleSignup({ credential: "token" }), {
-    code: "TRAINER_NOT_INVITED"
+  await assert.rejects(() => service.googleLogin({ credential: "token" }), {
+    code: "TRAINER_NOT_REGISTERED"
   });
   assert.equal(repository.state.users.length, 0);
+
+  const signedUp = await service.googleSignup({ credential: "token" });
+  assert.equal(signedUp.user.email, "stranger@gmail.com");
+  assert.equal(signedUp.user.role, "trainer");
+  assert.equal(repository.state.users.length, 1);
 });
 
-test("an empty allowlist closes sign-up completely", async () => {
-  const { repository, service } = googleServiceFor("stranger@gmail.com", {
-    allowedEmails: []
-  });
-
-  await assert.rejects(() => service.googleSignup({ credential: "token" }), {
-    code: "TRAINER_NOT_INVITED"
-  });
-  assert.equal(repository.state.users.length, 0);
-});
-
-test("an allowlisted address can sign up, and only once", async () => {
-  const { repository, service } = googleServiceFor("invited@gmail.com", {
-    allowedEmails: ["invited@gmail.com"]
-  });
+test("an address can sign up with Google, and only once", async () => {
+  const { repository, service } = googleServiceFor("invited@gmail.com");
 
   const first = await service.googleSignup({ credential: "token" });
   assert.equal(first.user.email, "invited@gmail.com");
@@ -315,9 +307,7 @@ test("an allowlisted address can sign up, and only once", async () => {
 });
 
 test("an inactive trainer is refused on both Google paths", async () => {
-  const { repository, service } = googleServiceFor("retired@gmail.com", {
-    allowedEmails: ["retired@gmail.com"]
-  });
+  const { repository, service } = googleServiceFor("retired@gmail.com");
   const user = await repository.createTrainerUser({
     email: "retired@gmail.com",
     name: "Retired",
@@ -336,7 +326,7 @@ test("an inactive trainer is refused on both Google paths", async () => {
 
 // AUTH-07 ------------------------------------------------------------------
 
-const SIGNUP_OPTIONS = { allowedEmails: ["new-trainer@example.com"] };
+const SIGNUP_OPTIONS = {};
 
 test("sign-up creates exactly one account, which can then sign in", async () => {
   const repository = fakeRepository();
@@ -391,7 +381,6 @@ test("sign-up refuses a taken email and creates nothing", async () => {
 test("a password sign-up cannot take over an account created through Google", async () => {
   const repository = fakeRepository();
   const service = createAuthService(repository, {
-    allowedEmails: ["via-google@gmail.com"],
     googleVerifier: async () => ({
       email: "via-google@gmail.com",
       name: "Via Google",
@@ -433,15 +422,19 @@ test("sign-up rejects weak passwords and bad emails without creating anything", 
   assert.equal(repository.state.users.length, 0);
 });
 
-test("sign-up is still gated on the allowlist until AUTH-08 opens it", async () => {
+// AUTH-08. Was the reverse of this until registration opened.
+test("password sign-up is open to an address nobody invited", async () => {
   const repository = fakeRepository();
-  const service = createAuthService(repository, { allowedEmails: [] });
+  const service = createAuthService(repository);
 
-  await assert.rejects(
-    service.signup({ email: "stranger@example.com", password: "CorrectHorse9" }),
-    (error) => error.status === 403 && error.code === "TRAINER_NOT_INVITED"
-  );
-  assert.equal(repository.state.users.length, 0);
+  const session = await service.signup({
+    email: "stranger@example.com",
+    password: "CorrectHorse9"
+  });
+
+  assert.equal(session.user.email, "stranger@example.com");
+  assert.equal(session.user.role, "trainer");
+  assert.equal(repository.state.users.length, 1);
 });
 
 test("sign-up names the account from the email when no name is given", async () => {
