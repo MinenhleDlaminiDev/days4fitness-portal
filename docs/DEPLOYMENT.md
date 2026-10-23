@@ -68,9 +68,10 @@ always-on services and one database, so the API and Postgres fill it exactly.
    `DATABASE_SSL=true`. If the service then fails to connect with a certificate
    error, the addon is signing with its own authority — use `no-verify`.
 4. Health checks: liveness on `/api/health`, readiness on `/api/health/ready`.
-5. Run `npm run migrate` from the service's shell once the database is reachable.
-   It uses the same pool as the server, so the `DATABASE_SSL` setting applies to it
-   too, and the image already carries the migration files.
+5. Nothing to run by hand: the service applies pending migrations itself at
+   boot, before it opens the port, and exits non-zero if one fails. The image
+   already carries the migration files. `npm run migrate` still exists in the
+   service shell for inspecting or forcing a run, but a deploy does not need it.
 6. Confirm `/api/health/ready` returns `"database": "connected"` over HTTPS.
 
 ### Building The Image Locally
@@ -160,16 +161,25 @@ the same major version so a build cannot pass in CI and fail on the host.
   almost always `DATABASE_URL` or `DATABASE_SSL`.
 - Re-running migrations is safe: every migration is guarded, and the runner
   records what it has already applied.
+- A container that exits on boot with `Startup failed:` has hit a failing
+  migration. The error names it; the schema is unchanged, because each
+  migration runs in its own transaction.
 
 ## Migration Strategy
 
-1. Take or confirm a fresh database backup.
-2. Deploy backend code.
-3. Run `npm run migrate` against the production database.
-4. Start or restart the backend service.
-5. Deploy frontend code.
-6. Verify `/api/health/ready`.
-7. Run a login smoke test.
+1. Take or confirm a fresh database backup. This is the one manual step, and
+   migrations are forward-only, so it is the only way back.
+2. Deploy backend code. The service applies pending migrations at boot, before
+   it listens, so the schema cannot lag the code that expects it. A migration
+   that fails exits the container rather than serving a half-migrated schema,
+   and the platform's previous instance keeps serving until the new one is up.
+3. Deploy frontend code.
+4. Verify `/api/health/ready`.
+5. Run a login smoke test.
+
+Several instances starting at once is safe: the run is serialised on a Postgres
+advisory lock, so the first applies and the rest wait and then find nothing to
+do. Re-running is safe too — the runner records what it has already applied.
 
 ## Rollback Notes
 

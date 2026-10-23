@@ -23,7 +23,7 @@ BEGIN
 
   IF owner_id IS NULL AND EXISTS (SELECT 1 FROM clients) THEN
     RAISE EXCEPTION
-      'Cannot assign client ownership: there are clients but no trainer_users row. Sign in once to create the bootstrap trainer, then run migrations again.';
+      'Cannot assign client ownership: there are clients but no trainer_users row. Insert a trainer_users row for whoever owns them, then deploy again. Signing in cannot create one first: migrations now run before the server listens.';
   END IF;
 
   UPDATE clients SET trainer_user_id = owner_id WHERE trainer_user_id IS NULL;

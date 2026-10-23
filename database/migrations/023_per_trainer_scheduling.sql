@@ -18,10 +18,23 @@ BEGIN
   IF owner_id IS NULL THEN
     SELECT id INTO owner_id FROM trainer_users ORDER BY id LIMIT 1;
   END IF;
-  IF owner_id IS NULL AND EXISTS (SELECT 1 FROM business_hours) THEN
-    RAISE EXCEPTION 'Cannot assign training hours: there are hours but no trainer_users row. Sign in once to create the bootstrap trainer, then run migrations again.';
+  IF owner_id IS NULL THEN
+    -- DEPLOY-05. This used to refuse, telling the operator to sign in once and
+    -- run migrations again. That advice stopped being possible when migrations
+    -- became a precondition of the server starting: there is no way to sign in
+    -- before they finish, so a brand-new database could never be migrated at
+    -- all. The hours seeded by 017 are defaults rather than anybody's data,
+    -- so with no trainer to own them they are dropped and
+    -- seed_trainer_scheduling() below puts them back per trainer -- exactly
+    -- what 024 does with the seeded catalogue, for the same reason.
+    --
+    -- Real data is still never discarded here: a database with no
+    -- trainer_users row can have no clients (021 made that column NOT NULL)
+    -- and therefore no sessions or packages either.
+    DELETE FROM business_hours;
+  ELSE
+    UPDATE business_hours SET trainer_user_id = owner_id WHERE trainer_user_id IS NULL;
   END IF;
-  UPDATE business_hours SET trainer_user_id = owner_id WHERE trainer_user_id IS NULL;
 END $$;
 
 ALTER TABLE business_hours ALTER COLUMN trainer_user_id SET NOT NULL;
@@ -44,10 +57,12 @@ BEGIN
   IF owner_id IS NULL THEN
     SELECT id INTO owner_id FROM trainer_users ORDER BY id LIMIT 1;
   END IF;
-  IF owner_id IS NULL AND EXISTS (SELECT 1 FROM scheduling_settings) THEN
-    RAISE EXCEPTION 'Cannot assign scheduling settings: there are settings but no trainer_users row. Sign in once to create the bootstrap trainer, then run migrations again.';
+  IF owner_id IS NULL THEN
+    -- Same as the hours above: the single seeded row is a default, not data.
+    DELETE FROM scheduling_settings;
+  ELSE
+    UPDATE scheduling_settings SET trainer_user_id = owner_id WHERE trainer_user_id IS NULL;
   END IF;
-  UPDATE scheduling_settings SET trainer_user_id = owner_id WHERE trainer_user_id IS NULL;
 END $$;
 
 DELETE FROM scheduling_settings WHERE trainer_user_id IS NULL;
