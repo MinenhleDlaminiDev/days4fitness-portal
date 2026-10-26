@@ -19,6 +19,7 @@ import {
   rejectBookingRequest
 } from "../lib/api.js";
 import { formatShortDate } from "../lib/date.js";
+import { pluralise } from "../lib/text.js";
 
 function groupByClient(requests) {
   const groups = new Map();
@@ -104,7 +105,7 @@ export default function BookingRequestsPage() {
 
       if (action === "approve") {
         const result = await approveBookingRequest(request.id);
-        const sessionLabel = result.generatedSessions === 1 ? "session" : "sessions";
+        const sessionLabel = pluralise(result.generatedSessions, "session");
         setNotice({
           title: "Session successfully added",
           message:

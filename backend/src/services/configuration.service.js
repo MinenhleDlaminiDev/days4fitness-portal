@@ -39,6 +39,27 @@ function requirePositiveInt(value, field) {
   return parsed;
 }
 
+// UX-03. Five foreign keys can hold a program down, and the message used to
+// blame packages whatever the reason — so a program with a recorded session but
+// no package sent the trainer hunting for a package that did not exist.
+const PROGRAM_IN_USE_REASONS = {
+  packages_program_id_fkey: "clients have packages on it",
+  sessions_program_id_fkey: "sessions have been recorded against it",
+  sessions_program_type_fkey: "sessions have been recorded against it",
+  // Not reachable on its own today: approved_recurring_bookings has a
+  // composite key to packages (package_id, client_id, program_id), so a
+  // booking on a program always comes with a package on that same program and
+  // the packages key answers first. Mapped anyway, because a schema change
+  // could make it reachable and a wrong sentence is what this is fixing.
+  approved_recurring_bookings_program_id_fkey: "clients have standing bookings on it",
+  approved_recurring_bookings_program_type_fkey: "clients have standing bookings on it"
+};
+
+function programInUseReason(constraint) {
+  // A key nobody has mapped still gets a true sentence, just a vaguer one.
+  return PROGRAM_IN_USE_REASONS[constraint] ?? "it is still in use";
+}
+
 // SCH-05. The point of the message is that the trainer can act on it without
 // hunting, so it names the hour, a client and a date. Capped at two hours and
 // three names so a trainer clearing a whole morning gets a sentence, not an
@@ -248,11 +269,10 @@ export function createConfigurationService(
       try {
         await repository.replacePrograms(trainerId, programs);
       } catch (error) {
-        // packages_program_id_fkey: the program has already been sold.
         if (error?.code === "23503") {
           throw conflictError(
-            `${error.programName ?? "That program"} cannot be removed because clients have ` +
-              "packages on it."
+            `${error.programName ?? "That program"} cannot be removed because ` +
+              `${programInUseReason(error.constraint)}.`
           );
         }
         // programs_name_type_key: the pair is already taken.

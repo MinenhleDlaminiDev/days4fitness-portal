@@ -4,7 +4,7 @@ import pg from "pg";
 import { env } from "../src/config/env.js";
 import { createConfigurationRepository } from "../src/repositories/configuration.repository.js";
 import { createConfigurationService as createUnboundConfigurationService } from "../src/services/configuration.service.js";
-import { addMonths, daysFromToday } from "./helpers/dates.js";
+import { addMonths, daysFromToday, upcomingMonday } from "./helpers/dates.js";
 import {
   actorFor,
   ensureTestTrainer,
@@ -423,4 +423,84 @@ test("a new trainer starts with a working week rather than an empty one", async 
     [fresh.id]
   );
   assert.equal(rows.rows[0].slots, 81);
+});
+
+// UX-03. The refusal used to blame packages whatever was holding the program
+// down, so a program with a recorded session sent the trainer looking for a
+// package that did not exist.
+//
+// Only two of the five foreign keys are reachable on their own. A standing
+// booking cannot be the sole cause: approved_recurring_bookings carries
+// FOREIGN KEY (package_id, client_id, program_id) REFERENCES packages, so a
+// booking on a program always comes with a package on that same program, and
+// the packages key answers first.
+test("a program that cannot be removed says what is actually holding it", async () => {
+  const before = await service.getConfiguration();
+  const keep = before.programs.map((program) => ({
+    id: program.id,
+    name: program.name,
+    sessionType: program.sessionType
+  }));
+  const added = await service.updatePrograms({
+    programs: [...keep, { name: "Integration Reasons", sessionType: "Group" }]
+  });
+  const target = added.programs.find((program) => program.name === "Integration Reasons");
+  const removeTarget = () => service.updatePrograms({ programs: keep });
+
+  // Far enough out to miss the other suites, which reach about +77 days.
+  const sessionDate = upcomingMonday(91);
+  const stamp = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  let clientId = null;
+
+  try {
+    // A session recorded against it, with no package anywhere near it.
+    const session = await testPool.query(
+      `INSERT INTO sessions (
+         program_id, session_type, session_date, start_time, capacity, status, trainer_user_id
+       )
+       VALUES ($1, 'group', $2::date, '13:00', 8, 'scheduled', $3)
+       RETURNING id`,
+      [target.id, sessionDate, owner.id]
+    );
+    await assert.rejects(removeTarget(), (error) => {
+      assert.equal(error.status, 409);
+      assert.match(error.message, /Integration Reasons/);
+      assert.match(error.message, /sessions have been recorded against it/);
+      return true;
+    });
+    await testPool.query("DELETE FROM sessions WHERE id = $1", [session.rows[0].id]);
+
+    // A package on it, which is the one case the old sentence got right.
+    const client = await testPool.query(
+      `INSERT INTO clients (name, phone, email, trainer_user_id)
+       VALUES ('Reason Client', '+27 82 555 0400', $1, $2)
+       RETURNING id`,
+      [`reason-${stamp}@example.com`, owner.id]
+    );
+    clientId = client.rows[0].id;
+    const purchaseDate = daysFromToday(0);
+    const window = await testPool.query(
+      "SELECT package_expiry_months AS m FROM scheduling_settings WHERE trainer_user_id = $1",
+      [owner.id]
+    );
+    await testPool.query(
+      `INSERT INTO packages (
+         client_id, program_id, sessions_total, price, purchase_date, expiry_date
+       )
+       VALUES ($1, $2, 4, 1000, $3::date, $4::date)`,
+      [clientId, target.id, purchaseDate, addMonths(purchaseDate, window.rows[0].m)]
+    );
+    await assert.rejects(removeTarget(), (error) => {
+      assert.match(error.message, /clients have packages on it/);
+      return true;
+    });
+  } finally {
+    if (clientId) await testPool.query("DELETE FROM clients WHERE id = $1", [clientId]);
+    await testPool.query("DELETE FROM sessions WHERE session_date = $1::date AND trainer_user_id = $2", [
+      sessionDate,
+      owner.id
+    ]);
+    await service.updatePrograms({ programs: keep });
+    resetSettings();
+  }
 });

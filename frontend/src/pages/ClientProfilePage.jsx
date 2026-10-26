@@ -19,6 +19,7 @@ import {
   X
 } from "lucide-react";
 import { addMonths, daysUntil, formatShortDate, localDateInputValue } from "../lib/date.js";
+import { pluralise } from "../lib/text.js";
 import {
   addPackagePayment,
   archiveClient,
@@ -792,7 +793,7 @@ export default function ClientProfilePage() {
         <p className="text-lg font-semibold sm:text-xl">{client.program}</p>
         <p className="mt-3 text-sm text-muted">Package</p>
         <p className="text-lg font-semibold sm:text-xl">
-          {client.sessionsTotal} Sessions - {client.sessionType}
+          {client.sessionsTotal} {pluralise(client.sessionsTotal, "Session")} - {client.sessionType}
         </p>
         <p className="text-base text-copy sm:text-lg">
           R{Number(client.price || packagePrice(client.sessionType, client.sessionsTotal)).toFixed(2)}
@@ -809,7 +810,7 @@ export default function ClientProfilePage() {
         <div className="mt-2 h-3 overflow-hidden rounded-full bg-line">
           <div className="h-full rounded-full bg-brand-strong" style={{ width: `${progress}%` }} />
         </div>
-        <p className="mt-2 text-lg font-semibold text-accent sm:text-xl">{sessionsLeft} sessions remaining</p>
+        <p className="mt-2 text-lg font-semibold text-accent sm:text-xl">{sessionsLeft} {pluralise(sessionsLeft, "session")} remaining</p>
 
         <div
           className={`mt-3 rounded-xl border-l-4 p-3 text-sm ${
@@ -903,7 +904,7 @@ export default function ClientProfilePage() {
               >
                 {(configuration?.packageSizes || []).map((size) => (
                   <option key={size} value={size}>
-                    {size} {size === 1 ? "session" : "sessions"}
+                    {size} {pluralise(size, "session")}
                   </option>
                 ))}
               </select>
@@ -1030,7 +1031,7 @@ export default function ClientProfilePage() {
                 <div>
                   <p className="font-bold text-strong">{item.program}</p>
                   <p className="text-sm text-muted">
-                    {item.sessionsUsed} of {item.sessionsTotal} sessions used
+                    {item.sessionsUsed} of {item.sessionsTotal} {pluralise(item.sessionsTotal, "session")} used
                   </p>
                   <p className="mt-1 text-sm font-semibold text-copy">
                     R{item.paidAmount.toFixed(2)} paid · R{item.outstandingBalance.toFixed(2)} outstanding

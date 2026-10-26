@@ -19,6 +19,7 @@ import {
   updatePrograms,
   updateSchedulingSettings
 } from "../lib/api.js";
+import { pluralise } from "../lib/text.js";
 
 const SESSION_TYPES = ["One-on-One", "Group"];
 const WEEK = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -402,7 +403,7 @@ export default function SettingsPage() {
                     className="flex items-center gap-2"
                   >
                     <span className="w-24 shrink-0 text-sm text-copy">
-                      {row.sessionsTotal} {row.sessionsTotal === 1 ? "session" : "sessions"}
+                      {row.sessionsTotal} {pluralise(row.sessionsTotal, "session")}
                     </span>
                     <span className="text-sm text-subtle">R</span>
                     <input

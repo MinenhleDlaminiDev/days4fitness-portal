@@ -8,6 +8,7 @@ import {
   Search as SearchIcon
 } from "lucide-react";
 import { daysUntil } from "../lib/date.js";
+import { pluralise } from "../lib/text.js";
 import { fetchClients, getApiErrorMessage } from "../lib/api.js";
 
 const tabs = ["Active", "Expired", "Archived", "All"];
@@ -165,7 +166,7 @@ export default function ClientsPage() {
                       )}
                     </div>
                     <p className="text-sm text-muted">{client.program}</p>
-                    <p className="text-sm text-subtle">{client.sessionsTotal} sessions</p>
+                    <p className="text-sm text-subtle">{client.sessionsTotal} {pluralise(client.sessionsTotal, "session")}</p>
                   </div>
                   <span
                     className={`rounded-full px-2 py-1 text-xs font-semibold ${

@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { fetchDashboard, getApiErrorMessage } from "../lib/api.js";
 import { daysUntil, formatShortDate } from "../lib/date.js";
+import { pluralise } from "../lib/text.js";
 import {
   CONTACT_SUBJECTS,
   contactActions,
@@ -137,7 +138,7 @@ export default function DashboardPage() {
             Today&apos;s Sessions
           </h2>
           <span className="rounded-full bg-sunken px-3 py-1 text-xs font-semibold text-muted">
-            {dashboard.todaySessions.length} sessions
+            {dashboard.todaySessions.length} {pluralise(dashboard.todaySessions.length, "session")}
           </span>
         </div>
         <div className="stagger-list space-y-3">
@@ -304,7 +305,7 @@ export default function DashboardPage() {
                 <p className="text-sm text-muted">{item.program}</p>
                 <div className="mt-1 flex items-end justify-between gap-3">
                   <p className="text-sm text-warn-text">
-                    {item.sessionsRemaining} sessions left
+                    {item.sessionsRemaining} {pluralise(item.sessionsRemaining, "session")} left
                   </p>
                   <ContactActions
                     clientName={item.clientName}
