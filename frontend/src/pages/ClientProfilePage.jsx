@@ -80,6 +80,10 @@ export default function ClientProfilePage() {
     sessionsTotal: "",
     purchaseDate: localDateInputValue()
   });
+  // SET-07: the renewal form says a missing field in the app's own voice. It
+  // used to lean on the `required` attribute, whose native tooltip is unstyled,
+  // disappears on its own, and made the Create Package button look dead.
+  const [packageFormError, setPackageFormError] = useState("");
   const [paymentForm, setPaymentForm] = useState({
     amount: "",
     paymentDate: localDateInputValue(),
@@ -211,6 +215,25 @@ export default function ClientProfilePage() {
   const availablePrograms = (configuration?.programs || []).filter(
     (program) => program.sessionType === packageForm.sessionType
   );
+  // SET-07: programs are typed, so a one-on-one program cannot survive a switch
+  // to Group — but it can when the trainer offers one of the same name for the
+  // new type, which is the common case. Clearing unconditionally threw away a
+  // choice the trainer had already made.
+  const programOffered = (name, sessionType) =>
+    Boolean(name) &&
+    (configuration?.programs || []).some(
+      (program) => program.name === name && program.sessionType === sessionType
+    );
+  // Every edit clears the validation message, so it cannot outlive the problem
+  // it describes. Takes a patch or a function of the current form, because the
+  // session type needs to see the program already chosen.
+  const updatePackageForm = (patch) => {
+    setPackageFormError("");
+    setPackageForm((current) => ({
+      ...current,
+      ...(typeof patch === "function" ? patch(current) : patch)
+    }));
+  };
   // SET-05: the expiry window is this trainer's own setting, and a renewal uses
   // it. The signup form shows the date it will produce; this one showed nothing,
   // so the screen where the window used to break gave no sign of it at all.
@@ -378,6 +401,20 @@ export default function ClientProfilePage() {
 
   async function savePackage(event) {
     event.preventDefault();
+    // SET-07: said here rather than by the browser, and in the order the fields
+    // appear so the message points at the first thing to fix.
+    const missing = !packageForm.program
+      ? "Choose a program for this package."
+      : !packageForm.sessionsTotal
+        ? "Choose a package size."
+        : !packageForm.purchaseDate
+          ? "Choose a purchase date."
+          : "";
+    if (missing) {
+      setPackageFormError(missing);
+      return;
+    }
+    setPackageFormError("");
     try {
       setPackageAction("package");
       setActionError("");
@@ -817,7 +854,10 @@ export default function ClientProfilePage() {
             ["expired", "exhausted"].includes(currentPackage.packageStatus) && (
               <button
                 type="button"
-                onClick={() => setShowPackageForm((current) => !current)}
+                onClick={() => {
+                  setPackageFormError("");
+                  setShowPackageForm((current) => !current);
+                }}
                 className="inline-flex items-center gap-1 text-sm font-bold text-accent"
               >
                 <Plus size={16} /> New Package
@@ -828,11 +868,8 @@ export default function ClientProfilePage() {
           <form onSubmit={savePackage} className="mb-4 space-y-3 rounded-2xl border border-success-border bg-success-soft p-4">
             <p className="font-bold text-accent">Create replacement package</p>
             <select
-              required
               value={packageForm.program}
-              onChange={(event) =>
-                setPackageForm((current) => ({ ...current, program: event.target.value }))
-              }
+              onChange={(event) => updatePackageForm({ program: event.target.value })}
               className="h-11 w-full rounded-xl border border-line-strong bg-surface px-3"
             >
               <option value="">Select program</option>
@@ -845,13 +882,13 @@ export default function ClientProfilePage() {
             <div className="grid grid-cols-2 gap-3">
               <select
                 value={packageForm.sessionType}
-                onChange={(event) =>
-                  setPackageForm((current) => ({
-                    ...current,
-                    sessionType: event.target.value,
-                    program: ""
-                  }))
-                }
+                onChange={(event) => {
+                  const sessionType = event.target.value;
+                  updatePackageForm((current) => ({
+                    sessionType,
+                    program: programOffered(current.program, sessionType) ? current.program : ""
+                  }));
+                }}
                 className="h-11 rounded-xl border border-line-strong bg-surface px-3"
               >
                 <option>One-on-One</option>
@@ -860,10 +897,7 @@ export default function ClientProfilePage() {
               <select
                 value={packageForm.sessionsTotal}
                 onChange={(event) =>
-                  setPackageForm((current) => ({
-                    ...current,
-                    sessionsTotal: Number(event.target.value)
-                  }))
+                  updatePackageForm({ sessionsTotal: Number(event.target.value) })
                 }
                 className="h-11 rounded-xl border border-line-strong bg-surface px-3"
               >
@@ -875,15 +909,9 @@ export default function ClientProfilePage() {
               </select>
             </div>
             <input
-              required
               type="date"
               value={packageForm.purchaseDate}
-              onChange={(event) =>
-                setPackageForm((current) => ({
-                  ...current,
-                  purchaseDate: event.target.value
-                }))
-              }
+              onChange={(event) => updatePackageForm({ purchaseDate: event.target.value })}
               className="h-11 w-full rounded-xl border border-line-strong bg-surface px-3"
             />
             {renewalExpiryDate && (
@@ -896,8 +924,20 @@ export default function ClientProfilePage() {
                 </p>
               </div>
             )}
+            {packageFormError && (
+              <div className="rounded-lg border border-danger-border bg-danger-soft px-3 py-2 text-sm text-danger-strong">
+                {packageFormError}
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-2">
-              <button type="button" onClick={() => setShowPackageForm(false)} className="action-btn action-btn-secondary">
+              <button
+                type="button"
+                onClick={() => {
+                  setPackageFormError("");
+                  setShowPackageForm(false);
+                }}
+                className="action-btn action-btn-secondary"
+              >
                 Cancel
               </button>
               <button
