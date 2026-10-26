@@ -26,6 +26,7 @@ import {
   bindPackagesActor,
   ensureTestTrainer,
   programFor,
+  reseedDefaults,
   settingsFor,
   withSettings
 } from "./helpers/trainer.js";
@@ -126,7 +127,9 @@ async function resetCatalogues() {
     await testPool.query("DELETE FROM package_pricing WHERE trainer_user_id = $1", [trainer.id]);
     await testPool.query("DELETE FROM package_sizes WHERE trainer_user_id = $1", [trainer.id]);
     await testPool.query("DELETE FROM programs WHERE trainer_user_id = $1", [trainer.id]);
-    await testPool.query("SELECT seed_trainer_catalogue($1)", [trainer.id]);
+    // SET-08: the seeder refuses a trainer already marked seeded, so a reset
+    // has to ask for it explicitly. See reseedDefaults.
+    await reseedDefaults(testPool, trainer.id, { scheduling: false });
     settingsFor(testPool).invalidateSettings(trainer.id);
   }
 }

@@ -201,3 +201,26 @@ export function settingsFor(pool) {
 export function withSettings(pool) {
   return { settings: settingsFor(pool) };
 }
+
+/**
+ * Put a trainer back to the defaults a brand-new trainer gets.
+ *
+ * SET-08 made `seed_trainer_scheduling` and `seed_trainer_catalogue`
+ * once-per-trainer: they check `trainer_users.defaults_seeded_at` and do
+ * nothing if it is set, so a trainer's own removals are never undone. Calling
+ * them directly to reset a fixture therefore stopped working.
+ *
+ * A test asking for a reset is asking for exactly what a new trainer gets, so
+ * this clears the marker, seeds, and puts the marker back. Production code must
+ * not do this — undoing a trainer's configuration is the bug SET-08 closed.
+ */
+export async function reseedDefaults(
+  db,
+  trainerId,
+  { scheduling = true, catalogue = true } = {}
+) {
+  await db.query("UPDATE trainer_users SET defaults_seeded_at = NULL WHERE id = $1", [trainerId]);
+  if (scheduling) await db.query("SELECT seed_trainer_scheduling($1)", [trainerId]);
+  if (catalogue) await db.query("SELECT seed_trainer_catalogue($1)", [trainerId]);
+  await db.query("UPDATE trainer_users SET defaults_seeded_at = NOW() WHERE id = $1", [trainerId]);
+}

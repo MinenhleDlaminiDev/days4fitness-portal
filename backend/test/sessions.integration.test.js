@@ -17,6 +17,7 @@ import {
   bindSessionsActor,
   ensureTestTrainer,
   OWNER_SUBQUERY,
+  reseedDefaults,
   settingsFor,
   withSettings
 } from "./helpers/trainer.js";
@@ -837,9 +838,9 @@ test("a booking is checked against the owning trainer's hours, not the caller's"
     );
     assert.equal(inHours.trainerId, Number(alice.id));
   } finally {
-    // seed_trainer_scheduling only fills what is missing, so this puts her
-    // week back without touching anything else.
-    await testPool.query("SELECT seed_trainer_scheduling($1)", [alice.id]);
+    // SET-08 made the seeders once-per-trainer, so a reset asks for it
+    // explicitly rather than relying on them filling gaps.
+    await reseedDefaults(testPool, alice.id, { catalogue: false });
     cache.invalidateSettings(alice.id);
   }
 });
