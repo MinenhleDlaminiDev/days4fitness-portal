@@ -1,7 +1,46 @@
 import { pool as dbPool } from "../db/client.js";
+import { env } from "../config/env.js";
 import { requireOwner } from "../lib/ownership.js";
 
-export function createConfigurationRepository(pool = dbPool) {
+// SCH-05: only the hour check needs a clock, and it must be the business one.
+// Taken as an option the way the other repositories take it, so a test can pin
+// it. See SCH-04 for why a bare CURRENT_DATE is wrong here.
+/**
+ * One entry per (day, time) still in use, with the earliest date and up to
+ * three client names. A session and a recurring booking in the same hour are
+ * one problem to the trainer, so they are merged rather than listed twice.
+ */
+function mergeBlockingSlots(rows) {
+  const bySlot = new Map();
+  for (const row of rows) {
+    const key = `${row.day_of_week}-${row.start_time}`;
+    const found = bySlot.get(key);
+    const names = row.names || [];
+    if (!found) {
+      bySlot.set(key, {
+        dayOfWeek: Number(row.day_of_week),
+        startTime: row.start_time.slice(0, 5),
+        total: row.total,
+        firstDate: row.first_date,
+        names: [...names]
+      });
+      continue;
+    }
+    found.total += row.total;
+    if (row.first_date < found.firstDate) found.firstDate = row.first_date;
+    for (const name of names) {
+      if (!found.names.includes(name)) found.names.push(name);
+    }
+  }
+  return [...bySlot.values()]
+    .sort((a, b) => a.dayOfWeek - b.dayOfWeek || a.startTime.localeCompare(b.startTime))
+    .map((slot) => ({ ...slot, names: slot.names.slice(0, 3) }));
+}
+
+export function createConfigurationRepository(
+  pool = dbPool,
+  { businessTimezone = env.businessTimezone } = {}
+) {
   const run = (text, values) => pool.query(text, values);
 
   return {
@@ -234,8 +273,85 @@ export function createConfigurationRepository(pool = dbPool) {
     async replaceBusinessHours(trainerId, slots) {
       const owner = requireOwner(trainerId);
       const client = await pool.connect();
+      const keptDays = slots.map((slot) => slot.dayOfWeek);
+      const keptTimes = slots.map((slot) => slot.startTime);
       try {
         await client.query("BEGIN");
+
+        // SCH-05: an hour cannot be removed while something is booked in it.
+        // The schedule grid draws its rows from these very rows, so a session
+        // left in a removed hour disappears from it while still holding the
+        // client's credit. Refused instead, the way a program or a package
+        // size that has been sold is refused.
+        //
+        // Inside the transaction and before the delete, so a booking made in
+        // that hour at the same moment cannot slip past the check.
+        const bookedSessions = await client.query(
+          `SELECT
+             EXTRACT(ISODOW FROM session.session_date)::int AS day_of_week,
+             session.start_time::text AS start_time,
+             COUNT(*)::int AS total,
+             MIN(session.session_date)::text AS first_date,
+             (ARRAY_REMOVE(ARRAY_AGG(DISTINCT client.name), NULL))[1:3] AS names
+           FROM sessions session
+           LEFT JOIN session_attendance attendance
+             ON attendance.session_id = session.id AND attendance.status <> 'cancelled'
+           LEFT JOIN clients client ON client.id = attendance.client_id
+           WHERE session.trainer_user_id = $1
+             AND session.status <> 'cancelled'
+             -- Date AND time: a session earlier today is history, and a
+             -- trainer narrowing hours they used to work must not be held up
+             -- by it. The business clock, never the server's (SCH-04).
+             AND (session.session_date + session.start_time)
+                   > (CURRENT_TIMESTAMP AT TIME ZONE $4)
+             AND NOT EXISTS (
+               SELECT 1
+               FROM unnest($2::int[], $3::time[]) AS kept(day_of_week, start_time)
+               WHERE kept.day_of_week = EXTRACT(ISODOW FROM session.session_date)
+                 AND kept.start_time = session.start_time
+             )
+           GROUP BY 1, 2
+           ORDER BY 1, 2`,
+          [owner, keptDays, keptTimes, businessTimezone]
+        );
+
+        // An approved recurring booking keeps generating sessions, and the
+        // allocator never looks at business_hours, so checking only the
+        // sessions that exist today would leave the hole half open.
+        const recurring = await client.query(
+          `SELECT
+             booking.day_of_week,
+             booking.start_time::text AS start_time,
+             COUNT(*)::int AS total,
+             MIN(booking.starts_on)::text AS first_date,
+             (ARRAY_REMOVE(ARRAY_AGG(DISTINCT client.name), NULL))[1:3] AS names
+           FROM approved_recurring_bookings booking
+           JOIN clients client ON client.id = booking.client_id
+           WHERE client.trainer_user_id = $1
+             AND booking.status = 'active'
+             AND booking.ends_on >= (CURRENT_TIMESTAMP AT TIME ZONE $4)::date
+             AND NOT EXISTS (
+               SELECT 1
+               FROM unnest($2::int[], $3::time[]) AS kept(day_of_week, start_time)
+               WHERE kept.day_of_week = booking.day_of_week
+                 AND kept.start_time = booking.start_time
+             )
+           GROUP BY 1, 2
+           ORDER BY 1, 2`,
+          [owner, keptDays, keptTimes, businessTimezone]
+        );
+
+        const blocking = [...bookedSessions.rows, ...recurring.rows];
+        if (blocking.length > 0) {
+          // The catch below rolls back; nothing has been written yet anyway.
+          const error = new Error("Training hours are in use");
+          error.code = "BUSINESS_HOURS_IN_USE";
+          // Merged by slot, because a session and a recurring booking in the
+          // same hour are one problem to the trainer, not two.
+          error.slots = mergeBlockingSlots(blocking);
+          throw error;
+        }
+
         await client.query("DELETE FROM business_hours WHERE trainer_user_id = $1", [owner]);
         for (const slot of slots) {
           await client.query(

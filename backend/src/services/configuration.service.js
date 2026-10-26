@@ -39,6 +39,33 @@ function requirePositiveInt(value, field) {
   return parsed;
 }
 
+// SCH-05. The point of the message is that the trainer can act on it without
+// hunting, so it names the hour, a client and a date. Capped at two hours and
+// three names so a trainer clearing a whole morning gets a sentence, not an
+// essay.
+function describeOneSlot({ dayOfWeek, startTime, names, firstDate, total }) {
+  const when = `${DAY_NAMES[dayOfWeek]} ${startTime}`;
+  if (names.length === 0) {
+    // No attendance row yet, which a freshly allocated session can look like.
+    return `${when} (${total === 1 ? "a session" : `${total} sessions`} from ${firstDate})`;
+  }
+  const listed =
+    names.length === 1
+      ? names[0]
+      : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+  const more = total > names.length ? `, and ${total - names.length} more` : "";
+  return `${when} (${listed}${more}, from ${firstDate})`;
+}
+
+function describeHoursInUse(slots = []) {
+  const shown = slots.slice(0, 2).map(describeOneSlot);
+  const rest = slots.length - shown.length;
+  const list = rest > 0 ? `${shown.join("; ")}; and ${rest} more` : shown.join("; ");
+  const [subject, pronoun] =
+    slots.length === 1 ? ["This hour is", "it"] : ["These hours are", "they"];
+  return `${subject} still booked, so ${pronoun} cannot be removed: ${list}. Cancel or move those sessions first.`;
+}
+
 function requireSlotTime(value, day) {
   if (typeof value !== "string" || !TIME_PATTERN.test(value)) {
     throw validationError(`${day} times must use HH:MM format`, {
@@ -316,7 +343,16 @@ export function createConfigurationService(
         });
       }
 
-      await repository.replaceBusinessHours(trainerId, slots);
+      try {
+        await repository.replaceBusinessHours(trainerId, slots);
+      } catch (error) {
+        // SCH-05: the hour still has a session or a recurring booking in it.
+        // Named, because "that hour is in use" leaves the trainer hunting.
+        if (error?.code === "BUSINESS_HOURS_IN_USE") {
+          throw conflictError(describeHoursInUse(error.slots));
+        }
+        throw error;
+      }
       return loadConfiguration(trainerId);
     },
 
